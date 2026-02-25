@@ -1,113 +1,209 @@
+import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
+// PUBLIC
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import BrowseServices from "./pages/BrowseServices";
+import PublicProviderProfile from "./pages/PublicProviderProfile";
+
+// ✅ PROVIDER SIGNUP (NEW)
+import ProviderSignup from "./pages/provider/ProviderSignup";
+
+// NOTIFICATIONS
+import NotificationsPage from "./pages/NotificationsPage";
+
+// BOOKING
 import BookingWizard from "./pages/BookingWizard";
 
+// CLIENT
 import ClientDashboard from "./pages/client/ClientDashboard";
-import ProviderDashboard from "./pages/provider/Dashboard";
-import ProviderVerification from "./pages/provider/VerificationUpload";
-import ProviderEmergency from "./pages/provider/Emergency";
-
-// ⭐ CLIENT PROFILE
 import ClientProfile from "./pages/client/ClientProfile";
+import EditProfile from "./pages/client/EditProfile";
+import ClientBookingHistory from "./pages/client/ClientBookingHistory";
+import ClientBookingDetail from "./pages/client/ClientBookingDetail";
+import ClientTransactions from "./pages/client/ClientTransactions";
+import ClientLeaderboard from "./pages/client/ClientLeaderboard";
+import PaymentSuccess from "./pages/client/PaymentSuccess";
+import PaymentFailure from "./pages/client/PaymentFailure";
+import PaymentConfirmation from "./pages/client/PaymentConfirmation";
+import PaymentProcessing from "./pages/client/PaymentProcessing";
+import BookingChat from "./pages/chat/BookingChat";
+import ConversationsList from "./pages/chat/ConversationsList";
 
-// ⭐ EDIT PROFILE
-import EditProfile from "./pages/shared/EditProfile";
+// PROVIDER
+import ProviderDashboard from "./pages/provider/Dashboard";
+import ProviderProfile from "./pages/provider/ProviderProfile";
+import SkillProofs from "./pages/provider/SkillProofs";
+import ProviderSettings from "./pages/provider/ProviderSettings";
+import ProviderVerification from "./pages/provider/VerificationUpload";
+import ProviderEmergency from "./pages/provider/EmergencyToggle";
+import MyServices from "./pages/provider/MyServices";
+import ServiceForm from "./pages/provider/ServiceForm";
+import ProviderBookings from "./pages/provider/Bookings";
+import ProviderBookingDetail from "./pages/provider/ProviderBookingDetail";
+import ProviderReviews from "./pages/provider/ProviderReviews";
+import CategoryRequests from "./pages/provider/CategoryRequests";
+import ProviderEarnings from "./pages/provider/ProviderEarnings";
+import ProviderLeaderboard from "./pages/provider/ProviderLeaderboard";
 
-import ProtectedRoute from "./components/ProtectedRoute";
-
-// ⭐ LAYOUTS (STEP-1.5 FIX)
-import ClientLayout from "./layouts/ClientLayout";
-import ProviderLayout from "./layouts/ProviderLayout";
-
-// ⭐ Email verification
+// AUTH
 import VerifyEmail from "./pages/VerifyEmail";
 import VerifyInfo from "./pages/VerifyInfo";
-
-// ⭐ Forgot password workflow
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOtp from "./pages/VerifyOtp";
 import ResetPassword from "./pages/ResetPassword";
 
+// PROTECTION
+import ProtectedRoute from "./components/ProtectedRoute";
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <Routes>
 
         {/* ================= PUBLIC ================= */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/services" element={<BrowseServices />} />
+        <Route path="/provider/:providerId" element={<PublicProviderProfile />} />
 
-        {/* ============== EMAIL VERIFICATION ============== */}
+        {/* ✅ PROVIDER SIGNUP (PUBLIC) */}
+        <Route path="/provider/signup" element={<ProviderSignup />} />
+
+        {/* ================= AUTH ================= */}
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/verify-info" element={<VerifyInfo />} />
-
-        {/* ============== PASSWORD RESET ============== */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ================= PROFILE ================= */}
+        {/* ================= CLIENT ================= */}
         <Route
-          path="/profile"
+          path="/client/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute role="client">
+              <ClientDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client/profile"
+          element={
+            <ProtectedRoute role="client">
               <ClientProfile />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/profile/edit"
+          path="/client/profile/edit"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute role="client">
               <EditProfile />
             </ProtectedRoute>
           }
         />
 
-        {/* ================= CLIENT ================= */}
-
-        {/* 🔁 Redirect legacy route */}
-        <Route path="/client" element={<Navigate to="/client/dashboard" />} />
-
-        {/* ✅ CLIENT DASHBOARD (WITH LAYOUT) */}
         <Route
-          path="/client/dashboard"
+          path="/client/bookings"
           element={
             <ProtectedRoute role="client">
-              <ClientLayout>
-                <ClientDashboard />
-              </ClientLayout>
+              <ClientBookingHistory />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/booking/:serviceId"
+          path="/client/bookings/:bookingId"
           element={
-            <ProtectedRoute>
-              <BookingWizard />
+            <ProtectedRoute role="client">
+              <ClientBookingDetail />
             </ProtectedRoute>
           }
         />
 
+        <Route
+          path="/client/transactions"
+          element={
+            <ProtectedRoute role="client">
+              <ClientTransactions />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client/leaderboard"
+          element={
+            <ProtectedRoute role="client">
+              <ClientLeaderboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client/messages"
+          element={
+            <ProtectedRoute role="client">
+              <ConversationsList />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= PAYMENT ================= */}
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/failure" element={<PaymentFailure />} />
+        <Route 
+          path="/payment/confirm/:bookingId" 
+          element={
+            <ProtectedRoute role="client">
+              <PaymentConfirmation />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/payment/processing/:bookingId" element={<PaymentProcessing />} />
+
         {/* ================= PROVIDER ================= */}
+        <Route
+          path="/provider"
+          element={<Navigate to="/provider/dashboard" replace />}
+        />
 
-        {/* 🔁 Redirect legacy route */}
-        <Route path="/provider" element={<Navigate to="/provider/dashboard" />} />
-
-        {/* ✅ PROVIDER DASHBOARD (WITH LAYOUT) */}
         <Route
           path="/provider/dashboard"
           element={
             <ProtectedRoute role="provider">
-              <ProviderLayout>
-                <ProviderDashboard />
-              </ProviderLayout>
+              <ProviderDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/profile"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/skills"
+          element={
+            <ProtectedRoute role="provider">
+              <SkillProofs />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/settings"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderSettings />
             </ProtectedRoute>
           }
         />
@@ -130,8 +226,146 @@ export default function App() {
           }
         />
 
+        <Route
+          path="/provider/services"
+          element={
+            <ProtectedRoute role="provider">
+              <MyServices />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/services/create"
+          element={
+            <ProtectedRoute role="provider">
+              <ServiceForm />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/services/edit/:id"
+          element={
+            <ProtectedRoute role="provider">
+              <ServiceForm />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/category-requests"
+          element={
+            <ProtectedRoute role="provider">
+              <CategoryRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/bookings"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderBookings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/bookings/:bookingId"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderBookingDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/reviews"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderReviews />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/earnings"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderEarnings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/leaderboard"
+          element={
+            <ProtectedRoute role="provider">
+              <ProviderLeaderboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/messages"
+          element={
+            <ProtectedRoute role="provider">
+              <ConversationsList />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= NOTIFICATIONS ================= */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= BOOKING ================= */}
+        <Route
+          path="/booking/:serviceId"
+          element={
+            <ProtectedRoute role="client">
+              <BookingWizard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/chat/booking/:bookingId"
+          element={
+            <ProtectedRoute>
+              <BookingChat />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ================= CHAT - ROLE-SPECIFIC ================= */}
+        <Route
+          path="/client/bookings/:bookingId/chat"
+          element={
+            <ProtectedRoute role="client">
+              <BookingChat />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/bookings/:bookingId/chat"
+          element={
+            <ProtectedRoute role="provider">
+              <BookingChat />
+            </ProtectedRoute>
+          }
+        />
+
         {/* ================= FALLBACK ================= */}
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>
     </BrowserRouter>

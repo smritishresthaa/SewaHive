@@ -1,6 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  /* Font Families */
+  --font-inter: "Inter", sans-serif;
+  --font-poppins: "Poppins", sans-serif;
+
+  /* Brand Colors */
+  --color-brand-50: #effaf2;
+  --color-brand-100: #d8f2de;
+  --color-brand-200: #b4e5c3;
+  --color-brand-300: #89d3a3;
+  --color-brand-400: #5cc080;
+  --color-brand-500: #2fae5e;
+  --color-brand-600: #238c4b;
+  --color-brand-700: #1c6c3b;
+  --color-brand-800: #164f2b;
+  --color-brand-900: #103620;
+}
 
 /* ============================== */
 /* 🌞 Light Theme */
