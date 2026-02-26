@@ -2,6 +2,7 @@ const express = require("express");
 const { authGuard } = require("../middleware/auth");
 const Conversation = require("../models/Conversation");
 const Notification = require("../models/Notification");
+const { chatImageUpload, chatVoiceUpload } = require("../middleware/chatUpload");
 const {
   ensureBookingForChat,
   getOrCreateConversationForBooking,
@@ -121,7 +122,7 @@ router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
 router.post("/booking/:bookingId/message", authGuard, async (req, res, next) => {
   try {
     const { bookingId } = req.params;
-    const { text } = req.body;
+    const { text, type, attachment } = req.body;
 
     const { booking } = await ensureBookingForChat({
       bookingId,
@@ -132,6 +133,8 @@ router.post("/booking/:bookingId/message", authGuard, async (req, res, next) => 
       booking,
       senderId: req.user.id,
       text,
+      type: type || "text",
+      attachment: attachment || null,
     });
 
     let emitted = false;
@@ -152,6 +155,118 @@ router.post("/booking/:bookingId/message", authGuard, async (req, res, next) => 
     next(e);
   }
 });
+
+// ─── Image Upload ──────────────────────────────────────
+router.post(
+  "/booking/:bookingId/upload-image",
+  authGuard,
+  chatImageUpload.single("image"),
+  async (req, res, next) => {
+    try {
+      const { bookingId } = req.params;
+
+      // Verify booking participant
+      const { booking } = await ensureBookingForChat({
+        bookingId,
+        user: req.user,
+      });
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      console.log(`[ChatUpload] Image uploaded by user ${req.user.id} for booking ${bookingId}`);
+
+      const attachment = {
+        url: req.file.path,
+        publicId: req.file.filename || "",
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size || 0,
+        width: null,
+        height: null,
+      };
+
+      // Send as message
+      const { message } = await sendBookingMessage({
+        booking,
+        senderId: req.user.id,
+        text: "",
+        type: "image",
+        attachment,
+      });
+
+      // Emit via socket
+      try {
+        const { getIO } = require("../utils/socket");
+        const io = getIO();
+        if (io) {
+          io.to(`booking:${booking._id}`).emit("new_message", message);
+        }
+      } catch (_) {}
+
+      res.status(201).json({ message });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+// ─── Voice Upload ──────────────────────────────────────
+router.post(
+  "/booking/:bookingId/upload-voice",
+  authGuard,
+  chatVoiceUpload.single("voice"),
+  async (req, res, next) => {
+    try {
+      const { bookingId } = req.params;
+
+      const { booking } = await ensureBookingForChat({
+        bookingId,
+        user: req.user,
+      });
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No voice file provided" });
+      }
+
+      // Parse optional duration from client
+      let durationSec = null;
+      if (req.body.durationSec) {
+        durationSec = Math.min(Number(req.body.durationSec) || 0, 120);
+      }
+
+      console.log(`[ChatUpload] Voice uploaded by user ${req.user.id} for booking ${bookingId}, duration: ${durationSec}s`);
+
+      const attachment = {
+        url: req.file.path,
+        publicId: req.file.filename || "",
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size || 0,
+        durationSec,
+      };
+
+      const { message } = await sendBookingMessage({
+        booking,
+        senderId: req.user.id,
+        text: "",
+        type: "voice",
+        attachment,
+      });
+
+      try {
+        const { getIO } = require("../utils/socket");
+        const io = getIO();
+        if (io) {
+          io.to(`booking:${booking._id}`).emit("new_message", message);
+        }
+      } catch (_) {}
+
+      res.status(201).json({ message });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 router.post("/booking/:bookingId/read", authGuard, async (req, res, next) => {
   try {

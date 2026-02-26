@@ -138,11 +138,18 @@ async function getBookingChatHistory({ bookingId, before, limit = 30 }) {
   };
 }
 
-async function sendBookingMessage({ booking, senderId, text }) {
+async function sendBookingMessage({ booking, senderId, text, type = "text", attachment = null }) {
+  const msgType = type || "text";
   const trimmedText = String(text || "").trim();
-  if (!trimmedText) {
+
+  if (msgType === "text" && !trimmedText) {
     throw createHttpError(400, "Message text is required");
   }
+
+  // Build display text for conversation preview
+  let previewText = trimmedText;
+  if (msgType === "image") previewText = trimmedText || "📷 Photo";
+  if (msgType === "voice") previewText = trimmedText || "🎤 Voice message";
 
   const senderRole = mapSenderRoleFromBooking(booking, senderId);
   const receiverId =
@@ -152,23 +159,29 @@ async function sendBookingMessage({ booking, senderId, text }) {
 
   const conversation = await getOrCreateConversationForBooking(booking);
 
-  const message = await Message.create({
+  const messageData = {
     bookingId: booking._id,
     conversationId: conversation._id,
     senderId,
     receiverId,
     senderRole,
-    type: "text",
+    type: msgType,
     text: trimmedText,
     status: "sent",
-  });
+  };
+
+  if (attachment && (msgType === "image" || msgType === "voice")) {
+    messageData.attachment = attachment;
+  }
+
+  const message = await Message.create(messageData);
 
   await Conversation.updateOne(
     { _id: conversation._id },
     {
       $set: {
         lastMessageAt: message.createdAt,
-        lastMessageText: trimmedText.slice(0, 300),
+        lastMessageText: previewText.slice(0, 300),
       },
       $inc:
         senderRole === "client"
@@ -183,7 +196,7 @@ async function sendBookingMessage({ booking, senderId, text }) {
       userId: receiverId,
       type: "chat_message",
       title: `New message for booking #${bookingCode}`,
-      message: trimmedText.length > 120 ? `${trimmedText.slice(0, 117)}...` : trimmedText,
+      message: previewText.length > 120 ? `${previewText.slice(0, 117)}...` : previewText,
       category: "booking",
       bookingId: booking._id,
       fromUserId: senderId,

@@ -1,5 +1,22 @@
 const { Schema, model } = require("mongoose");
 
+const AttachmentSchema = new Schema(
+  {
+    url: { type: String, required: true },
+    publicId: { type: String, default: "" },
+    mimeType: { type: String, default: "" },
+    sizeBytes: { type: Number, default: 0 },
+    // Image-specific
+    width: { type: Number, default: null },
+    height: { type: Number, default: null },
+    thumbnailUrl: { type: String, default: "" },
+    // Voice-specific
+    durationSec: { type: Number, default: null },
+    waveform: { type: [Number], default: undefined },
+  },
+  { _id: false }
+);
+
 const MessageSchema = new Schema(
   {
     bookingId: {
@@ -23,13 +40,14 @@ const MessageSchema = new Schema(
     },
     type: {
       type: String,
-      enum: ["text", "image", "system"],
+      enum: ["text", "image", "voice", "system"],
       default: "text",
     },
     text: { type: String, default: "" },
+    attachment: { type: AttachmentSchema, default: null },
     status: {
       type: String,
-      enum: ["sent", "read"],
+      enum: ["sending", "sent", "read", "failed"],
       default: "sent",
     },
     readAt: { type: Date },
