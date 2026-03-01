@@ -11,6 +11,7 @@ const CHAT_ALLOWED_STATUSES = new Set([
   "accepted",
   "pending_payment",
   "confirmed",
+  "provider_en_route",
   "in-progress",
   "provider_completed",
   "awaiting_client_confirmation",

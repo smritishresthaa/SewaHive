@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import "./index.css"; // ✅ REQUIRED FOR TAILWIND & LEAFLET MAPS TO WORK
 import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext";
 import { Toaster } from "react-hot-toast"; // ✅ ADD THIS

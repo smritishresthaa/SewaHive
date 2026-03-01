@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HiArrowLeft, HiCalendar, HiClock, HiMapPin, HiCalendarDays, HiCheckBadge, HiStar, HiPhone, HiEnvelope } from "react-icons/hi2";
 import ClientLayout from "../../layouts/ClientLayout";
 import DisputeModal from "../../components/DisputeModal";
+import ClientLiveTracking from "../../components/tracking/ClientLiveTracking";
+import { connectChatSocket, releaseChatSocket } from "../../utils/chatSocket";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 import { PRICING_TYPES, resolvePricingType } from "../../utils/bookingWorkflow";
@@ -21,9 +23,93 @@ export default function ClientBookingDetail() {
   const [respondingAdjustment, setRespondingAdjustment] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
+  /* ── Live tracking state (lifted from ClientLiveTracking) ── */
+  const [providerPos, setProviderPos] = useState(null);
+  const [trackingLastUpdate, setTrackingLastUpdate] = useState(null);
+  const [trackingConnected, setTrackingConnected] = useState(false);
+  const trackingSocketRef = useRef(null);
+
   useEffect(() => {
     fetchBooking();
   }, [bookingId]);
+
+  /* ── Seed provider position from persisted booking data ── */
+  useEffect(() => {
+    if (booking?.providerLiveLocation?.lat && booking?.providerLiveLocation?.lng) {
+      setProviderPos({
+        lat: booking.providerLiveLocation.lat,
+        lng: booking.providerLiveLocation.lng,
+        heading: booking.providerLiveLocation.heading,
+        speed: booking.providerLiveLocation.speed,
+      });
+      setTrackingLastUpdate(booking.providerLiveLocation.updatedAt || Date.now());
+    }
+  }, [booking?.providerLiveLocation?.lat, booking?.providerLiveLocation?.lng]);
+
+  /* ── Silent refetch (no loading spinner) for socket-triggered updates ── */
+  const silentRefetch = useCallback(async () => {
+    try {
+      const res = await api.get(`/bookings/${bookingId}`);
+      setBooking(res.data.booking);
+    } catch (_) {
+      // silently ignore — user can manually refresh if needed
+    }
+  }, [bookingId]);
+
+  /* ── Real-time tracking socket ── */
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token || !bookingId) return;
+
+    const socket = connectChatSocket(token);
+    trackingSocketRef.current = socket;
+
+    function onConnect() {
+      setTrackingConnected(true);
+      socket.emit("join_tracking", { bookingId });
+    }
+
+    function onDisconnect() {
+      setTrackingConnected(false);
+    }
+
+    function onStatusChanged(data) {
+      if (String(data.bookingId) === String(bookingId)) {
+        silentRefetch();
+      }
+    }
+
+    function onLiveLocation(data) {
+      if (String(data.bookingId) !== String(bookingId)) return;
+      setProviderPos({
+        lat: data.lat,
+        lng: data.lng,
+        heading: data.heading,
+        speed: data.speed,
+      });
+      setTrackingLastUpdate(data.timestamp || Date.now());
+    }
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("booking_status_changed", onStatusChanged);
+    socket.on("live_location", onLiveLocation);
+
+    // Handle already-connected socket (socket.io-client may reuse Manager)
+    if (socket.connected) {
+      onConnect();
+    }
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("booking_status_changed", onStatusChanged);
+      socket.off("live_location", onLiveLocation);
+      releaseChatSocket();
+      trackingSocketRef.current = null;
+      setTrackingConnected(false);
+    };
+  }, [bookingId, silentRefetch]);
 
   async function fetchBooking() {
     try {
@@ -192,6 +278,7 @@ export default function ClientBookingDetail() {
     "accepted",
     "pending_payment",
     "confirmed",
+    "provider_en_route",
     "in-progress",
     "pending-completion",
     "provider_completed",
@@ -255,6 +342,14 @@ export default function ClientBookingDetail() {
             <p className="text-xs text-yellow-700 mt-2">Status: {disputeStatusLabel}</p>
           </div>
         )}
+
+        {/* Live Tracking Map — shows when provider is en route */}
+        <ClientLiveTracking
+          booking={booking}
+          providerPos={providerPos}
+          lastUpdate={trackingLastUpdate}
+          isConnected={trackingConnected}
+        />
 
         {/* Provider Info Card */}
         <div className="bg-white rounded-2xl border p-6 shadow-sm mb-4">
@@ -580,7 +675,7 @@ export default function ClientBookingDetail() {
             )}
 
             {/* PHASE 2B: Add to Calendar button */}
-            {["confirmed", "accepted", "in-progress", "pending-completion", "completed"].includes(booking.status) && (
+            {["confirmed", "accepted", "provider_en_route", "in-progress", "pending-completion", "completed"].includes(booking.status) && (
               <button
                 onClick={handleDownloadCalendar}
                 className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium text-sm flex items-center gap-2"

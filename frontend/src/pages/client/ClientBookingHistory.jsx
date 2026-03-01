@@ -224,6 +224,7 @@ export default function ClientBookingHistory() {
       requested: "bg-blue-100 text-blue-700",
       accepted: "bg-green-100 text-green-700",
       confirmed: "bg-emerald-100 text-emerald-700",
+      provider_en_route: "bg-teal-100 text-teal-700",
       "in-progress": "bg-purple-100 text-purple-700",
       in_progress: "bg-purple-100 text-purple-700",
       "pending-completion": "bg-yellow-100 text-yellow-700",
@@ -579,7 +580,7 @@ export default function ClientBookingHistory() {
                       
                       {/* Payment Escrow Info Card */}
                       {(booking.paymentStatus === 'paid' || booking.paymentStatus === 'escrow') && 
-                       (booking.status === 'confirmed' || booking.status === 'in-progress' || booking.status === 'pending-completion') && (
+                       (booking.status === 'confirmed' || booking.status === 'provider_en_route' || booking.status === 'in-progress' || booking.status === 'pending-completion') && (
                         <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                           <p className="text-xs text-blue-800 flex items-start gap-2">
                             <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

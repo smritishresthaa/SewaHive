@@ -17,6 +17,7 @@ const {
   isQuotePricing,
   isRangePricing,
 } = require("../utils/bookingWorkflow");
+const { getIO } = require("../utils/socket");
 
 const router = express.Router();
 
@@ -959,7 +960,71 @@ router.patch(
 );
 
 /**
- * PROVIDER: Start job (confirmed/accepted -> in-progress)
+ * PROVIDER: Mark "On The Way" (confirmed/accepted -> provider_en_route)
+ */
+router.patch(
+  "/:id/en-route",
+  authGuard,
+  roleGuard(["provider"]),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      const booking = await Booking.findById(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (String(booking.providerId) !== req.user.id) {
+        return res.status(403).json({ message: "Not your booking" });
+      }
+
+      if (!["confirmed", "accepted"].includes(booking.status)) {
+        // If already en route, just return success (idempotent)
+        if (booking.status === "provider_en_route") {
+          return res.json({ message: "Already en route", booking });
+        }
+        return res.status(400).json({
+          message: `Cannot mark en route from status: ${booking.status}`,
+        });
+      }
+
+      booking.status = "provider_en_route";
+      booking.enRouteAt = new Date();
+
+      await booking.save();
+
+      // Notify client
+      await createNotification({
+        userId: booking.clientId,
+        type: "provider_en_route",
+        title: "Provider On The Way!",
+        message: `Your provider is on the way to your location`,
+        category: "booking",
+        bookingId: booking._id,
+        fromUserId: req.user.id,
+        sendEmail: false,
+      });
+
+      // Real-time push: notify client detail page via socket
+      const io = getIO();
+      if (io) {
+        const room = `tracking:${booking._id}`;
+        io.to(room).emit("booking_status_changed", {
+          bookingId: String(booking._id),
+          status: "provider_en_route",
+        });
+      }
+
+      res.json({ ok: true, booking });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+/**
+ * PROVIDER: Start job (confirmed/accepted/provider_en_route -> in-progress)
  */
 router.patch(
   "/:id/start",
@@ -978,7 +1043,7 @@ router.patch(
         return res.status(403).json({ message: "Not your booking" });
       }
 
-      if (booking.status !== "confirmed" && booking.status !== "accepted") {
+      if (!["confirmed", "accepted", "provider_en_route"].includes(booking.status)) {
         return res.status(400).json({ 
           message: `Cannot start booking with status: ${booking.status}` 
         });
@@ -986,8 +1051,20 @@ router.patch(
 
       booking.status = "in-progress";
       booking.startedAt = new Date();
+      // Clear live location when job starts (no longer traveling)
+      booking.providerLiveLocation = { lat: null, lng: null, heading: null, speed: null, updatedAt: null };
 
       await booking.save();
+
+      // Real-time push: notify client detail page via socket
+      const io = getIO();
+      if (io) {
+        const room = `tracking:${booking._id}`;
+        io.to(room).emit("booking_status_changed", {
+          bookingId: String(booking._id),
+          status: "in-progress",
+        });
+      }
 
       // Notify client that job has started
       await createNotification({

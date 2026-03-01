@@ -28,6 +28,9 @@ const NotificationSchema = new Schema(
         'quote_approved',
         'quote_rejected',
         
+        // En-route events
+        'provider_en_route',
+        
         // Payment events
         'payment_received',
         'payment_failed',

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { HiArrowLeft, HiCalendar, HiClock, HiMapPin, HiPhone, HiEnvelope, HiUser, HiCalendarDays } from "react-icons/hi2";
 import ProviderLayout from "../../layouts/ProviderLayout";
 import DisputeModal from "../../components/DisputeModal";
+import ProviderNavigationPanel from "../../components/tracking/ProviderNavigationPanel";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 import { PRICING_TYPES, resolvePricingType } from "../../utils/bookingWorkflow";
@@ -250,6 +251,7 @@ export default function ProviderBookingDetail() {
     "accepted",
     "pending_payment",
     "confirmed",
+    "provider_en_route",
     "in-progress",
     "pending-completion",
     "provider_completed",
@@ -313,6 +315,9 @@ export default function ProviderBookingDetail() {
             <p className="text-xs text-yellow-700 mt-2">Status: {disputeStatusLabel}</p>
           </div>
         )}
+
+        {/* Navigation / Tracking Panel */}
+        <ProviderNavigationPanel booking={booking} onStatusChange={fetchBooking} />
 
         {/* Client Info Card */}
         <div className="bg-white rounded-2xl border p-6 shadow-sm mb-4">
@@ -592,7 +597,7 @@ export default function ProviderBookingDetail() {
               </button>
             )}
 
-            {["confirmed", "accepted"].includes(booking.status) && (
+            {["confirmed", "accepted", "provider_en_route"].includes(booking.status) && (
               <button
                 onClick={handleStartJob}
                 disabled={processingAction || (isQuote && booking.paymentStatus !== "funds_held")}
@@ -635,7 +640,7 @@ export default function ProviderBookingDetail() {
               </button>
             )}
 
-            {["confirmed", "accepted", "in-progress", "provider_completed", "awaiting_client_confirmation", "completed"].includes(booking.status) && (
+            {["confirmed", "accepted", "provider_en_route", "in-progress", "provider_completed", "awaiting_client_confirmation", "completed"].includes(booking.status) && (
               <button
                 onClick={handleDownloadCalendar}
                 className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium text-sm flex items-center gap-2"

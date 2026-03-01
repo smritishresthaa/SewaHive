@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Booking = require("../models/Booking");
 const {
   ensureBookingForChat,
   sendBookingMessage,
@@ -149,6 +150,86 @@ function initSocket(server, corsOrigins = []) {
         } else {
           socket.emit("chat_error", normalized);
         }
+      }
+    });
+
+    /* ─── Live Location Tracking ─────────────────────────── */
+
+    // Provider joins tracking room (same as booking room, reusable)
+    socket.on("join_tracking", async (payload = {}, ack) => {
+      try {
+        const { bookingId } = payload;
+        if (!bookingId) throw new Error("bookingId required");
+
+        const booking = await Booking.findById(bookingId).lean();
+        if (!booking) throw new Error("Booking not found");
+
+        // Both provider and client can join the tracking room
+        const userId = socket.user.id;
+        const isProvider = String(booking.providerId) === userId;
+        const isClient = String(booking.clientId) === userId;
+
+        if (!isProvider && !isClient) {
+          throw new Error("Not authorized for this booking");
+        }
+
+        const room = `tracking:${booking._id}`;
+        socket.join(room);
+
+        if (typeof ack === "function") {
+          ack({ ok: true, room });
+        }
+      } catch (error) {
+        const normalized = normalizeError(error);
+        if (typeof ack === "function") {
+          ack({ ok: false, error: normalized });
+        } else {
+          socket.emit("tracking_error", normalized);
+        }
+      }
+    });
+
+    // Provider emits their GPS location
+    socket.on("provider_location_update", async (payload = {}) => {
+      try {
+        const { bookingId, lat, lng, heading, speed } = payload;
+        if (!bookingId || lat == null || lng == null) return;
+
+        const booking = await Booking.findById(bookingId).select("providerId status").lean();
+        if (!booking) return;
+
+        // Only the assigned provider can update location
+        if (String(booking.providerId) !== socket.user.id) return;
+
+        // Only broadcast when provider is en route
+        if (booking.status !== "provider_en_route") return;
+
+        // Persist latest location (fire-and-forget for speed)
+        Booking.updateOne(
+          { _id: bookingId },
+          {
+            $set: {
+              "providerLiveLocation.lat": lat,
+              "providerLiveLocation.lng": lng,
+              "providerLiveLocation.heading": heading || null,
+              "providerLiveLocation.speed": speed || null,
+              "providerLiveLocation.updatedAt": new Date(),
+            },
+          }
+        ).catch(() => {});
+
+        // Broadcast to client in the tracking room
+        const room = `tracking:${booking._id}`;
+        socket.to(room).emit("live_location", {
+          bookingId: String(booking._id),
+          lat,
+          lng,
+          heading: heading || null,
+          speed: speed || null,
+          timestamp: Date.now(),
+        });
+      } catch (_) {
+        // Silently ignore location errors to avoid spamming
       }
     });
   });

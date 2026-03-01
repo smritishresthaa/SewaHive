@@ -42,6 +42,15 @@ const BookingSchema = new Schema(
     // DISTANCE FROM PROVIDER TO CLIENT
     distanceKm: { type: Number },
 
+    // PROVIDER LIVE LOCATION (real-time GPS during en_route)
+    providerLiveLocation: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      heading: { type: Number, default: null },
+      speed: { type: Number, default: null },
+      updatedAt: { type: Date, default: null },
+    },
+
     // NOTES
     notes: { type: String, default: '' },
 
@@ -211,6 +220,7 @@ const BookingSchema = new Schema(
         // Confirmed workflow
         'accepted',
         'confirmed',
+        'provider_en_route',            // Provider is on the way to client location
         'in-progress',
         
         // Escrow-specific states
@@ -236,6 +246,7 @@ const BookingSchema = new Schema(
     requestedAt: Date,
     acceptedAt: Date,
     confirmedAt: Date,
+    enRouteAt: Date,    // When provider started traveling to client
     startedAt: Date,
     providerCompletedAt: Date, // When provider marks as complete
     completedAt: Date, // When client confirms completion

@@ -18,7 +18,7 @@ import ClientLayout from "../../layouts/ClientLayout";
 import ProviderLayout from "../../layouts/ProviderLayout";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../utils/axios";
-import { connectChatSocket } from "../../utils/chatSocket";
+import { connectChatSocket, releaseChatSocket } from "../../utils/chatSocket";
 import { PRICING_TYPES, resolvePricingType } from "../../utils/bookingWorkflow";
 
 /* ────────────────────────────────────────────
@@ -659,7 +659,7 @@ export default function BookingChat() {
       socket.off("connect");
       socket.off("new_message");
       socket.off("messages_read");
-      socket.disconnect();
+      releaseChatSocket();
     };
   }, [bookingId, selfId, isNearBottom, user]);
 

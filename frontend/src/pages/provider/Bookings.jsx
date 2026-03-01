@@ -314,6 +314,7 @@ export default function ProviderBookings() {
       requested: "bg-blue-100 text-blue-700",
       accepted: "bg-green-100 text-green-700",
       confirmed: "bg-emerald-100 text-emerald-700",
+      provider_en_route: "bg-teal-100 text-teal-700",
       "in-progress": "bg-purple-100 text-purple-700",
       in_progress: "bg-purple-100 text-purple-700",
       "pending-completion": "bg-yellow-100 text-yellow-700",
@@ -613,7 +614,7 @@ export default function ProviderBookings() {
                       </div>
                     )}
 
-                    {booking.status === "confirmed" && (
+                    {(booking.status === "confirmed" || booking.status === "provider_en_route") && (
                       <div className="flex flex-col gap-2">
                       <button
                         onClick={() => handleStart(booking._id)}
