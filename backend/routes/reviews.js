@@ -8,6 +8,93 @@ const { createNotification } = require("../utils/createNotification");
 
 const router = express.Router();
 
+// ─── Shared populate helper ───────────────────────────────────────────────────
+async function populateReviews(query) {
+  return query
+    .populate("clientId", "profile.name profile.avatar")
+    .populate("providerId", "profile.name profile.avatar")
+    .populate({
+      path: "bookingId",
+      select: "serviceId",
+      populate: { path: "serviceId", select: "title" },
+    });
+}
+
+function formatReview(r) {
+  return {
+    id: r._id,
+    rating: r.rating,
+    comment: r.comment,
+    createdAt: r.createdAt,
+    client: {
+      name: r.clientId?.profile?.name || "Verified User",
+      avatar: r.clientId?.profile?.avatar || null,
+    },
+    provider: {
+      id: r.providerId?._id || null,
+      name: r.providerId?.profile?.name || "Service Provider",
+      avatar: r.providerId?.profile?.avatar || null,
+    },
+    serviceTitle: r.bookingId?.serviceId?.title || "Home Service",
+  };
+}
+
+// ─── PUBLIC: Top 8 platform reviews (4-5★) for landing page social proof ─────
+router.get("/public/top", async (req, res, next) => {
+  try {
+    const base = Review.find({
+      rating: { $gte: 4 },
+      comment: { $exists: true, $ne: "" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(8);
+
+    const reviews = await populateReviews(base);
+    res.json(reviews.filter((r) => r.clientId).map(formatReview));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── PUBLIC: Paginated all-reviews browser ────────────────────────────────────
+router.get("/public/all", async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(24, parseInt(req.query.limit) || 12);
+    const ratingFilter = parseInt(req.query.rating);
+    const sort = req.query.sort === "highest" ? { rating: -1, createdAt: -1 } : { createdAt: -1 };
+
+    const filter = { comment: { $exists: true, $ne: "" } };
+    if (ratingFilter >= 1 && ratingFilter <= 5) filter.rating = ratingFilter;
+
+    const [reviews, total] = await Promise.all([
+      populateReviews(
+        Review.find(filter).sort(sort).skip((page - 1) * limit).limit(limit)
+      ),
+      Review.countDocuments(filter),
+    ]);
+
+    const avgResult = await Review.aggregate([
+      { $group: { _id: null, avg: { $avg: "$rating" }, total: { $sum: 1 } } },
+    ]);
+    const avgRating = avgResult[0]?.avg ? parseFloat(avgResult[0].avg.toFixed(1)) : 0;
+    const totalReviews = avgResult[0]?.total || 0;
+
+    res.json({
+      reviews: reviews.filter((r) => r.clientId).map(formatReview),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+      stats: { avgRating, totalReviews },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Create a review for a completed booking
 router.post("/", authGuard, async (req, res, next) => {
   try {
