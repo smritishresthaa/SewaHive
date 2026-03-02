@@ -199,15 +199,15 @@ export default function ProviderDashboard() {
         {/* Stats Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Total Earnings */}
-          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-6 rounded-2xl shadow-lg">
+          <div className="brand-gradient text-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <HiCurrencyDollar className="text-3xl opacity-80" />
-              <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+              <HiCurrencyDollar className="text-3xl text-white opacity-90" />
+              <span className="text-xs bg-white/20 text-white font-medium px-2 py-1 rounded-full backdrop-blur-sm border border-white/10">
                 All Time
               </span>
             </div>
-            <p className="text-white/80 text-sm">Total Earnings</p>
-            <p className="text-3xl font-bold mt-1">
+            <p className="text-white/80 text-sm font-medium">Total Earnings</p>
+            <p className="text-3xl font-bold text-white mt-1">
               NPR {(stats.totalEarnings || 0).toLocaleString()}
             </p>
           </div>

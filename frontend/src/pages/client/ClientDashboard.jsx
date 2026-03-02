@@ -217,22 +217,25 @@ export default function ClientDashboard() {
         </div>
 
         {/* Search Services */}
-        <div className="bg-gradient-to-br from-brand-600 to-brand-700 rounded-2xl shadow-lg p-8 mb-8 text-white">
-          <h2 className="text-2xl font-bold mb-2">
-            Need a service?
-          </h2>
-          <p className="text-white/80 mb-6">
-            Search from hundreds of verified providers in your area
-          </p>
-          <button
-            onClick={() => navigate("/services")}
-            className="bg-white text-brand-700 px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center gap-2"
-          >
-            <HiMagnifyingGlass className="text-xl" />
-            Browse All Services
-          </button>
-        </div>
-
+            <div className="brand-gradient rounded-2xl shadow-lg p-8 mb-8 text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <h2 className="text-2xl font-bold mb-2">
+                Need a service?
+              </h2>
+              <p className="text-white/90 mb-6">
+                Search from hundreds of verified providers in your area
+              </p>
+              <button
+                onClick={() => navigate("/services")}
+                className="bg-white text-brand-700 px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <HiMagnifyingGlass className="text-xl" />
+                Browse All Services
+              </button>
+            </div>
+            {/* Decorative background circle */}
+            <div className="absolute -right-10 -top-10 w-64 h-64 bg-brand-500 rounded-full opacity-50 blur-3xl"></div>
+          </div>
         {/* Recent Bookings */}
         <div className="bg-white rounded-2xl shadow-sm border p-6">
           <div className="flex items-center justify-between mb-6">

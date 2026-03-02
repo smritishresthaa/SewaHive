@@ -208,8 +208,10 @@ export default function BrowseServices() {
         <div className="bg-white rounded-2xl shadow-sm border p-4 mb-6">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search Input */}
-            <div className="flex-1 relative">
-              <HiMagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl" />
+            <div className="flex-1 relative flex items-center">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <HiMagnifyingGlass className="text-gray-400 text-xl" />
+              </div>
               <input
                 type="text"
                 value={searchQuery}
@@ -356,10 +358,10 @@ export default function BrowseServices() {
               </p>
             </div>
             <button
-              onClick={() => navigate("/client/dashboard")}
+              onClick={() => navigate("/client/leaderboard")}
               className="text-brand-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all"
             >
-              View your rank
+              View full leaderboard
               <HiArrowRight />
             </button>
           </div>

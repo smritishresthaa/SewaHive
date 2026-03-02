@@ -459,8 +459,10 @@ export default function NotificationsPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
           {/* Search Bar */}
           <div className="mb-5">
-            <div className="relative">
-              <HiMagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <div className="relative flex items-center">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <HiMagnifyingGlass className="h-5 w-5 text-gray-400" />
+              </div>
               <input
                 type="text"
                 placeholder="Search notifications by title or message..."

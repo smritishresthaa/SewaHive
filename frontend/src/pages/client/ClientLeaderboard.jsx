@@ -87,8 +87,8 @@ export default function ClientLeaderboard() {
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div style={{ fontFamily: "Satoshi, 'Space Grotesk', 'Segoe UI', sans-serif" }}>
-              <h1 className="text-3xl font-semibold text-gray-900">See where you are!</h1>
-              <p className="text-sm text-gray-600 mt-1">Here is your Leaderboard</p>
+              <h1 className="text-3xl font-semibold text-gray-900">Top Service Providers</h1>
+              <p className="text-sm text-gray-600 mt-1">Discover the highest-rated professionals on SewaHive</p>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-lg font-semibold">
               LB
