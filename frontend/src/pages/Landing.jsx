@@ -1,6 +1,7 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import TopNavbar from "../components/Navbar/TopNavbar";
+import api from "../utils/axios";
 
 import amazonLogo from "../logos/amazon.png";
 import coinbaseLogo from "../logos/coinbase.png";
@@ -10,15 +11,218 @@ import microsoftLogo from "../logos/microsoft.png";
 const leftWorker = new URL("../../hero-left.png", import.meta.url).href;
 const rightWorker = new URL("../../hero-right.png", import.meta.url).href;
 
+const FALLBACK_REVIEWS = [
+  {
+    name: "Sita Sharma",
+    loc: "Lalitpur",
+    tag: "House Cleaning",
+    text: "The cleaner was punctual, thorough, and very professional. My home has never looked this clean.",
+  },
+  {
+    name: "Ramesh Thapa",
+    loc: "Bhaktapur",
+    tag: "Electrical Work",
+    text: "Verified electrician fixed everything in one visit. Great service and transparent pricing!",
+  },
+  {
+    name: "Priya Gurung",
+    loc: "Kathmandu",
+    tag: "Furniture Assembly",
+    text: "Skilled and efficient. The booking process was so simple and hassle-free!",
+  },
+  {
+    name: "Bikram Rai",
+    loc: "Pokhara",
+    tag: "Home Painting",
+    text: "Outstanding painting job — finished on time and my living room looks brand new.",
+  },
+];
+
+// ── Inline avatar helper (no emoji) ──────────────────────────────────────────
+function MiniAvatar({ src, name, ring = "ring-1 ring-gray-200" }) {
+  const initials = name ? name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() : "";
+  if (src) {
+    return (
+      <img src={src} alt={name} className={`h-8 w-8 rounded-full object-cover flex-shrink-0 ${ring}`} />
+    );
+  }
+  return (
+    <div className={`h-8 w-8 rounded-full bg-gray-100 flex-shrink-0 flex items-center justify-center text-[10px] font-semibold text-gray-500 font-poppins ${ring}`}>
+      {initials || (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-gray-400">
+          <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8C16.8 4.53 14.67 2.4 12 2.4s-4.8 2.13-4.8 4.8c0 2.67 2.13 4.8 4.8 4.8zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+// ── Real review mini-card (uses API shape) ────────────────────────────────────
+function ReviewCardMini({ review }) {
+  const { client, provider, rating, comment, serviceTitle } = review;
+  return (
+    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 overflow-hidden">
+      <div className={`h-1 w-full ${rating === 5 ? "bg-emerald-400" : "bg-amber-400"}`} />
+      <div className="p-5 flex flex-col flex-1">
+        {/* Stars */}
+        <div className="flex items-center gap-0.5 text-amber-400 mb-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <svg key={i} width="13" height="13" viewBox="0 0 24 24" fill={i < rating ? "currentColor" : "none"} stroke="currentColor" strokeWidth={i < rating ? 0 : 1.5}>
+              <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
+            </svg>
+          ))}
+        </div>
+
+        {/* Comment */}
+        <p className="text-sm text-gray-700 font-inter leading-relaxed flex-1 line-clamp-3">
+          &ldquo;{comment}&rdquo;
+        </p>
+
+        {/* Service tag */}
+        <div className="mt-3 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-inter w-fit">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3 flex-shrink-0">
+            <path d="M8 1l1.5 4.5H14l-3.6 2.6 1.4 4.4L8 9.8l-3.8 2.7 1.4-4.4L2 5.5h4.5L8 1z" />
+          </svg>
+          {serviceTitle}
+        </div>
+
+        {/* Profiles */}
+        <div className="mt-4 pt-4 border-t border-gray-50 space-y-2.5">
+          {/* Client */}
+          <div className="flex items-center gap-2">
+            <MiniAvatar src={client.avatar} name={client.name} ring="ring-2 ring-white shadow-sm" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-poppins font-semibold text-gray-900 truncate">{client.name}</span>
+                <span className="inline-flex items-center gap-0.5 text-emerald-600 text-[10px] font-inter">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                    <path d="M12 2l7 4v6c0 5-3.8 9.4-7 10-3.2-.6-7-5-7-10V6l7-4z" /><path d="M9 12l2 2 4-4" />
+                  </svg>
+                  Verified
+                </span>
+              </div>
+              <span className="text-[10px] text-gray-400 font-inter">Client</span>
+            </div>
+          </div>
+
+          {/* Provider */}
+          {provider?.name && (
+            <div className="flex items-center gap-2">
+              <MiniAvatar src={provider.avatar} name={provider.name} ring="ring-2 ring-white shadow-sm" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-gray-400 font-inter">Hired</span>
+                  {provider.id ? (
+                    <Link to={`/provider/${provider.id}`} className="text-xs font-poppins font-semibold text-gray-900 hover:text-emerald-700 transition-colors truncate">
+                      {provider.name}
+                    </Link>
+                  ) : (
+                    <span className="text-xs font-poppins font-semibold text-gray-900 truncate">{provider.name}</span>
+                  )}
+                </div>
+                <span className="text-[10px] text-gray-400 font-inter">Provider</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Fallback mini-card (uses static shape) ────────────────────────────────────
+function FallbackReviewCard({ review }) {
+  const { name, loc, tag, text } = review;
+  const initials = name ? name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() : "?";
+  return (
+    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 overflow-hidden">
+      <div className="h-1 w-full bg-emerald-400" />
+      <div className="p-5 flex flex-col flex-1">
+        <div className="flex items-center gap-0.5 text-amber-400 mb-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <svg key={i} width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
+            </svg>
+          ))}
+        </div>
+        <p className="text-sm text-gray-700 font-inter leading-relaxed flex-1 line-clamp-3">
+          &ldquo;{text}&rdquo;
+        </p>
+        <div className="mt-3 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-inter w-fit">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3 h-3 flex-shrink-0">
+            <path d="M8 1l1.5 4.5H14l-3.6 2.6 1.4 4.4L8 9.8l-3.8 2.7 1.4-4.4L2 5.5h4.5L8 1z" />
+          </svg>
+          {tag}
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-50">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white shadow-sm flex-shrink-0 flex items-center justify-center text-[10px] font-semibold text-gray-500 font-poppins">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-poppins font-semibold text-gray-900 truncate">{name}</span>
+                <span className="inline-flex items-center gap-0.5 text-emerald-600 text-[10px] font-inter">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                    <path d="M12 2l7 4v6c0 5-3.8 9.4-7 10-3.2-.6-7-5-7-10V6l7-4z" /><path d="M9 12l2 2 4-4" />
+                  </svg>
+                  Verified
+                </span>
+              </div>
+              <span className="text-[10px] text-gray-400 font-inter">{loc}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Landing() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState("Cleaners");
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [realReviews, setRealReviews] = React.useState([]);
+  const [loadingReviews, setLoadingReviews] = React.useState(true);
   const [counts, setCounts] = React.useState({
     services: 0,
     providers: 0,
     customers: 0,
   });
 
+  function handleSearch() {
+    const q = searchQuery.trim();
+    navigate(q ? `/services?q=${encodeURIComponent(q)}` : "/services");
+  }
+
+  // Fetch real platform reviews on mount
+  React.useEffect(() => {
+    api
+      .get("/reviews/public/top")
+      .then((res) => setRealReviews(res.data || []))
+      .catch(() => setRealReviews([]))
+      .finally(() => setLoadingReviews(false));
+  }, []);
+
   const statsRef = React.useRef(null);
+  const stepsRef = React.useRef(null);
+
+  // STEPS REVEAL ANIMATION
+  React.useEffect(() => {
+    const el = stepsRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          el.classList.add("animate");
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   // COUNT-UP ANIMATION
   React.useEffect(() => {
@@ -197,15 +401,18 @@ export default function Landing() {
               </svg>
             </span>
             <input
-              className="flex-1 bg-transparent outline-none px-2 py-3 placeholder-white/70 font-inter"
+              className="flex-1 bg-transparent outline-none px-2 py-3 placeholder-white/70 font-inter text-white"
               placeholder="Find the perfect service you need"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
-            <Link
-              to="/login"
-              className="ml-2 bg-[#2fae5e] text-white font-inter font-medium px-6 py-3 rounded-full shadow"
+            <button
+              onClick={handleSearch}
+              className="ml-2 bg-[#2fae5e] text-white font-inter font-medium px-6 py-3 rounded-full shadow hover:bg-[#27a04f] transition-colors cursor-pointer"
             >
               Search
-            </Link>
+            </button>
           </div>
 
           {/* TRUST LOGOS */}
@@ -464,7 +671,8 @@ export default function Landing() {
           {servicesByTab[activeTab].map((s, i) => (
             <div
               key={i}
-              className="service-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all"
+              onClick={() => navigate(`/services?q=${encodeURIComponent(s.title)}`)}
+              className="service-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all cursor-pointer"
             >
               <div
                 className="image-zoom h-44 bg-gray-200"
@@ -484,7 +692,7 @@ export default function Landing() {
 
       {/* Steps with animations */}
       <section className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid md:grid-cols-2 gap-10 items-start">
+        <div ref={stepsRef} className="grid md:grid-cols-2 gap-10 items-start">
           {/* LEFT TEXT AREA */}
           <div className="fade-up" style={{ animationDelay: "0.1s" }}>
             <h2 className="text-4xl md:text-5xl font-poppins font-medium">
@@ -598,7 +806,8 @@ export default function Landing() {
           ].map((card, i) => (
             <div
               key={i}
-              className="popular-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all"
+              onClick={() => navigate(`/services?q=${encodeURIComponent(card.title)}`)}
+              className="popular-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all cursor-pointer"
             >
               <div className="relative">
                 {/* Image */}
@@ -693,7 +902,7 @@ export default function Landing() {
 
         <div className="mt-10 text-center">
           <Link
-            to="/login"
+            to="/services"
             className="inline-flex items-center gap-2 bg-brand-700 text-white px-5 py-2 rounded-full transition-colors hover:bg-brand-800 font-inter"
           >
             Browse All Services <span>›</span>
@@ -710,111 +919,174 @@ export default function Landing() {
           </p>
         </div>
 
-        <div className="mt-8 rounded-2xl p-8 md:p-10 bg-[#1c6c3b] text-white shadow">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-full bg-white/20 grid place-items-center">👤</div>
-            <div className="flex-1">
-              <div className="flex gap-1 text-green-300 mb-3 items-center">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
-                    <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
-                  </svg>
-                ))}
-              </div>
-
-              <blockquote className="text-lg leading-relaxed font-inter">
-                <span className="font-poppins font-medium">
-                  SewaHive has completely transformed how I manage home maintenance.
-                </span>{" "}
-                I hired a plumber for an emergency repair… they arrived within 2 hours! Affordable,
-                fast, reliable — now I use SewaHive for everything.
-              </blockquote>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-                <span className="font-poppins font-medium">Rajesh Maharjan</span>
-                <span className="text-white/80 font-inter">Kathmandu • Used Plumbing Service</span>
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/10 text-white/90 font-inter">
-                  <svg width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Verified Customer
-                </span>
+        {/* ── Featured hero review ── */}
+        {loadingReviews ? (
+          /* Skeleton */
+          <div className="mt-8 rounded-2xl p-8 md:p-10 bg-[#1c6c3b] shadow animate-pulse">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-full bg-white/20 flex-shrink-0" />
+              <div className="flex-1 space-y-3">
+                <div className="flex gap-1">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-3 w-3 rounded-sm bg-white/20" />)}</div>
+                <div className="h-4 bg-white/20 rounded w-full" />
+                <div className="h-4 bg-white/20 rounded w-5/6" />
+                <div className="h-4 bg-white/20 rounded w-3/4" />
+                <div className="flex gap-3 mt-4">
+                  <div className="h-3 bg-white/20 rounded w-24" />
+                  <div className="h-3 bg-white/20 rounded w-32" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        ) : (() => {
+          const featured = realReviews[0] || null;
+          if (featured) {
+            return (
+              <div className="mt-8 rounded-2xl p-8 md:p-10 bg-[#1c6c3b] text-white shadow">
+                <div className="flex items-start gap-4">
+                  {/* Avatar */}
+                  {featured.client.avatar ? (
+                    <img
+                      src={featured.client.avatar}
+                      alt={featured.client.name}
+                      className="h-12 w-12 rounded-full object-cover ring-2 ring-white/30 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-white/20 grid place-items-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-white/80">
+                        <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8C16.8 4.53 14.67 2.4 12 2.4s-4.8 2.13-4.8 4.8c0 2.67 2.13 4.8 4.8 4.8zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+                      </svg>
+                    </div>
+                  )}
 
-        {/* GRID TESTIMONIALS */}
-        <div className="mt-8 grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            {
-              name: "Sita Sharma",
-              loc: "Lalitpur",
-              tag: "House Cleaning",
-              text: "The cleaner was punctual, thorough, and very professional. My home has never looked this clean.",
-            },
-            {
-              name: "Ramesh Thapa",
-              loc: "Bhaktapur",
-              tag: "Electrical Work",
-              text: "Verified electrician fixed everything in one visit. Great service and transparent pricing!",
-            },
-            {
-              name: "Priya Gurung",
-              loc: "Kathmandu",
-              tag: "Furniture Assembly",
-              text: "Skilled and efficient. The booking process was so simple and hassle-free!",
-            },
-            {
-              name: "Bikram Rai",
-              loc: "Pokhara",
-              tag: "Home Painting",
-              text: "Outstanding painting job — finished on time and my living room looks brand new.",
-            },
-          ].map((r, i) => (
-            <div
-              key={i}
-              className="testimonial-card rounded-2xl border shadow-sm p-6 bg-white hover:-translate-y-2 hover:shadow-md transition-all"
-            >
-              <div className="flex items-start gap-3">
-                <div className="h-10 w-10 rounded-full bg-green-100 grid place-items-center ring-2 ring-green-200">
-                  🧑
+                  <div className="flex-1">
+                    {/* Stars */}
+                    <div className="flex gap-1 text-green-300 mb-3 items-center">
+                      {Array.from({ length: featured.rating }).map((_, i) => (
+                        <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
+                          <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
+                        </svg>
+                      ))}
+                    </div>
+
+                    <blockquote className="text-lg leading-relaxed font-inter">
+                      &ldquo;{featured.comment}&rdquo;
+                    </blockquote>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
+                      <span className="font-poppins font-medium">{featured.client.name}</span>
+                      <span className="text-white/80 font-inter">Used {featured.serviceTitle}</span>
+                      {featured.provider?.name && (
+                        <span className="text-white/70 font-inter">
+                          • Hired{" "}
+                          {featured.provider.id ? (
+                            <Link to={`/provider/${featured.provider.id}`} className="underline underline-offset-2 hover:text-white transition-colors">
+                              {featured.provider.name}
+                            </Link>
+                          ) : (
+                            featured.provider.name
+                          )}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/10 text-white/90 font-inter">
+                        <svg width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2">
+                          <path d="M12 2l7 4v6c0 5-3.8 9.4-7 10-3.2-.6-7-5-7-10V6l7-4z" />
+                          <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        Verified Customer
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          /* Fallback hardcoded hero */
+          return (
+            <div className="mt-8 rounded-2xl p-8 md:p-10 bg-[#1c6c3b] text-white shadow">
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 rounded-full bg-white/20 grid place-items-center flex-shrink-0">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-white/80">
+                    <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8C16.8 4.53 14.67 2.4 12 2.4s-4.8 2.13-4.8 4.8c0 2.67 2.13 4.8 4.8 4.8zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+                  </svg>
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-poppins font-medium">{r.name}</span>
-                    <span className="inline-flex items-center gap-1 text-green-700 text-xs font-inter">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                      Verified
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600 font-inter">{r.loc}</div>
-
-                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-inter">
-                    {r.tag}
-                  </div>
-
-                  <div className="mt-3 flex gap-1 text-yellow-500 items-center">
-                    {Array.from({ length: 5 }).map((_, si) => (
-                      <svg key={si} width="16" height="16" fill="currentColor" className="flex-shrink-0" viewBox="0 0 24 24">
+                  <div className="flex gap-1 text-green-300 mb-3 items-center">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
                         <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
                       </svg>
                     ))}
                   </div>
-
-                  <p className="mt-2 text-sm text-gray-700 font-inter">"{r.text}"</p>
+                  <blockquote className="text-lg leading-relaxed font-inter">
+                    <span className="font-poppins font-medium">SewaHive has completely transformed how I manage home maintenance.</span>{" "}
+                    I hired a plumber for an emergency repair… they arrived within 2 hours! Affordable, fast, reliable — now I use SewaHive for everything.
+                  </blockquote>
+                  <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
+                    <span className="font-poppins font-medium">Rajesh Maharjan</span>
+                    <span className="text-white/80 font-inter">Kathmandu • Used Plumbing Service</span>
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/10 text-white/90 font-inter">
+                      <svg width="14" height="14" stroke="currentColor" fill="none" strokeWidth="2">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                      Verified Customer
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })()}
+
+        {/* GRID TESTIMONIALS — skeleton → real → fallback */}
+        <div className="mt-8 grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {loadingReviews ? (
+            /* ── Skeleton ── */
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 animate-pulse">
+                <div className="flex gap-1 mb-3">
+                  {Array.from({ length: 5 }).map((_, si) => <div key={si} className="h-3 w-3 rounded-sm bg-gray-200" />)}
+                </div>
+                <div className="space-y-2 mb-4">
+                  <div className="h-3 bg-gray-200 rounded w-full" />
+                  <div className="h-3 bg-gray-200 rounded w-5/6" />
+                  <div className="h-3 bg-gray-200 rounded w-4/6" />
+                </div>
+                <div className="h-5 bg-gray-100 rounded-full w-1/3 mb-4" />
+                <div className="pt-4 border-t border-gray-50 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-gray-200 flex-shrink-0" />
+                    <div className="space-y-1.5 flex-1"><div className="h-2.5 bg-gray-200 rounded w-2/3" /><div className="h-2 bg-gray-100 rounded w-1/3" /></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-gray-200 flex-shrink-0" />
+                    <div className="space-y-1.5 flex-1"><div className="h-2.5 bg-gray-200 rounded w-1/2" /><div className="h-2 bg-gray-100 rounded w-1/4" /></div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : realReviews.length >= 5 ? (
+            /* ── Real dynamic reviews (index 0 is the featured hero above) ── */
+            realReviews.slice(1, 5).map((r, i) => (
+              <ReviewCardMini key={r.id || i} review={r} />
+            ))
+          ) : (
+            /* ── Fallback hardcoded cards ── */
+            FALLBACK_REVIEWS.map((r, i) => (
+              <FallbackReviewCard key={i} review={r} />
+            ))
+          )}
         </div>
 
-        <div className="mt-10 text-center">
-          <button className="inline-flex items-center gap-2 border border-brand-700 text-brand-700 px-5 py-2 rounded-full hover:bg-brand-50 transition-all font-inter">
-            Read More Reviews <span>›</span>
-          </button>
+        <div className="mt-8 text-center">
+          <Link
+            to="/reviews"
+            className="inline-flex items-center gap-2 border border-brand-700 text-brand-700 px-6 py-2.5 rounded-full hover:bg-brand-700 hover:text-white transition-all font-inter text-sm"
+          >
+            Read All Reviews
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+              <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
         </div>
       </section>
 

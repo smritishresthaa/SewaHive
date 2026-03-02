@@ -6,6 +6,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import BrowseServices from "./pages/BrowseServices";
+import AllReviews from "./pages/AllReviews";
 import PublicProviderProfile from "./pages/PublicProviderProfile";
 
 // ✅ PROVIDER SIGNUP (NEW)
@@ -68,6 +69,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/services" element={<BrowseServices />} />
+        <Route path="/browse" element={<BrowseServices />} />
+        <Route path="/reviews" element={<AllReviews />} />
         <Route path="/provider/:providerId" element={<PublicProviderProfile />} />
 
         {/* ✅ PROVIDER SIGNUP (PUBLIC) */}
