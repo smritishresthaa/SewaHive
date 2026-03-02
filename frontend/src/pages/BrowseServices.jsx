@@ -13,12 +13,13 @@ export default function BrowseServices() {
   const [searchParams] = useSearchParams();
   
   const [categories, setCategories] = useState([]);
+  const [allServices, setAllServices] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "All");
   const [showFilters, setShowFilters] = useState(false);
   
@@ -33,6 +34,23 @@ export default function BrowseServices() {
   useEffect(() => {
     fetchServices();
   }, [selectedCategory, sortBy]);
+
+  // Re-apply text filter whenever searchQuery or allServices change
+  useEffect(() => {
+    const q = (searchQuery || "").trim().toLowerCase();
+    if (!q) {
+      setServices(allServices);
+      return;
+    }
+    setServices(
+      allServices.filter(
+        (s) =>
+          s.title?.toLowerCase().includes(q) ||
+          s.description?.toLowerCase().includes(q) ||
+          s.categoryId?.name?.toLowerCase().includes(q)
+      )
+    );
+  }, [searchQuery, allServices]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -89,9 +107,11 @@ export default function BrowseServices() {
         servicesData.sort((a, b) => b.ratingAvg - a.ratingAvg);
       }
 
+      setAllServices(servicesData);
       setServices(servicesData);
     } catch (err) {
       console.log("Services endpoint not available yet:", err.message);
+      setAllServices([]);
       setServices([]);
     } finally {
       setLoading(false);
@@ -123,12 +143,17 @@ export default function BrowseServices() {
   }
 
   function handleSearch() {
-    if (!searchQuery.trim()) return;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) {
+      setServices(allServices);
+      return;
+    }
     
-    const filtered = services.filter(
+    const filtered = allServices.filter(
       (s) =>
-        s.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        s.title?.toLowerCase().includes(q) ||
+        s.description?.toLowerCase().includes(q) ||
+        s.categoryId?.name?.toLowerCase().includes(q)
     );
     setServices(filtered);
   }
@@ -148,11 +173,6 @@ export default function BrowseServices() {
   }
 
   function handleBookService(serviceId) {
-    if (!isAuthenticated) {
-      toast.error("Please login to book a service");
-      navigate("/login");
-      return;
-    }
     navigate(`/booking/${serviceId}`);
   }
 

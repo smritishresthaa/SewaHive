@@ -1,5 +1,7 @@
 import { HiStar, HiArrowRight, HiCheckCircle } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import toast from "react-hot-toast";
 
 /**
  * Rich Service Card Component
@@ -15,17 +17,36 @@ export default function ServiceCard({
   onBook 
 }) {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   
   const categoryName = service.categoryName || service.category?.name || "Service";
   const categoryIcon = service.categoryIcon || service.category?.icon || "📦";
+  
+  const isProvider = isAuthenticated && user?.role === "provider";
   
   function handleViewProfile() {
     navigate(`/provider/${provider._id}`);
   }
   
   function handleBook() {
+    // RBAC: Providers cannot book services
+    if (isAuthenticated && isProvider) {
+      toast.error("Providers cannot book services. Please use a client account.");
+      return;
+    }
+    
+    // RBAC: Unauthenticated users get redirected to login
+    if (!isAuthenticated) {
+      toast("Please log in to book a service", { icon: "🔒" });
+      navigate("/login", { state: { returnTo: `/services` } });
+      return;
+    }
+    
+    // Authenticated client — proceed with booking
     if (onBook) {
       onBook(service._id);
+    } else {
+      navigate(`/booking/${service._id}`);
     }
   }
   
@@ -167,7 +188,13 @@ export default function ServiceCard({
         </button>
         <button
           onClick={handleBook}
-          className="flex-1 px-4 py-2.5 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors font-medium text-sm"
+          disabled={isProvider}
+          className={`flex-1 px-4 py-2.5 rounded-lg transition-colors font-medium text-sm ${
+            isProvider
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : "bg-brand-700 text-white hover:bg-brand-800"
+          }`}
+          title={isProvider ? "Providers cannot book services" : ""}
         >
           Book Now
         </button>
