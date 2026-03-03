@@ -1,12 +1,42 @@
 import React, { useEffect, useState } from 'react'
 import api from '../utils/axios'
 import toast from 'react-hot-toast'
+import {
+  HiStar, HiTrash, HiExclamationTriangle, HiArrowPath,
+  HiChevronLeft, HiChevronRight, HiChevronDown,
+  HiShieldCheck, HiFlag, HiChatBubbleLeftRight,
+} from 'react-icons/hi2'
+
+/* ── Accordion ────────────────────────────────────────────────────────── */
+function Accordion({ icon: Icon, title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+        <span className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <Icon className="w-4 h-4 text-gray-400" /> {title}
+        </span>
+        {open ? <HiChevronDown className="w-4 h-4 text-gray-400" /> : <HiChevronRight className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && <div className="px-5 pb-5 pt-1">{children}</div>}
+    </div>
+  )
+}
+
+/* ── Star display ─────────────────────────────────────────────────────── */
+function Stars({ count }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(i => (
+        <HiStar key={i} className={`w-3.5 h-3.5 ${i <= count ? 'text-amber-400' : 'text-gray-200'}`} />
+      ))}
+      <span className="text-[10px] text-gray-400 ml-1">({count}/5)</span>
+    </div>
+  )
+}
 
 export default function Reviews() {
-  const [stats, setStats] = useState({
-    totalReviews: 0,
-    averageRating: 0,
-  })
+  const [stats, setStats] = useState({ totalReviews: 0, averageRating: 0 })
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -16,222 +46,152 @@ export default function Reviews() {
   useEffect(() => {
     const fetchStats = async () => {
       if (document.hidden) return
-      
-      try {
-        const res = await api.get('/admin/dashboard/stats')
-        if (res.data.success) {
-          setStats(res.data.data.reviews)
-          setError(null)
-        }
-      } catch (err) {
-        console.error('Failed to fetch stats:', err)
-        setError('Failed to load stats')
-      }
+      try { const res = await api.get('/admin/dashboard/stats'); if (res.data.success) { setStats(res.data.data.reviews); setError(null) } } catch (err) { console.error('Failed to fetch stats:', err); setError('Failed to load stats') }
     }
-
     fetchStats()
-    const interval = setInterval(fetchStats, 30000) // Refresh every 30 seconds
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchStats()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
+    const iv = setInterval(fetchStats, 30000)
+    const vis = () => { if (!document.hidden) fetchStats() }
+    document.addEventListener('visibilitychange', vis)
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', vis) }
   }, [])
 
-  useEffect(() => {
-    fetchReviews()
-  }, [page])
+  useEffect(() => { fetchReviews() }, [page])
 
   const fetchReviews = async () => {
-    try {
-      setLoading(true)
-      const res = await api.get(`/admin/reviews?page=${page}&limit=10`)
-      if (res.data.success) {
-        setReviews(res.data.data || [])
-        setTotalPages(res.data.pagination?.pages || 1)
-      }
-    } catch (err) {
-      console.error('Failed to fetch reviews:', err)
-      toast.error('Failed to load reviews')
-    } finally {
-      setLoading(false)
-    }
+    try { setLoading(true); const res = await api.get(`/admin/reviews?page=${page}&limit=10`); if (res.data.success) { setReviews(res.data.data || []); setTotalPages(res.data.pagination?.pages || 1) } } catch (err) { console.error('Failed to fetch reviews:', err); toast.error('Failed to load reviews') } finally { setLoading(false) }
   }
 
   const handleRemove = async (reviewId) => {
-    if (!window.confirm('Are you sure you want to remove this review?')) return
-    
-    try {
-      await api.delete(`/admin/reviews/${reviewId}`)
-      toast.success('Review removed successfully')
-      fetchReviews()
-      // Refresh stats
-      const res = await api.get('/admin/dashboard/stats')
-      if (res.data.success) {
-        setStats(res.data.data.reviews)
-      }
-    } catch (err) {
-      console.error('Failed to remove review:', err)
-      toast.error('Failed to remove review')
-    }
+    if (!window.confirm('Remove this review?')) return
+    try { await api.delete(`/admin/reviews/${reviewId}`); toast.success('Review removed'); fetchReviews(); const res = await api.get('/admin/dashboard/stats'); if (res.data.success) setStats(res.data.data.reviews) } catch (err) { console.error('Failed to remove review:', err); toast.error('Failed to remove review') }
   }
 
-  const PageSection = ({ title, icon, description, children }) => (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
-        <span>{icon}</span>
-        {title}
-      </h3>
-      <p className="text-gray-600 text-sm mb-6">{description}</p>
-      {children}
-    </div>
-  )
-
-  const ReviewCard = ({ review }) => (
-    <div className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-yellow-500 text-lg">{'⭐'.repeat(review.rating)}</span>
-            <span className="text-gray-400">({review.rating}/5)</span>
-          </div>
-          <p className="text-xs text-gray-600">by {review.clientId?.profile?.name || 'Unknown'} ({review.clientId?.email || 'No email'})</p>
-          <p className="text-xs text-gray-500 mt-1">For provider: {review.providerId?.profile?.name || 'Unknown'}</p>
-          <p className="text-xs text-gray-400">Booking ID: {review.bookingId?._id || review.bookingId}</p>
-        </div>
-        <div className="text-xs text-gray-500">
-          {new Date(review.createdAt).toLocaleDateString()}
-        </div>
-      </div>
-      {review.comment && (
-        <p className="text-sm text-gray-700 mb-3 p-3 bg-white rounded border">{review.comment}</p>
-      )}
-      <div className="mt-3 flex gap-2">
-        <button 
-          onClick={() => handleRemove(review._id)}
-          className="flex-1 bg-red-600 text-white text-xs py-2 rounded hover:bg-red-700 transition"
-        >
-          Remove Review
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900">Reviews & Complaints</h1>
+        <button onClick={fetchReviews} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Refresh">
+          <HiArrowPath className="w-4 h-4" />
         </button>
       </div>
-    </div>
-  )
 
-  return (
-    <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Reviews & Complaints</h1>
+      {error && (
+        <div className="p-2.5 bg-red-50 text-red-700 rounded-lg text-xs flex items-center gap-2">
+          <HiExclamationTriangle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
 
-        <PageSection 
-          icon="⭐" 
-          title="Moderate Reviews"
-          description="Review and approve service reviews (Auto-updates every 30s)"
-        >
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="border rounded-lg p-4 text-center bg-blue-50">
-              <p className="text-3xl font-bold text-blue-600">{stats.totalReviews}</p>
-              <p className="text-gray-600 text-sm mt-2">Total Reviews</p>
-            </div>
-            <div className="border rounded-lg p-4 text-center bg-green-50">
-              <p className="text-3xl font-bold text-green-600">{stats.averageRating.toFixed(1)}</p>
-              <p className="text-gray-600 text-sm mt-2">Avg Rating</p>
-            </div>
+      {/* ═══ KPI Cards ═══ */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 border-blue-500 p-3 flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="bg-blue-50 rounded-full p-2"><HiChatBubbleLeftRight className="w-5 h-5 text-blue-600" /></div>
+          <div>
+            <p className="text-[10px] text-gray-500">Total Reviews</p>
+            <p className="text-xl font-bold text-gray-900 leading-tight">{stats.totalReviews}</p>
           </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 border-amber-500 p-3 flex items-center gap-3 hover:shadow-md transition-shadow">
+          <div className="bg-amber-50 rounded-full p-2"><HiStar className="w-5 h-5 text-amber-500" /></div>
+          <div>
+            <p className="text-[10px] text-gray-500">Average Rating</p>
+            <p className="text-xl font-bold text-gray-900 leading-tight">{stats.averageRating?.toFixed(1) || '0.0'}</p>
+          </div>
+        </div>
+      </div>
 
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="text-gray-600 mt-2">Loading reviews...</p>
-            </div>
-          ) : reviews.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No reviews found
-            </div>
-          ) : (
-            <>
-              <div className="space-y-4">
-                {reviews.map((review) => (
-                  <ReviewCard key={review._id} review={review} />
-                ))}
+      {/* ═══ Reviews List ═══ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="px-5 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <HiStar className="w-4 h-4 text-gray-400" /> Moderate Reviews
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">Auto-updates every 30s</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="h-6 w-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+            <HiChatBubbleLeftRight className="w-8 h-8 mb-1" />
+            <p className="text-xs">No reviews found</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {reviews.map(review => (
+              <div key={review._id} className="px-5 py-3.5 hover:bg-emerald-50/30 transition">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <Stars count={review.rating} />
+                    <p className="text-[11px] text-gray-500 mt-1">by <span className="font-medium text-gray-700">{review.clientId?.profile?.name || 'Unknown'}</span></p>
+                    <p className="text-[11px] text-gray-400">For provider: {review.providerId?.profile?.name || 'Unknown'}</p>
+                    {review.comment && <p className="text-xs text-gray-700 mt-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">{review.comment}</p>}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className="text-[10px] text-gray-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                    <button onClick={() => handleRemove(review._id)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition" title="Remove Review">
+                      <HiTrash className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
-              
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex justify-center gap-2 mt-6">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 transition"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded font-medium">
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 transition"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </PageSection>
-
-        <PageSection 
-          icon="📢" 
-          title="Handle Reports"
-          description="Manage user complaints and platform reports"
-        >
-          <div className="border rounded-lg p-4 bg-orange-50">
-            <h4 className="font-semibold text-orange-900 mb-4">Reported Issues</h4>
-            <div className="space-y-3">
-              {[
-                { title: 'Inappropriate behavior', count: 2 },
-                { title: 'Service not delivered', count: 3 },
-                { title: 'Payment issues', count: 1 },
-              ].map((issue, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-white rounded border border-orange-200">
-                  <span className="text-gray-700">{issue.title}</span>
-                  <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-semibold">{issue.count}</span>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
-        </PageSection>
+        )}
 
-        <PageSection 
-          icon="🛡️" 
-          title="Prevent Fraud"
-          description="Monitor and prevent fraudulent activities"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border rounded-lg p-4 bg-green-50">
-              <p className="font-semibold text-green-900">Security Status</p>
-              <p className="text-green-700 text-sm mt-2">✓ All systems normal</p>
-              <p className="text-xs text-green-600 mt-1">No suspicious activities detected</p>
-            </div>
-            <div className="border rounded-lg p-4 bg-blue-50">
-              <p className="font-semibold text-blue-900">Last Scan</p>
-              <p className="text-blue-700 text-sm mt-2">2 hours ago</p>
-              <p className="text-xs text-blue-600 mt-1">0 fraudulent accounts found</p>
-            </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-center gap-2">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition">
+              <HiChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
+            <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
+              {page} / {totalPages}
+            </span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition">
+              <HiChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
           </div>
-        </PageSection>
+        )}
+      </div>
+
+      {/* ═══ Reports ═══ */}
+      <Accordion icon={HiFlag} title="Handle Reports" defaultOpen={false}>
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Reported Issues</p>
+        <div className="space-y-1.5">
+          {[
+            { title: 'Inappropriate behavior', count: 2 },
+            { title: 'Service not delivered', count: 3 },
+            { title: 'Payment issues', count: 1 },
+          ].map((issue, idx) => (
+            <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition">
+              <span className="text-xs text-gray-700">{issue.title}</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700">{issue.count}</span>
+            </div>
+          ))}
+        </div>
+      </Accordion>
+
+      {/* ═══ Fraud Prevention ═══ */}
+      <Accordion icon={HiShieldCheck} title="Fraud Prevention" defaultOpen={false}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-lg border border-gray-100 p-4">
+            <p className="text-[11px] font-semibold text-emerald-700 mb-1">Security Status</p>
+            <div className="flex items-center gap-1.5">
+              <HiShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span className="text-xs text-emerald-700">All systems normal</span>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">No suspicious activities detected</p>
+          </div>
+          <div className="rounded-lg border border-gray-100 p-4">
+            <p className="text-[11px] font-semibold text-blue-700 mb-1">Last Scan</p>
+            <p className="text-xs text-blue-700">2 hours ago</p>
+            <p className="text-[10px] text-gray-400 mt-1">0 fraudulent accounts found</p>
+          </div>
+        </div>
+      </Accordion>
     </div>
   )
 }

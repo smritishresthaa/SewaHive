@@ -1,6 +1,6 @@
 // frontend/src/components/DisputeModal.jsx
 import { useState } from "react";
-import { HiXMark, HiExclamationTriangle } from "react-icons/hi2";
+import { HiXMark, HiExclamationTriangle, HiStar, HiCreditCard, HiUser, HiPencilSquare, HiCheckCircle } from "react-icons/hi2";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
 
@@ -12,12 +12,20 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
   const [isDragging, setIsDragging] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const DISPUTE_ICON_MAP = {
+    service_quality: <HiStar className="w-5 h-5" />,
+    payment_issue: <HiCreditCard className="w-5 h-5" />,
+    provider_behaviour: <HiUser className="w-5 h-5" />,
+    safety_concern: <HiExclamationTriangle className="w-5 h-5" />,
+    other: <HiPencilSquare className="w-5 h-5" />,
+  };
+
   const categories = [
-    { value: "service_quality", label: "Service quality issue", icon: "⭐" },
-    { value: "payment_issue", label: "Payment issue", icon: "💳" },
-    { value: "provider_behaviour", label: "Provider behaviour concern", icon: "👤" },
-    { value: "safety_concern", label: "Safety concern", icon: "⚠️" },
-    { value: "other", label: "Other", icon: "📝" },
+    { value: "service_quality", label: "Service quality issue" },
+    { value: "payment_issue", label: "Payment issue" },
+    { value: "provider_behaviour", label: "Provider behaviour concern" },
+    { value: "safety_concern", label: "Safety concern" },
+    { value: "other", label: "Other" },
   ];
 
   const handleFileAdd = (file) => {
@@ -132,7 +140,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
 
           {submitted && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-              <p className="font-semibold">✔ Dispute submitted</p>
+              <p className="font-semibold flex items-center gap-1.5"><HiCheckCircle className="w-4 h-4 text-emerald-600" /> Dispute submitted</p>
               <p className="mt-1 text-sm">Admin will review it shortly. You’ll be notified of updates.</p>
             </div>
           )}
@@ -155,7 +163,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
                   }`}
                   disabled={submitted}
                 >
-                  <span className="text-2xl block mb-1">{cat.icon}</span>
+                  <span className="block mb-1">{DISPUTE_ICON_MAP[cat.value]}</span>
                   <span className="text-xs font-medium text-gray-900">
                     {cat.label}
                   </span>

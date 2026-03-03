@@ -58,6 +58,7 @@ import ResetPassword from "./pages/ResetPassword";
 
 // PROTECTION
 import ProtectedRoute from "./components/ProtectedRoute";
+import HelpCenter from "./pages/shared/HelpCenter";
 
 export default function App() {
   return (
@@ -83,7 +84,10 @@ export default function App() {
         <Route path="/verify-otp" element={<VerifyOtp />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ================= CLIENT ================= */}
+        {/* ================= HELP ================= */}
+        <Route path="/help" element={<HelpCenter />} />
+
+        {/* ================= CLIENT ================= */}}
         <Route
           path="/client/dashboard"
           element={
@@ -306,6 +310,15 @@ export default function App() {
           element={
             <ProtectedRoute role="provider">
               <ProviderLeaderboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/provider/help"
+          element={
+            <ProtectedRoute role="provider">
+              <HelpCenter />
             </ProtectedRoute>
           }
         />

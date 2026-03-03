@@ -178,9 +178,77 @@ function FallbackReviewCard({ review }) {
   );
 }
 
+// ── Category icon lookup by iconKey ────────────────────────────────────────
+function CategoryIcon({ iconKey }) {
+  const icons = {
+    cleaning: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M15 3l6 6" strokeLinecap="round" />
+        <path d="M2 22l9-9" strokeLinecap="round" />
+        <path d="M3.5 20.5l2 2" strokeLinecap="round" />
+        <path d="M5.5 18.5l2 2" strokeLinecap="round" />
+        <path d="M7.5 16.5l2 2" strokeLinecap="round" />
+      </svg>
+    ),
+    handyman: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M16 3l5 5-3 3-5-5z" />
+        <path d="M2 22l6-6" />
+        <path d="M14 7l-9 9" />
+      </svg>
+    ),
+    plumbing: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 21s-6-5-6-10a6 6 0 1112 0c0 5-6 10-6 10z" />
+      </svg>
+    ),
+    decor: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M13.5 2a6.5 6.5 0 000 13h3a2.5 2.5 0 010 5H8" />
+        <circle cx="6" cy="18" r="2" />
+      </svg>
+    ),
+    painting: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M13.5 2a6.5 6.5 0 000 13h3a2.5 2.5 0 010 5H8" />
+        <circle cx="6" cy="18" r="2" />
+      </svg>
+    ),
+    electrical: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M13 2L3 14h7l-1 8 10-12h-7z" />
+      </svg>
+    ),
+    ac: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="2" y="4" width="20" height="12" rx="2" />
+        <path d="M8 20l4-4 4 4" />
+      </svg>
+    ),
+    carpentry: (
+      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M16 3l5 5-3 3-5-5z" />
+        <path d="M2 22l6-6" />
+        <path d="M14 7l-9 9" />
+      </svg>
+    ),
+  };
+
+  // Try matching iconKey, then fall back to a generic grid icon
+  const key = (iconKey || "").toLowerCase();
+  return icons[key] || (
+    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" />
+      <rect x="14" y="3" width="7" height="7" />
+      <rect x="3" y="14" width="7" height="7" />
+      <rect x="14" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+
 export default function Landing() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = React.useState("Cleaners");
+  const [activeTab, setActiveTab] = React.useState(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [realReviews, setRealReviews] = React.useState([]);
   const [loadingReviews, setLoadingReviews] = React.useState(true);
@@ -189,6 +257,15 @@ export default function Landing() {
     providers: 0,
     customers: 0,
   });
+
+  // Dynamic categories + services
+  const [categories, setCategories] = React.useState([]);
+  const [categoryServices, setCategoryServices] = React.useState({});
+  const [loadingCategories, setLoadingCategories] = React.useState(true);
+
+  // Popular services
+  const [popularServices, setPopularServices] = React.useState([]);
+  const [loadingPopular, setLoadingPopular] = React.useState(true);
 
   function handleSearch() {
     const q = searchQuery.trim();
@@ -202,6 +279,53 @@ export default function Landing() {
       .then((res) => setRealReviews(res.data || []))
       .catch(() => setRealReviews([]))
       .finally(() => setLoadingReviews(false));
+  }, []);
+
+  // Fetch categories and their services on mount
+  React.useEffect(() => {
+    async function fetchCategoriesAndServices() {
+      try {
+        const catRes = await api.get("/categories");
+        const cats = catRes.data?.data || catRes.data || [];
+        setCategories(cats);
+        if (cats.length > 0 && !activeTab) {
+          setActiveTab(cats[0].name);
+        }
+
+        // Fetch services for each category (first 4 per tab)
+        const serviceMap = {};
+        await Promise.all(
+          cats.map(async (cat) => {
+            try {
+              const svcRes = await api.get(`/services/list?categoryId=${cat._id}`);
+              const svcs = svcRes.data?.services || [];
+              serviceMap[cat.name] = svcs.slice(0, 4).map((s) => ({
+                title: s.title,
+                img: s.images?.[0] || cat.image || null,
+                _id: s._id,
+              }));
+            } catch {
+              serviceMap[cat.name] = [];
+            }
+          })
+        );
+        setCategoryServices(serviceMap);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      } finally {
+        setLoadingCategories(false);
+      }
+    }
+    fetchCategoriesAndServices();
+  }, []);
+
+  // Fetch popular services on mount
+  React.useEffect(() => {
+    api
+      .get("/services/popular")
+      .then((res) => setPopularServices(res.data?.services || []))
+      .catch(() => setPopularServices([]))
+      .finally(() => setLoadingPopular(false));
   }, []);
 
   const statsRef = React.useRef(null);
@@ -253,104 +377,13 @@ export default function Landing() {
     return () => io.disconnect();
   }, []);
 
-  const tabs = ["Cleaners", "Handymen", "Plumbers", "Decors", "Electrical Pros"];
+  // Derive tab names from fetched categories (fallback if empty)
+  const tabs = categories.length > 0
+    ? categories.map((c) => c.name)
+    : [];
 
-  const servicesByTab = {
-    Cleaners: [
-      {
-        title: "House Cleaning",
-        img: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Deep Cleaning",
-        img: "https://images.unsplash.com/photo-1581578016903-4f6a3c7f91ce?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Office Cleaning",
-        img: "https://images.unsplash.com/photo-1503428593586-e225b39bddfe?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Window Cleaning",
-        img: "https://images.unsplash.com/photo-1585408634512-a2a7f3c44b48?q=80&w=800&auto=format&fit=crop",
-      },
-    ],
-
-    Handymen: [
-      {
-        title: "Furniture Assembly",
-        img: "https://images.unsplash.com/photo-1621905252475-ff29c0d4f1d1?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Home Repairs",
-        img: "https://images.unsplash.com/photo-1560184897-aec8a45d28c1?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Mounting & Installation",
-        img: "https://images.unsplash.com/photo-1588356281254-2a0e9f04e6b8?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Carpentry",
-        img: "https://images.unsplash.com/photo-1516979187457-637abb4f3aa1?q=80&w=800&auto=format&fit=crop",
-      },
-    ],
-
-    Plumbers: [
-      {
-        title: "Pipe Repair & Installation",
-        img: "https://images.unsplash.com/photo-1581091014534-5d7110a8d9a0?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Drain Cleaning",
-        img: "https://images.unsplash.com/photo-1604882357860-6387f4dc1a93?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Leak Fixing",
-        img: "https://images.unsplash.com/photo-1530133532239-72f122cbf4c0?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Bathroom Fittings",
-        img: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=800&auto=format&fit=crop",
-      },
-    ],
-
-    Decors: [
-      {
-        title: "Interior Wall Painting",
-        img: "https://images.unsplash.com/photo-1523419409543-a7c0d3f27c13?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Home Styling",
-        img: "https://images.unsplash.com/photo-1493666438817-866a91353ca9?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Event Decor",
-        img: "https://images.unsplash.com/photo-1492684223066-81342ee5ff5b?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Wallpaper & Finish",
-        img: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?q=80&w=800&auto=format&fit=crop",
-      },
-    ],
-
-    "Electrical Pros": [
-      {
-        title: "Electrical Work",
-        img: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "AC Repair & Service",
-        img: "https://images.unsplash.com/photo-1562101240-3b6b92c198b5?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "TV Mounting",
-        img: "https://images.unsplash.com/photo-1589578527966-3b0c8d5f2afe?q=80&w=800&auto=format&fit=crop",
-      },
-      {
-        title: "Wiring & Installation",
-        img: "https://images.unsplash.com/photo-1555685812-4b74323fd1f3?q=80&w=800&auto=format&fit=crop",
-      },
-    ],
-  };
+  // Derive services by tab from fetched data
+  const servicesByTab = categoryServices;
 
   return (
     <div className="min-h-screen bg-white">
@@ -617,77 +650,91 @@ export default function Landing() {
           <div className="mt-1 text-4xl font-poppins font-medium text-brand-700">Your Area</div>
         </div>
 
-        <div className="mt-8 flex items-center justify-center gap-8 text-sm font-inter">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`relative pb-2 flex items-center gap-2 ${activeTab === t ? "text-brand-700" : "text-gray-600"}`}
-            >
-              {/* Icons */}
-              {t === "Cleaners" && (
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M15 3l6 6" strokeLinecap="round" />
-                  <path d="M2 22l9-9" strokeLinecap="round" />
-                  <path d="M3.5 20.5l2 2" strokeLinecap="round" />
-                  <path d="M5.5 18.5l2 2" strokeLinecap="round" />
-                  <path d="M7.5 16.5l2 2" strokeLinecap="round" />
-                </svg>
-              )}
-              {t === "Handymen" && (
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M16 3l5 5-3 3-5-5z" />
-                  <path d="M2 22l6-6" />
-                  <path d="M14 7l-9 9" />
-                </svg>
-              )}
-              {t === "Plumbers" && (
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 21s-6-5-6-10a6 6 0 1112 0c0 5-6 10-6 10z" />
-                </svg>
-              )}
-              {t === "Decors" && (
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M13.5 2a6.5 6.5 0 000 13h3a2.5 2.5 0 010 5H8" />
-                  <circle cx="6" cy="18" r="2" />
-                </svg>
-              )}
-              {t === "Electrical Pros" && (
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M13 2L3 14h7l-1 8 10-12h-7z" />
-                </svg>
-              )}
-
-              <span className="font-inter">{t}</span>
-
-              {activeTab === t && (
-                <span className="absolute left-0 right-0 mx-auto mt-7 h-[2px] w-12 bg-brand-700"></span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {servicesByTab[activeTab].map((s, i) => (
-            <div
-              key={i}
-              onClick={() => navigate(`/services?q=${encodeURIComponent(s.title)}`)}
-              className="service-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all cursor-pointer"
-            >
-              <div
-                className="image-zoom h-44 bg-gray-200"
-                style={{
-                  backgroundImage: `url(${s.img})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              />
-              <div className="p-4">
-                <div className="font-inter font-medium">{s.title}</div>
-              </div>
+        {loadingCategories ? (
+          /* Skeleton tabs + cards while loading */
+          <>
+            <div className="mt-8 flex items-center justify-center gap-8">
+              {[1,2,3,4].map((i) => (
+                <div key={i} className="h-5 w-24 bg-gray-200 rounded animate-pulse" />
+              ))}
             </div>
-          ))}
-        </div>
+            <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1,2,3,4].map((i) => (
+                <div key={i} className="rounded-2xl overflow-hidden shadow-sm bg-white">
+                  <div className="h-44 bg-gray-200 animate-pulse" />
+                  <div className="p-4"><div className="h-4 w-32 bg-gray-200 rounded animate-pulse" /></div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : tabs.length > 0 ? (
+          <>
+            <div className="mt-8 flex items-center justify-center gap-8 text-sm font-inter flex-wrap">
+              {tabs.map((t) => {
+                const cat = categories.find((c) => c.name === t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setActiveTab(t)}
+                    className={`relative pb-2 flex items-center gap-2 ${activeTab === t ? "text-brand-700" : "text-gray-600"}`}
+                  >
+                    {/* Dynamic icon based on iconKey */}
+                    <CategoryIcon iconKey={cat?.iconKey} />
+                    <span className="font-inter">{t}</span>
+                    {activeTab === t && (
+                      <span className="absolute left-0 right-0 mx-auto mt-7 h-[2px] w-12 bg-brand-700"></span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {(servicesByTab[activeTab] || []).length > 0 ? (
+                servicesByTab[activeTab].map((s, i) => (
+                  <div
+                    key={s._id || i}
+                    onClick={() => navigate(`/services?q=${encodeURIComponent(s.title)}`)}
+                    className="service-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all cursor-pointer"
+                  >
+                    {s.img ? (
+                      <div
+                        className="image-zoom h-44 bg-gray-200"
+                        style={{
+                          backgroundImage: `url(${s.img})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                      />
+                    ) : (
+                      <div className="h-44 bg-gray-100 flex items-center justify-center">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 21" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <div className="font-inter font-medium">{s.title}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-4 text-center py-12 text-gray-400 font-inter">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-3">
+                    <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  No services in this category yet
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="mt-10 text-center text-gray-400 font-inter py-8">
+            No categories available
+          </div>
+        )}
       </section>
 
       {/* Steps with animations */}
@@ -753,152 +800,123 @@ export default function Landing() {
           </p>
         </div>
 
-        <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            {
-              title: "House Cleaning",
-              rating: "4.9",
-              stats: ["250+ Providers", "2.5k+ bookings", "From NPR 500"],
-              img: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "Plumbing Repair",
-              rating: "4.8",
-              stats: ["180+ Providers", "1.8k+ bookings", "From NPR 800"],
-              img: "https://images.unsplash.com/photo-1517048676732-d65bcf4dbf47?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "Electrical Work",
-              rating: "4.9",
-              stats: ["200+ Providers", "2.1k+ bookings", "From NPR 700"],
-              img: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "Home Painting",
-              rating: "4.7",
-              stats: ["120+ Providers", "12k+ bookings", "From NPR 1,500"],
-              img: "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "Furniture Assembly",
-              rating: "4.8",
-              stats: ["95+ Providers", "950+ bookings", "From NPR 600"],
-              img: "https://images.unsplash.com/photo-1581572891871-237a7c66c1ea?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "AC Repair & Service",
-              rating: "4.9",
-              stats: ["140+ Providers", "1.5k+ bookings", "From NPR 1,000"],
-              img: "https://images.unsplash.com/photo-1562101240-3b6b92c198b5?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "Deep Cleaning",
-              rating: "4.8",
-              stats: ["160+ Providers", "1.3k+ bookings", "From NPR 1,200"],
-              img: "https://images.unsplash.com/photo-1581578016903-4f6a3c7f91ce?q=80&w=800&auto=format&fit=crop",
-            },
-            {
-              title: "Handyman Services",
-              rating: "4.7",
-              stats: ["210+ Providers", "1.9k+ bookings", "From NPR 500"],
-              img: "https://images.unsplash.com/photo-1560184897-aec8a45d28c1?q=80&w=800&auto=format&fit=crop",
-            },
-          ].map((card, i) => (
-            <div
-              key={i}
-              onClick={() => navigate(`/services?q=${encodeURIComponent(card.title)}`)}
-              className="popular-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all cursor-pointer"
-            >
-              <div className="relative">
-                {/* Image */}
-                <div
-                  className="h-40 bg-gray-200"
-                  style={{
-                    backgroundImage: `url(${card.img})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                ></div>
-
-                {/* Rating Badge */}
-                <div className="absolute top-2 right-2 bg-brand-700 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
-                    <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
-                  </svg>
-                  {card.rating}
+        {loadingPopular ? (
+          /* Skeleton grid */
+          <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1,2,3,4,5,6,7,8].map((i) => (
+              <div key={i} className="rounded-2xl overflow-hidden shadow-sm bg-white">
+                <div className="h-40 bg-gray-200 animate-pulse" />
+                <div className="p-4 space-y-2">
+                  <div className="h-4 w-28 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
                 </div>
               </div>
+            ))}
+          </div>
+        ) : popularServices.length > 0 ? (
+          <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {popularServices.map((svc, i) => (
+              <div
+                key={svc._id || i}
+                onClick={() => navigate(`/services?q=${encodeURIComponent(svc.title)}`)}
+                className="popular-card rounded-2xl overflow-hidden shadow-sm bg-white hover:-translate-y-2 hover:shadow-md transition-all cursor-pointer"
+              >
+                <div className="relative">
+                  {/* Service image */}
+                  {svc.image ? (
+                    <div
+                      className="h-40 bg-gray-200"
+                      style={{
+                        backgroundImage: `url(${svc.image})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+                  ) : (
+                    <div className="h-40 bg-gray-100 flex items-center justify-center">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <path d="M21 15l-5-5L5 21" />
+                      </svg>
+                    </div>
+                  )}
 
-              {/* Card Body */}
-              <div className="p-4">
-                <div className="font-poppins font-medium">{card.title}</div>
-                <div className="mt-2 space-y-1 text-sm text-gray-600 font-inter">
-                  {card.stats.map((s, si) => (
-                    <div key={si} className="flex items-center gap-2">
-                      {/* 🔥 PREMIUM ICON LOGIC */}
-                      {si === 0 && (
-                        /* Providers */
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 text-brand-700"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path
-                            d="M17 20v-2a4 4 0 00-3-3.87M7 20v-2a4 4 0 013-3.87"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M12 12a4 4 0 110-8 4 4 0 010 8z"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                      {si === 1 && (
-                        /* Bookings */
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 text-brand-700"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M8 7V3m8 4V3M3 11h18" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M9 16l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
-                          <rect x="3" y="7" width="18" height="14" rx="2" ry="2" />
-                        </svg>
-                      )}
-                      {si === 2 && (
-                        /* Price */
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 text-brand-700"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path
-                            d="M3 8a4 4 0 014-4h10a4 4 0 014 4v8a4 4 0 01-4 4H7a4 4 0 01-4-4V8z"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
+                  {/* Rating Badge */}
+                  {svc.ratingAvg > 0 && (
+                    <div className="absolute top-2 right-2 bg-brand-700 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
+                        <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
+                      </svg>
+                      {svc.ratingAvg.toFixed(1)}
+                    </div>
+                  )}
+
+                  {/* Provider badge overlay */}
+                  {svc.provider?.badges?.length > 0 && (
+                    <div className="absolute top-2 left-2 bg-white/90 text-xs px-2 py-1 rounded-full flex items-center gap-1 text-amber-600 font-medium">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2l7 4v6c0 5-3.8 9.4-7 10-3.2-.6-7-5-7-10V6l7-4z" />
+                      </svg>
+                      {svc.provider.badges[0]}
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Body */}
+                <div className="p-4">
+                  <div className="font-poppins font-medium">{svc.title}</div>
+                  <div className="mt-2 space-y-1 text-sm text-gray-600 font-inter">
+                    {/* Rating count */}
+                    <div className="flex items-center gap-2">
+                      <svg className="h-4 w-4 text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
+                      </svg>
+                      <span>{svc.ratingCount || 0} reviews</span>
+                    </div>
+                    {/* Bookings */}
+                    <div className="flex items-center gap-2">
+                      <svg className="h-4 w-4 text-brand-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path d="M8 7V3m8 4V3M3 11h18" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M9 16l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="3" y="7" width="18" height="14" rx="2" ry="2" />
+                      </svg>
+                      <span>{svc.bookingsCount || 0} bookings</span>
+                    </div>
+                    {/* Price */}
+                    {svc.basePrice > 0 && (
+                      <div className="flex items-center gap-2">
+                        <svg className="h-4 w-4 text-brand-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 8a4 4 0 014-4h10a4 4 0 014 4v8a4 4 0 01-4 4H7a4 4 0 01-4-4V8z" strokeLinecap="round" strokeLinejoin="round" />
                           <circle cx="15" cy="12" r="2" />
                         </svg>
+                        <span>From NPR {svc.basePrice.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Provider info */}
+                  {svc.provider && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                      {svc.provider.avatar ? (
+                        <img src={svc.provider.avatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+                      ) : (
+                        <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-[9px] font-semibold text-gray-500">
+                          {(svc.provider.name || "?").charAt(0).toUpperCase()}
+                        </div>
                       )}
-                      <span>{s}</span>
+                      <span className="text-xs text-gray-500 font-inter truncate">{svc.provider.name}</span>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-8 text-center text-gray-400 font-inter py-8">
+            No popular services available yet
+          </div>
+        )}
 
         <div className="mt-10 text-center">
           <Link

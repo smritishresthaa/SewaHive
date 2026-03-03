@@ -412,7 +412,7 @@ router.get(
 
 /**
  * GET /api/payment/transactions/admin
- * Admin payment history
+ * Admin payment history — enhanced with commission/payout fields
  */
 router.get(
   "/transactions/admin",
@@ -429,16 +429,29 @@ router.get(
         filter.status = status;
       }
 
-      const [payments, total] = await Promise.all([
+      const [rawPayments, total] = await Promise.all([
         Payment.find(filter)
           .sort({ createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)
-          .populate("bookingId", "serviceId status totalAmount paymentStatus")
+          .populate("bookingId", "serviceTitle serviceId status totalAmount paymentStatus")
           .populate("clientId", "profile.name email")
           .populate("providerId", "profile.name email"),
         Payment.countDocuments(filter),
       ]);
+
+      // Attach derived commission / payout fields to each record
+      const payments = rawPayments.map((p) => {
+        const obj = p.toObject ? p.toObject() : { ...p };
+        const amt = Number(obj.amount || 0);
+        obj.platformCommission = obj.platformFee != null
+          ? Number(obj.platformFee)
+          : Number((amt * 0.15).toFixed(2));
+        obj.providerPayout = obj.providerEarnings != null
+          ? Number(obj.providerEarnings)
+          : Number((amt * 0.85).toFixed(2));
+        return obj;
+      });
 
       res.json({
         success: true,
@@ -447,6 +460,116 @@ router.get(
         total,
         totalPages: Math.ceil(total / limit) || 1,
       });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+/**
+ * POST /api/payment/refund/:paymentId
+ * Admin-only — refund a FUNDS_HELD payment
+ */
+router.post(
+  "/refund/:paymentId",
+  authGuard,
+  roleGuard(["admin"]),
+  async (req, res, next) => {
+    try {
+      const { reason = "" } = req.body;
+      const payment = await Payment.findById(req.params.paymentId);
+
+      if (!payment) {
+        return res.status(404).json({ message: "Payment not found" });
+      }
+      if (payment.status !== "FUNDS_HELD") {
+        return res.status(400).json({
+          message: `Cannot refund a payment with status ${payment.status}. Only FUNDS_HELD payments can be refunded.`,
+        });
+      }
+
+      // Reverse provider wallet pending balance
+      const wallet = await ProviderWallet.findOne({ providerId: payment.providerId });
+      if (wallet && typeof wallet.refundPending === "function") {
+        await wallet.refundPending(payment.amount);
+        await wallet.addTransaction({
+          type: "REFUND",
+          amount: payment.amount,
+          description: reason || "Admin-initiated refund",
+          bookingId: payment.bookingId,
+          paymentId: payment._id,
+          status: "COMPLETED",
+        });
+      }
+
+      payment.status = "REFUNDED";
+      payment.refundedAt = new Date();
+      if (reason) payment.disputeReason = reason;
+      await payment.save();
+
+      // Notify client
+      try {
+        await createNotificationForUser({
+          userId: String(payment.clientId),
+          type: "payment_refunded",
+          title: "Refund Processed",
+          message: `Your payment of NPR ${payment.amount} has been refunded by admin.`,
+          category: "payment",
+          bookingId: payment.bookingId,
+          metadata: { paymentId: payment._id },
+        });
+      } catch (_) { /* non-fatal */ }
+
+      res.json({ success: true, payment });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+/**
+ * POST /api/payment/client/refund-request/:paymentId
+ * Client-only — request a refund for a FUNDS_HELD payment
+ */
+router.post(
+  "/client/refund-request/:paymentId",
+  authGuard,
+  roleGuard(["client"]),
+  async (req, res, next) => {
+    try {
+      const payment = await Payment.findById(req.params.paymentId);
+
+      if (!payment) {
+        return res.status(404).json({ message: "Payment not found" });
+      }
+      if (String(payment.clientId) !== req.user.id) {
+        return res.status(403).json({ message: "Not your payment" });
+      }
+      if (payment.status !== "FUNDS_HELD") {
+        return res.status(400).json({
+          message: `Refund can only be requested for FUNDS_HELD payments. Current status: ${payment.status}`,
+        });
+      }
+      if (payment.refundRequested) {
+        return res.status(400).json({ message: "Refund already requested for this payment" });
+      }
+
+      payment.refundRequested = true;
+      await payment.save();
+
+      // Notify admins
+      try {
+        await notifyAllAdmins({
+          type: "refund_request",
+          title: "Refund Request",
+          message: `Client requested a refund of NPR ${payment.amount} for payment ${payment._id}.`,
+          category: "payment",
+          bookingId: payment.bookingId,
+          metadata: { paymentId: payment._id },
+        });
+      } catch (_) { /* non-fatal */ }
+
+      res.json({ success: true });
     } catch (e) {
       next(e);
     }

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
-import { HiSparkles, HiMapPin, HiClock, HiCalendarDays } from "react-icons/hi2";
+import { HiSparkles, HiMapPin, HiClock, HiCalendarDays, HiCheckCircle } from "react-icons/hi2";
 import LocationPicker from "../components/UI/LocationPicker";
 import { isKycApproved, normalizeKycStatus } from "../utils/kyc";
 
@@ -181,7 +181,7 @@ export default function BookingWizard() {
         throw new Error("No booking ID returned from server");
       }
 
-      toast.success("Booking created! ✅");
+      toast.success("Booking created successfully!");
 
       if ((service.priceMode || "fixed") === "quote_required") {
         navigate(`/client/bookings/${bookingId}`);
@@ -363,7 +363,7 @@ export default function BookingWizard() {
                   <p className="font-semibold text-gray-900 flex items-center gap-1">
                     {service.providerId?.profile?.name || "Provider"}
                     {service.providerId?.providerDetails?.badges?.includes('Verified Provider') && (
-                      <span className="text-emerald-500 text-sm" title="Verified Provider">✓</span>
+                      <HiCheckCircle className="w-4 h-4 text-emerald-500" />
                     )}
                   </p>
                   {service.providerId?.providerDetails?.trustScore > 0 && (

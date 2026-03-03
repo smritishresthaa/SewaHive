@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
-import { HiCheckCircle, HiXCircle, HiExclamationTriangle } from "react-icons/hi2";
+import { HiCheckCircle, HiXCircle, HiExclamationTriangle, HiClipboardDocumentList } from "react-icons/hi2";
 
 export default function SkillReviews() {
   const [items, setItems] = useState([]);
@@ -59,11 +59,11 @@ export default function SkillReviews() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Category Skill Reviews</h1>
-          <p className="text-gray-600">Review provider portfolios and experience to unlock categories.</p>
+          <h1 className="text-xl font-bold text-gray-900">Category Skill Reviews</h1>
+          <p className="text-[11px] text-gray-500 mt-0.5">Review provider portfolios and experience to unlock categories</p>
         </div>
         
         <select 
@@ -86,13 +86,13 @@ export default function SkillReviews() {
           <div className="h-8 w-8 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
         </div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-          <div className="text-4xl mb-4">📋</div>
+        <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
+          <div className="text-4xl mb-4"><HiClipboardDocumentList className="mx-auto w-10 h-10 text-gray-300" /></div>
           <h3 className="text-lg font-medium text-gray-900">No skill proofs found</h3>
           <p className="text-gray-500">There are no skill proofs matching the current filter.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -162,7 +162,7 @@ export default function SkillReviews() {
           <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Review Skill Proof</h2>
+                <h2 className="text-sm font-bold text-gray-900">Review Skill Proof</h2>
                 <p className="text-gray-600">
                   Provider: <span className="font-medium">{selectedItem.providerName}</span>
                 </p>
@@ -173,11 +173,11 @@ export default function SkillReviews() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">
-              <div className="bg-gray-50 p-4 rounded-xl border">
+              <div className="bg-gray-50 p-4 rounded-2xl border">
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Category Requested</h3>
                 <p className="text-lg font-medium text-gray-900">{selectedItem.proof.categoryId?.name}</p>
               </div>
-              <div className="bg-gray-50 p-4 rounded-xl border">
+              <div className="bg-gray-50 p-4 rounded-2xl border">
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Tools & Equipment</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedItem.proof.tools && selectedItem.proof.tools.length > 0 ? (
@@ -193,13 +193,13 @@ export default function SkillReviews() {
 
             <div className="mb-6">
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Experience Description</h3>
-              <div className="bg-gray-50 p-4 rounded-xl border whitespace-pre-wrap text-gray-800">
+              <div className="bg-gray-50 p-4 rounded-2xl border whitespace-pre-wrap text-gray-800">
                 {selectedItem.proof.experienceDescription || "No description provided."}
               </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">
-              <div className="bg-gray-50 p-4 rounded-xl border">
+              <div className="bg-gray-50 p-4 rounded-2xl border">
                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Work Portfolio</h3>
                  
                  {/* Before Photos */}
@@ -248,7 +248,7 @@ export default function SkillReviews() {
                    <span className="text-gray-500 text-sm italic">No portfolio images uploaded.</span>
                  )}
               </div>
-              <div className="bg-gray-50 p-4 rounded-xl border">
+              <div className="bg-gray-50 p-4 rounded-2xl border">
                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Certificates</h3>
                  {selectedItem.proof.certificates?.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2">

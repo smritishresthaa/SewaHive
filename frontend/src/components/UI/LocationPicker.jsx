@@ -87,7 +87,7 @@ export default function LocationPicker({
     setAddressText(result.display_name);
     setSearchQuery(getShortAddress(result.display_name));
     setSearchResults([]);
-    toast.success("Location selected! ✅");
+    toast.success("Location selected!");
   }
 
   function handleGetCurrentLocation() {
@@ -104,7 +104,7 @@ export default function LocationPicker({
         reverseGeocode(latitude, longitude);
         setGettingLocation(false);
         setCurrentLocationDetected(true);
-        toast.success("Current location detected! 📍");
+        toast.success("Current location detected!");
       },
       (error) => {
         setGettingLocation(false);
@@ -181,7 +181,7 @@ export default function LocationPicker({
                 : "border-gray-300 bg-white text-gray-700 hover:border-emerald-400"
             }`}
           >
-            <span>📍</span>
+            <HiMapPin className="w-4 h-4" />
             <span>Use Current Location</span>
             {locationMode === "current" && currentLocationDetected && (
               <HiCheckCircle className="text-emerald-600 text-lg" />
@@ -405,7 +405,7 @@ function MapPreview({ coords }) {
 
     markerInstance.current = window.L.marker([lat, lng])
       .addTo(mapInstance.current)
-      .bindPopup("📍 Service Location");
+      .bindPopup("Service Location");
   }
 
   return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;

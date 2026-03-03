@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HiX, HiStar } from "react-icons/hi";
+import { HiXMark, HiStar } from "react-icons/hi2";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 
@@ -25,7 +25,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
         comment: comment.trim(),
       });
       
-      toast.success("Review submitted successfully! ⭐");
+      toast.success("Review submitted successfully!");
       onReviewSubmitted(res.data.review);
       onClose();
     } catch (err) {
@@ -45,7 +45,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition"
           >
-            <HiX className="w-5 h-5 text-gray-500" />
+            <HiXMark className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 

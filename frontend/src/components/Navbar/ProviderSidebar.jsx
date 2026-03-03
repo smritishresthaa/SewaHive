@@ -62,6 +62,10 @@ export default function ProviderSidebar() {
         <Link to="/provider/leaderboard" className={linkClass("/provider/leaderboard")}>
           Leaderboard
         </Link>
+
+        <Link to="/provider/help" className={linkClass("/provider/help")}>
+          Help
+        </Link>
       </nav>
     </aside>
   );

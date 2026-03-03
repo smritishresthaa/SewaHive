@@ -145,7 +145,7 @@ export default function ClientBookingDetail() {
   async function handleConfirmCompletion() {
     try {
       await api.post(`/payment/escrow/confirm-completion`, { bookingId });
-      toast.success("Payment released to provider! ✅");
+      toast.success("Payment released to provider!");
       fetchBooking();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to confirm completion");
@@ -177,7 +177,7 @@ export default function ClientBookingDetail() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      toast.success("📅 Calendar event downloaded!");
+      toast.success("Calendar event downloaded!");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to download calendar");
     }

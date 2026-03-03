@@ -18,6 +18,8 @@ import {
   HiUser,
   HiMapPin,
   HiEye,
+  HiXCircle,
+  HiClock,
 } from "react-icons/hi2";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
@@ -75,7 +77,7 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
       });
 
       console.log("Review submitted successfully:", response);
-      toast.success("✅ KYC review submitted successfully!");
+      toast.success("KYC review submitted successfully!");
       
       // Ensure modal closes and refresh happens
       setTimeout(() => {
@@ -90,7 +92,7 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
         err?.message || 
         "Failed to submit review";
       
-      toast.error(`❌ ${errorMessage}`);
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -101,7 +103,7 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-h-screen overflow-y-auto max-w-5xl">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-h-screen overflow-y-auto max-w-5xl">
         {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-emerald-50 to-green-50 border-b p-4 flex items-center justify-between">
           <div>
@@ -137,9 +139,9 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
                 >
                   <div className="font-medium capitalize">{doc.type.replace("-", " ")}</div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    {doc.status === "approved" && "✅ Approved"}
-                    {doc.status === "rejected" && "❌ Rejected"}
-                    {doc.status === "pending" && "⏳ Pending"}
+                    {doc.status === "approved" && <span className="inline-flex items-center gap-1 text-emerald-700"><HiCheckCircle className="w-3.5 h-3.5" />Approved</span>}
+                    {doc.status === "rejected" && <span className="inline-flex items-center gap-1 text-rose-700"><HiXCircle className="w-3.5 h-3.5" />Rejected</span>}
+                    {doc.status === "pending" && <span className="inline-flex items-center gap-1 text-amber-700"><HiClock className="w-3.5 h-3.5" />Pending</span>}
                   </div>
                 </button>
               ))}
@@ -282,27 +284,28 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
                 <p className="text-gray-600">Name Match</p>
                 <p className="font-semibold">
                   {verification.profileMatch.nameMatch
-                    ? "✅ Matches"
+                    ? <span className="inline-flex items-center gap-1 text-emerald-700"><HiCheckCircle className="w-3.5 h-3.5" />Matches</span>
                     : verification.profileMatch.nameMatch === false
-                    ? "❌ Mismatch"
-                    : "⏳ Not checked"}
+                    ? <span className="inline-flex items-center gap-1 text-rose-700"><HiXCircle className="w-3.5 h-3.5" />Mismatch</span>
+                    : <span className="inline-flex items-center gap-1 text-gray-500"><HiClock className="w-3.5 h-3.5" />Not checked</span>}
                 </p>
               </div>
               <div>
                 <p className="text-gray-600">DOB Match</p>
                 <p className="font-semibold">
                   {verification.profileMatch.dobMatch
-                    ? "✅ Matches"
+                    ? <span className="inline-flex items-center gap-1 text-emerald-700"><HiCheckCircle className="w-3.5 h-3.5" />Matches</span>
                     : verification.profileMatch.dobMatch === false
-                    ? "❌ Mismatch"
-                    : "⏳ Not checked"}
+                    ? <span className="inline-flex items-center gap-1 text-rose-700"><HiXCircle className="w-3.5 h-3.5" />Mismatch</span>
+                    : <span className="inline-flex items-center gap-1 text-gray-500"><HiClock className="w-3.5 h-3.5" />Not checked</span>}
                 </p>
               </div>
             </div>
             {verification.profileMatch.notes && (
-              <p className="text-sm text-amber-700 mt-2">
-                ⚠️ {verification.profileMatch.notes}
-              </p>
+            <div className="flex items-start gap-1.5 text-amber-700 text-xs mt-2">
+              <HiExclamationTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <span>{verification.profileMatch.notes}</span>
+            </div>
             )}
           </div>
         )}
@@ -343,9 +346,9 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
               onChange={(e) => setBadge(e.target.value)}
               className="w-full border rounded-lg px-3 py-2"
             >
-              <option value="verified">Verified ✔️</option>
-              <option value="pro">Pro ⭐</option>
-              <option value="top-rated">Top Rated 🏆</option>
+              <option value="verified">Verified</option>
+              <option value="pro">Pro</option>
+              <option value="top-rated">Top Rated</option>
             </select>
           </div>
 

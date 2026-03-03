@@ -1,382 +1,291 @@
 import { useEffect, useMemo, useState } from "react";
 import ProviderLayout from "../../layouts/ProviderLayout";
 import api from "../../utils/axios";
+import toast from "react-hot-toast";
 import {
-  HiCurrencyDollar,
-  HiClock,
-  HiCheckCircle,
-  HiExclamationTriangle,
-  HiArrowTrendingUp,
+  HiWallet, HiArrowTrendingUp, HiReceiptPercent, HiBanknotes, HiChartBar,
 } from "react-icons/hi2";
+import {
+  BarChart, Bar, XAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
+} from "recharts";
 
-const STATUS_LABELS = {
-  RELEASED: "Released",
-  FUNDS_HELD: "Funds Held",
-  INITIATED: "Initiated",
-  FAILED: "Failed",
-  DISPUTED: "Disputed",
-  REFUNDED: "Refunded",
-  PARTIALLY_REFUNDED: "Partially Refunded",
-};
+/* ─── helpers ────────────────────────────────────────────────────────────── */
+const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 
-const statusStyles = (status) => {
-  if (status === "RELEASED") return "bg-green-100 text-green-700";
-  if (status === "FUNDS_HELD") return "bg-yellow-100 text-yellow-700";
-  if (status === "INITIATED") return "bg-blue-100 text-blue-700";
-  if (status === "FAILED") return "bg-red-100 text-red-700";
-  if (status === "DISPUTED") return "bg-orange-100 text-orange-700";
-  return "bg-gray-100 text-gray-700";
-};
+/* ─── status chip ─────────────────────────────────────────────────────────── */
+function StatusChip({ status }) {
+  const MAP = {
+    RELEASED:           "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    FUNDS_HELD:         "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    INITIATED:          "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+    FAILED:             "bg-red-50 text-red-700 ring-1 ring-red-200",
+    DISPUTED:           "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
+    REFUNDED:           "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
+    PARTIALLY_REFUNDED: "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
+  };
+  const LABELS = {
+    RELEASED: "Released", FUNDS_HELD: "Funds Held", INITIATED: "Initiated",
+    FAILED: "Failed", DISPUTED: "Disputed", REFUNDED: "Refunded", PARTIALLY_REFUNDED: "Partial Refund",
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${MAP[status] || "bg-gray-100 text-gray-500 ring-1 ring-gray-200"}`}>
+      {LABELS[status] || status || "Unknown"}
+    </span>
+  );
+}
 
-const rangeOptions = [
-  { value: "7d", label: "Last 7 days" },
-  { value: "30d", label: "Last 30 days" },
-  { value: "90d", label: "Last 90 days" },
-  { value: "all", label: "All time" },
-];
+/* ─── custom tooltips ─────────────────────────────────────────────────────── */
+function BarTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl bg-white border border-gray-100 shadow-lg px-3 py-2 text-xs">
+      <p className="text-gray-500 font-medium mb-1">{label}</p>
+      {payload.map(p => (
+        <p key={p.name} style={{ color: p.color }} className="font-semibold font-mono">
+          {p.name}: NPR {fmt(p.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
 
-const getRangeStart = (range) => {
-  if (range === "all") return null;
-  const now = new Date();
-  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
-  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  return start;
-};
-
+/* ─── main ────────────────────────────────────────────────────────────────── */
 export default function ProviderEarnings() {
   const [wallet, setWallet] = useState({
-    totalEarned: 0,
-    pendingBalance: 0,
-    availableBalance: 0,
-    totalWithdrawn: 0,
-    totalRefunded: 0,
-    transactions: [],
+    balance: 0, totalEarned: 0, totalCommissionPaid: 0, pendingPayouts: 0,
+    pendingBalance: 0, availableBalance: 0, totalWithdrawn: 0, transactions: [],
   });
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [range, setRange] = useState("30d");
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [walletRes, paymentsRes] = await Promise.all([
+        api.get("/providers/wallet"),
+        api.get("/payment/transactions/provider?limit=200"),
+      ]);
+      setWallet(walletRes.data?.wallet || {});
+      setPayments(paymentsRes.data?.payments || []);
+    } catch (err) {
+      console.error("Failed to load earnings", err);
+      toast.error("Failed to load earnings data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchData = async () => {
-      if (document.hidden) return;
-      try {
-        setLoading(true);
-        const [walletRes, paymentsRes] = await Promise.all([
-          api.get("/providers/wallet"),
-          api.get("/payment/transactions/provider?limit=200"),
-        ]);
-
-        if (isMounted) {
-          setWallet(walletRes.data?.wallet || {});
-          setPayments(paymentsRes.data?.payments || []);
-          setError("");
-        }
-      } catch (err) {
-        console.error("Failed to load earnings", err);
-        if (isMounted) {
-          setError("Failed to load earnings data");
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchData();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    const iv = setInterval(() => { if (!document.hidden) fetchData(); }, 30000);
+    const vis = () => { if (!document.hidden) fetchData(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", vis); };
   }, []);
 
-  const filteredPayments = useMemo(() => {
-    const startDate = getRangeStart(range);
-    if (!startDate) return payments;
-    return payments.filter((payment) => {
-      const createdAt = new Date(payment.createdAt || 0);
-      return createdAt >= startDate;
-    });
-  }, [payments, range]);
-
-  const metrics = useMemo(() => {
-    const summary = {
-      released: 0,
-      held: 0,
-      disputed: 0,
-      refunded: 0,
-      totalCount: filteredPayments.length,
-    };
-
-    filteredPayments.forEach((payment) => {
-      const amount = Number(payment.amount || 0);
-      if (payment.status === "RELEASED") summary.released += amount;
-      if (payment.status === "FUNDS_HELD") summary.held += amount;
-      if (payment.status === "DISPUTED") summary.disputed += amount;
-      if (["REFUNDED", "PARTIALLY_REFUNDED"].includes(payment.status)) {
-        summary.refunded += amount;
+  /* ── monthly bar chart data (last 6 months, RELEASED only) ── */
+  const monthlyData = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        month: d.toLocaleDateString("en-US", { month: "short" }),
+        year: d.getFullYear(),
+        monthIdx: d.getMonth(),
+        gross: 0, net: 0,
+      });
+    }
+    payments.forEach(p => {
+      if (p.status !== "RELEASED" || !p.createdAt) return;
+      const d = new Date(p.createdAt);
+      const m = months.find(x => x.monthIdx === d.getMonth() && x.year === d.getFullYear());
+      if (m) {
+        const amt = Number(p.amount || 0);
+        m.gross += amt;
+        m.net += amt * 0.85;
       }
     });
-
-    return summary;
-  }, [filteredPayments]);
-
-  const lastReleased = useMemo(() => {
-    const released = payments
-      .filter((payment) => payment.status === "RELEASED")
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    return released[0] || null;
+    return months;
   }, [payments]);
+
+  /* ── derived values ── */
+  const totalEarned = Number(wallet.totalEarned || 0);
+  const commission  = Number(wallet.totalCommissionPaid || (totalEarned * 0.15).toFixed(2));
+  const netPayout   = Number((totalEarned - commission).toFixed(2));
+  const balance     = Number(wallet.balance || wallet.availableBalance || 0);
+
+  const kpis = [
+    { label: "Wallet Balance",      value: `NPR ${fmt(balance)}`,    Icon: HiWallet,          color: "text-emerald-700", bg: "bg-emerald-100", border: "border-l-emerald-500", large: true },
+    { label: "Total Earned (Gross)", value: `NPR ${fmt(totalEarned)}`, Icon: HiArrowTrendingUp, color: "text-blue-700",    bg: "bg-blue-100",    border: "border-l-blue-500"    },
+    { label: "Commission Paid (15%)", value: `NPR ${fmt(commission)}`, Icon: HiReceiptPercent,  color: "text-amber-700",  bg: "bg-amber-100",   border: "border-l-amber-500"    },
+    { label: "Net Payout (85%)",     value: `NPR ${fmt(netPayout)}`,  Icon: HiBanknotes,       color: "text-green-700",  bg: "bg-green-100",   border: "border-l-green-500"    },
+  ];
+
+  const pieData = [
+    { name: "Net Payout", value: 85 },
+    { name: "Commission", value: 15 },
+  ];
+  const PIE_COLORS = ["#059669", "#f59e0b"];
+
+  /* ── custom center label ── */
+  const DonutCenter = ({ viewBox }) => {
+    const { cx, cy } = viewBox;
+    return (
+      <>
+        <text x={cx} y={cy - 6} textAnchor="middle" className="fill-gray-700 text-xs font-bold" style={{ fontSize: 11, fontWeight: 700 }}>85%</text>
+        <text x={cx} y={cy + 8} textAnchor="middle" style={{ fontSize: 9, fill: "#6b7280" }}>yours</text>
+      </>
+    );
+  };
 
   return (
     <ProviderLayout>
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Earnings</h1>
-            <p className="text-gray-600 mt-1">
-              Track your income, escrow, and payouts in real time.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Filter</span>
-            <select
-              value={range}
-              onChange={(event) => setRange(event.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm"
-            >
-              {rangeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="space-y-4 max-w-6xl mx-auto" style={{ backgroundColor: "#f8fafc" }}>
+
+        {/* ─── KPI STRIP ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {kpis.map(k => (
+            <div key={k.label} className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 border-l-4 ${k.border}`}>
+              <div className={`${k.bg} w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0`}>
+                <k.Icon className={`w-5 h-5 ${k.color}`} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide leading-none mb-1">{k.label}</p>
+                <p className={`font-bold font-mono text-gray-900 leading-none truncate ${k.large ? "text-2xl" : "text-xl"} ${k.large ? k.color : ""}`}>{k.value}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {error && <div className="mb-4 text-red-600">{error}</div>}
-
         {loading ? (
-          <div className="flex items-center justify-center h-48">
+          <div className="flex justify-center py-20">
             <div className="h-10 w-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
           </div>
         ) : (
           <>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <div className="bg-white border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <HiCurrencyDollar className="text-2xl text-emerald-600" />
-                  <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                    Available
-                  </span>
+            {/* ─── CHARTS ROW ──────────────────────────────────────────── */}
+            <div className="grid grid-cols-12 gap-4">
+
+              {/* Monthly Bar Chart (8 cols) */}
+              <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <HiChartBar className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-700">Monthly Earnings (Last 6 Months)</span>
                 </div>
-                <p className="text-sm text-gray-500">Available balance</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  NPR {Number(wallet.availableBalance || 0).toLocaleString()}
-                </p>
-              </div>
-
-              <div className="bg-white border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <HiClock className="text-2xl text-yellow-500" />
-                  <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded-full">
-                    Escrow
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">Pending in escrow</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  NPR {Number(wallet.pendingBalance || 0).toLocaleString()}
-                </p>
-              </div>
-
-              <div className="bg-white border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <HiCheckCircle className="text-2xl text-green-600" />
-                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                    Lifetime
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">Total earned</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  NPR {Number(wallet.totalEarned || 0).toLocaleString()}
-                </p>
-              </div>
-
-              <div className="bg-white border rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <HiArrowTrendingUp className="text-2xl text-blue-600" />
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                    Withdrawn
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">Total withdrawn</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  NPR {Number(wallet.totalWithdrawn || 0).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white border rounded-2xl p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900">Earnings summary</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Based on {rangeOptions.find((o) => o.value === range)?.label}
-                </p>
-                <div className="mt-4 space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Released earnings</span>
-                    <span className="font-semibold text-gray-900">
-                      NPR {metrics.released.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Held in escrow</span>
-                    <span className="font-semibold text-gray-900">
-                      NPR {metrics.held.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Disputed amounts</span>
-                    <span className="font-semibold text-gray-900">
-                      NPR {metrics.disputed.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Refunded amounts</span>
-                    <span className="font-semibold text-gray-900">
-                      NPR {metrics.refunded.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white border rounded-2xl p-6 shadow-sm lg:col-span-2">
-                <h2 className="text-lg font-semibold text-gray-900">Latest payout</h2>
-                <div className="mt-4 flex items-center justify-between border rounded-xl p-4 bg-emerald-50">
-                  <div>
-                    <p className="text-sm text-emerald-700">Most recent released payment</p>
-                    <p className="text-2xl font-bold text-emerald-900 mt-1">
-                      NPR {Number(lastReleased?.amount || 0).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-emerald-700 mt-2">
-                      {lastReleased?.createdAt
-                        ? new Date(lastReleased.createdAt).toLocaleString()
-                        : "No released payments yet"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-emerald-700">Bookings</p>
-                    <p className="text-3xl font-bold text-emerald-900">
-                      {metrics.totalCount}
-                    </p>
-                    <p className="text-xs text-emerald-700">in selected range</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border rounded-2xl p-6 shadow-sm mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Earnings history</h2>
-                <span className="text-xs text-gray-500">Updated every 30s</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="text-left p-3">Date</th>
-                      <th className="text-left p-3">Booking</th>
-                      <th className="text-left p-3">Client</th>
-                      <th className="text-left p-3">Amount</th>
-                      <th className="text-left p-3">Status</th>
-                      <th className="text-left p-3">Type</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPayments.length === 0 ? (
-                      <tr>
-                        <td className="p-4 text-gray-500" colSpan={6}>
-                          No transactions for the selected range.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredPayments.map((payment) => {
-                        const bookingId = payment.bookingId?._id || payment.bookingId;
-                        const bookingRef = bookingId ? String(bookingId).slice(-6) : "----";
-                        const clientName = payment.clientId?.profile?.name || "Client";
-                        return (
-                          <tr key={payment._id} className="border-b hover:bg-gray-50">
-                            <td className="p-3 text-gray-600">
-                              {payment.createdAt
-                                ? new Date(payment.createdAt).toLocaleDateString()
-                                : "-"}
-                            </td>
-                            <td className="p-3 font-mono text-blue-600">BK-{bookingRef}</td>
-                            <td className="p-3 text-gray-800">{clientName}</td>
-                            <td className="p-3 font-semibold">
-                              NPR {Number(payment.amount || 0).toLocaleString()}
-                            </td>
-                            <td className="p-3">
-                              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyles(payment.status)}`}>
-                                {STATUS_LABELS[payment.status] || payment.status || "Unknown"}
-                              </span>
-                            </td>
-                            <td className="p-3 text-gray-600 capitalize">
-                              {payment.purpose ? payment.purpose.replace("_", " ") : "-"}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="bg-white border rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <HiExclamationTriangle className="text-orange-500" />
-                <h2 className="text-lg font-semibold text-gray-900">Wallet activity</h2>
-              </div>
-              {wallet.transactions?.length ? (
-                <div className="space-y-3">
-                  {wallet.transactions.map((entry) => (
-                    <div key={entry._id} className="flex items-center justify-between border rounded-lg p-3">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{entry.type}</p>
-                        <p className="text-xs text-gray-500">{entry.description || "Wallet update"}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">
-                          NPR {Number(entry.amount || 0).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "-"}
-                        </p>
-                      </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={monthlyData} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<BarTooltip />} />
+                    <Bar name="Gross" dataKey="gross" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                    <Bar name="Net" dataKey="net" fill="#059669" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex justify-center gap-5 mt-2">
+                  {[{ color: "#3b82f6", label: "Gross" }, { color: "#059669", label: "Net (85%)" }].map(l => (
+                    <div key={l.label} className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: l.color }} />
+                      <span className="text-[10px] text-gray-500">{l.label}</span>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">No wallet activity yet.</p>
-              )}
+              </div>
+
+              {/* Earning Breakdown Donut (4 cols) */}
+              <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                <p className="text-sm font-semibold text-gray-700 mb-4">Payout Breakdown</p>
+                <ResponsiveContainer width="100%" height={140}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={35}
+                      outerRadius={58}
+                      paddingAngle={2}
+                      dataKey="value"
+                      labelLine={false}
+                    >
+                      {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
+                      <DonutCenter />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-col gap-1.5 mt-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span className="text-xs font-semibold text-emerald-600">Your Share: 85%</span>
+                    </div>
+                    <span className="text-xs font-mono font-semibold text-gray-700">NPR {fmt(netPayout)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="text-xs font-semibold text-amber-600">Platform Fee: 15%</span>
+                    </div>
+                    <span className="text-xs font-mono font-semibold text-gray-700">NPR {fmt(commission)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── EARNINGS TABLE ──────────────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <span className="text-sm font-bold text-gray-800">Earnings History</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                      <th className="text-left py-2.5 px-4">Service</th>
+                      <th className="text-left py-2.5 px-4">Client</th>
+                      <th className="text-left py-2.5 px-4">Gross</th>
+                      <th className="text-left py-2.5 px-4">Commission (15%)</th>
+                      <th className="text-left py-2.5 px-4">Your Payout (85%)</th>
+                      <th className="text-left py-2.5 px-4">Date</th>
+                      <th className="text-left py-2.5 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-16 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <HiBanknotes className="w-10 h-10 text-gray-300" />
+                            <span className="text-sm text-gray-400">No earnings yet</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : payments.map(p => {
+                      const gross = Number(p.amount || 0);
+                      const comm  = Number((gross * 0.15).toFixed(2));
+                      const payout = Number((gross * 0.85).toFixed(2));
+                      const clientName = p.clientId?.profile?.name || "—";
+                      const serviceTitle = p.bookingId?.serviceTitle || "—";
+                      return (
+                        <tr key={p._id} className="border-b border-gray-50 hover:bg-emerald-50/20 transition">
+                          <td className="py-2.5 px-4 text-gray-800 font-medium">{serviceTitle}</td>
+                          <td className="py-2.5 px-4 text-gray-600">{clientName}</td>
+                          <td className="py-2.5 px-4 font-mono text-sm text-gray-900">NPR {fmt(gross)}</td>
+                          <td className="py-2.5 px-4 font-mono text-sm text-amber-600">NPR {fmt(comm)}</td>
+                          <td className="py-2.5 px-4 font-mono text-sm font-semibold text-emerald-600">NPR {fmt(payout)}</td>
+                          <td className="py-2.5 px-4 text-gray-500 whitespace-nowrap">{fmtDate(p.createdAt)}</td>
+                          <td className="py-2.5 px-4"><StatusChip status={p.status} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
       </div>
     </ProviderLayout>
   );
- }
+}

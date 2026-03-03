@@ -85,9 +85,9 @@ export default function LeaderboardPage() {
       <div className="max-w-5xl mx-auto">
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div style={{ fontFamily: "Satoshi, 'Space Grotesk', 'Segoe UI', sans-serif" }}>
-              <h1 className="text-3xl font-semibold text-gray-900">See where you are!</h1>
-              <p className="text-sm text-gray-600 mt-1">Here is your Leaderboard</p>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Leaderboard</h1>
+              <p className="text-[11px] text-gray-500 mt-0.5">Top performing providers</p>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-lg font-semibold">
               LB

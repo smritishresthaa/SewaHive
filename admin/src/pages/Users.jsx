@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../utils/axios'
+import {
+  HiUsers, HiBriefcase, HiCheckBadge, HiNoSymbol,
+  HiMagnifyingGlass, HiArrowPath, HiExclamationTriangle,
+  HiEye, HiEyeSlash, HiShieldCheck, HiTrash,
+  HiXMark, HiEllipsisVertical, HiCheckCircle, HiXCircle, HiClock, HiStar,
+} from 'react-icons/hi2'
 
 export default function Users() {
   const [searchParams] = useSearchParams()
@@ -238,7 +244,7 @@ export default function Users() {
   }
 
   const handleRemoveAccount = async (user) => {
-    if (!confirm(`⚠️ PERMANENTLY DELETE ${user.name}? This cannot be undone!`)) return
+    if (!confirm(`PERMANENTLY DELETE ${user.name}? This action cannot be undone.`)) return
     
     try {
       const res = await api.delete(`/admin/users/${user._id}`)
@@ -292,168 +298,85 @@ export default function Users() {
     
     // Only providers need KYC verification
     if (user.badges.includes('verified') || user.verification === 'approved') {
-      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">✓ Verified</span>
+      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset bg-blue-50 text-blue-700 ring-blue-200"><HiCheckCircle className="w-3.5 h-3.5" />Verified</span>
     }
     if (user.verification === 'pending' || user.verification === 'submitted') {
-      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">⏳ Pending</span>
+      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset bg-amber-50 text-amber-700 ring-amber-200"><HiClock className="w-3.5 h-3.5" />Pending</span>
     }
     if (user.verification === 'rejected') {
-      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">✗ Rejected</span>
+      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset bg-red-50 text-red-700 ring-red-200"><HiXCircle className="w-3.5 h-3.5" />Rejected</span>
     }
     return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Not Verified</span>
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative space-y-4">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage all clients and providers in one place</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">User Management</h1>
+          <p className="text-[11px] text-gray-500 mt-0.5">Manage all clients and providers</p>
+        </div>
+        <button onClick={fetchData} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Refresh">
+          <HiArrowPath className="w-4 h-4" />
+        </button>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        <div className="p-2.5 bg-red-50 text-red-700 rounded-lg text-xs flex items-center gap-2">
+          <HiExclamationTriangle className="w-4 h-4 flex-shrink-0" /> {error}
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[
+          { label: 'Total Users', value: stats.totalUsers, Icon: HiUsers, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-500' },
+          { label: 'Clients', value: stats.totalClients, Icon: HiUsers, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-500' },
+          { label: 'Providers', value: stats.totalProviders, Icon: HiBriefcase, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-500' },
+          { label: 'Verified', value: stats.verifiedProviders, Icon: HiCheckBadge, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-500' },
+          { label: 'Suspended', value: stats.suspendedAccounts, Icon: HiNoSymbol, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-500' },
+        ].map(kpi => (
+          <div key={kpi.label} className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${kpi.border} p-3 flex items-center gap-3 hover:shadow-md transition-shadow`}>
+            <div className={`${kpi.bg} rounded-full p-2`}><kpi.Icon className={`w-5 h-5 ${kpi.color}`} /></div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalUsers}</p>
-            </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
+              <p className="text-[10px] text-gray-500">{kpi.label}</p>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{kpi.value}</p>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Clients</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalClients}</p>
-            </div>
-            <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Providers</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalProviders}</p>
-            </div>
-            <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Verified</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.verifiedProviders}</p>
-            </div>
-            <div className="h-12 w-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <svg className="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Suspended</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.suspendedAccounts}</p>
-            </div>
-            <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
-              <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="md:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+      {/* Filters */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search</label>
             <div className="relative">
-              <input
-                type="text"
-                placeholder="Name, email, or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <svg
-                className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <HiMagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input type="text" placeholder="Name, email, phone..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
             </div>
           </div>
-
-          {/* Role Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User Role</label>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Role</label>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400">
               <option value="all">All Roles</option>
               <option value="client">Client</option>
               <option value="provider">Provider</option>
             </select>
           </div>
-
-          {/* Status Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Status</label>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400">
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="suspended">Suspended</option>
               <option value="pending">Pending</option>
             </select>
           </div>
-
-          {/* Verification Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Verification <span className="text-xs text-gray-500">(Providers only)</span>
-            </label>
-            <select
-              value={verificationFilter}
-              onChange={(e) => setVerificationFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Verification</label>
+            <select value={verificationFilter} onChange={(e) => setVerificationFilter(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400">
               <option value="all">All</option>
               <option value="verified">Verified</option>
               <option value="pending">Pending</option>
@@ -461,79 +384,46 @@ export default function Users() {
             </select>
           </div>
         </div>
-
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <p className="text-gray-600">
-            Showing <span className="font-semibold">{filteredUsers.length}</span> of{' '}
-            <span className="font-semibold">{users.length}</span> users
-          </p>
+        <div className="mt-2 flex items-center justify-between text-[11px]">
+          <p className="text-gray-500">Showing <span className="font-semibold text-gray-700">{filteredUsers.length}</span> of <span className="font-semibold text-gray-700">{users.length}</span></p>
           {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all' || verificationFilter !== 'all') && (
-            <button
-              onClick={() => {
-                setSearchQuery('')
-                setRoleFilter('all')
-                setStatusFilter('all')
-                setVerificationFilter('all')
-              }}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Clear Filters
-            </button>
+            <button onClick={() => { setSearchQuery(''); setRoleFilter('all'); setStatusFilter('all'); setVerificationFilter('all') }} className="text-emerald-600 hover:text-emerald-700 font-semibold">Clear</button>
           )}
         </div>
       </div>
 
       {/* User Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  KYC Verification
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Joined
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-white z-10">
+              <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                <th className="px-4 py-2">User</th>
+                <th className="px-4 py-2">Role</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">KYC</th>
+                <th className="px-4 py-2">Joined</th>
+                <th className="px-4 py-2">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    <div className="flex items-center justify-center">
-                      <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    </div>
+                  <td colSpan="6" className="px-5 py-10 text-center text-gray-400 text-xs">
+                    <div className="h-6 w-6 mx-auto rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                    </svg>
-                    <p className="mt-2">No users found</p>
+                  <td colSpan="6" className="px-5 py-10 text-center">
+                    <HiUsers className="mx-auto w-8 h-8 text-gray-300 mb-1" />
+                    <p className="text-xs text-gray-400">No users found</p>
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <tr key={user._id} className="border-b border-gray-50 hover:bg-emerald-50/30 transition">
+                    <td className="px-5 py-2.5 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           {user.avatar ? (
@@ -560,21 +450,21 @@ export default function Users() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    <td className="px-5 py-2.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ring-1 ring-inset ${
                         user.role === 'Provider' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-purple-100 text-purple-800'
+                          ? 'bg-green-50 text-green-700 ring-green-200' 
+                          : 'bg-purple-50 text-purple-700 ring-purple-200'
                       }`}>
                         {user.role}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(user.status)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{getVerificationBadge(user)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-5 py-2.5 whitespace-nowrap">{getStatusBadge(user.status)}</td>
+                    <td className="px-5 py-2.5 whitespace-nowrap">{getVerificationBadge(user)}</td>
+                    <td className="px-5 py-2.5 whitespace-nowrap text-xs text-gray-500">
                       {formatDate(user.joinedDate)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-5 py-2.5 whitespace-nowrap text-xs font-medium">
                       <div className="relative" data-testid="actions-menu">
                         <button
                           id={`action-btn-${user._id}`}
@@ -583,29 +473,23 @@ export default function Users() {
                             console.log('3-dot click detected, userId:', user._id, 'Current state:', openActionDropdown)
                             setOpenActionDropdown(openActionDropdown === user._id ? null : user._id)
                           }}
-                          className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 p-2 rounded-lg transition-colors relative z-10"
+                          className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 p-1.5 rounded-lg transition-colors relative z-10"
                         >
-                          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
+                          <HiEllipsisVertical className="h-4 w-4" />
                         </button>
                         
                         {/* Dropdown - render inline */}
                         {openActionDropdown === user._id && (
-                          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-2xl border border-gray-200 z-[999]">
-                            <div className="py-2">
+                          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 z-[999] py-1">
                               {/* View Details */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleActionClick('view', user);
                                 }}
-                                className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                               >
-                                <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
+                                <HiEye className="h-4 w-4 flex-shrink-0" />
                                 <span className="font-medium">View Details</span>
                               </button>
 
@@ -615,22 +499,12 @@ export default function Users() {
                                   e.stopPropagation();
                                   handleActionClick('suspend', user);
                                 }}
-                                className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
+                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors"
                               >
                                 {user.status === 'suspended' ? (
-                                  <>
-                                    <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span className="font-medium">Reactivate Account</span>
-                                  </>
+                                  <><HiEyeSlash className="h-4 w-4 flex-shrink-0" /><span className="font-medium">Reactivate Account</span></>
                                 ) : (
-                                  <>
-                                    <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                    </svg>
-                                    <span className="font-medium">Suspend Account</span>
-                                  </>
+                                  <><HiNoSymbol className="h-4 w-4 flex-shrink-0" /><span className="font-medium">Suspend Account</span></>
                                 )}
                               </button>
 
@@ -641,17 +515,15 @@ export default function Users() {
                                     e.stopPropagation();
                                     handleActionClick('verify', user);
                                   }}
-                                  className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
+                                  className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
                                 >
-                                  <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                  </svg>
+                                  <HiShieldCheck className="h-4 w-4 flex-shrink-0" />
                                   <span className="font-medium">Verify Provider</span>
                                 </button>
                               )}
 
                               {/* Divider before dangerous action */}
-                              <div className="border-t border-gray-200 my-2"></div>
+                              <div className="border-t border-gray-100 my-1"></div>
 
                               {/* Remove Account */}
                               <button
@@ -659,14 +531,11 @@ export default function Users() {
                                   e.stopPropagation();
                                   handleActionClick('remove', user);
                                 }}
-                                className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
                               >
-                                <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
+                                <HiTrash className="h-4 w-4 flex-shrink-0" />
                                 <span className="font-medium">Remove Account</span>
                               </button>
-                            </div>
                           </div>
                         )}
                       </div>
@@ -681,14 +550,14 @@ export default function Users() {
 
       {/* Recent Admin Actions */}
       {recentActions.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Admin Actions</h3>
-          <div className="space-y-2">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <h3 className="text-xs font-semibold text-gray-900 mb-2">Recent Admin Actions</h3>
+          <div className="space-y-1.5">
             {recentActions.map((action) => (
-              <div key={action.id} className="flex items-center text-sm">
-                <span className="h-2 w-2 bg-green-500 rounded-full mr-3"></span>
+              <div key={action.id} className="flex items-center text-[11px]">
+                <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full mr-2.5"></span>
                 <span className="text-gray-700">{action.text}</span>
-                <span className="ml-auto text-gray-400 text-xs">
+                <span className="ml-auto text-gray-400 text-[10px]">
                   {action.timestamp.toLocaleTimeString()}
                 </span>
               </div>
@@ -707,18 +576,13 @@ export default function Users() {
           ></div>
 
           {/* Drawer */}
-          <div className="fixed right-0 top-0 h-full w-full md:w-[500px] bg-white shadow-xl z-50 overflow-y-auto">
+          <div className="fixed right-0 top-0 h-full w-full md:w-[480px] bg-white shadow-2xl z-50 overflow-y-auto">
             <div className="p-6">
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">User Details</h2>
-                <button
-                  onClick={() => setIsDrawerOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-sm font-bold text-gray-900">User Details</h2>
+                <button onClick={() => setIsDrawerOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                  <HiXMark className="h-5 w-5" />
                 </button>
               </div>
 
@@ -926,8 +790,8 @@ export default function Users() {
                           <>
                             <div className="flex justify-between">
                               <span className="text-sm text-gray-600">Average Rating:</span>
-                              <span className="text-sm font-medium text-gray-900">
-                                ⭐ {selectedUser.providerDetails.rating.average.toFixed(1)} ({selectedUser.providerDetails.rating.count} reviews)
+                              <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                                <HiStar className="w-4 h-4 text-yellow-400" /> {selectedUser.providerDetails.rating.average.toFixed(1)} ({selectedUser.providerDetails.rating.count} reviews)
                               </span>
                             </div>
                           </>

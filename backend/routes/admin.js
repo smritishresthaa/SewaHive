@@ -1,6 +1,7 @@
 // routes/admin.js
 const express = require('express');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const categoryImageUpload = require('../middleware/categoryImageUpload');
 const Category = require('../models/Category');
 const Subcategory = require('../models/Subcategory');
 const Service = require('../models/Service');
@@ -787,6 +788,32 @@ router.delete('/categories/:categoryId', authenticate, requireAdmin, async (req,
     );
 
     res.json({ success: true, message: 'Category deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// UPLOAD category cover image via Cloudinary
+router.post('/categories/:categoryId/image', authenticate, requireAdmin, categoryImageUpload.single('image'), async (req, res, next) => {
+  try {
+    const category = await Category.findById(req.params.categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file provided' });
+    }
+
+    category.image = req.file.path; // Cloudinary URL
+    category.updatedBy = req.user._id;
+    await category.save();
+
+    res.json({
+      success: true,
+      message: 'Category image uploaded successfully',
+      data: { image: category.image, category },
+    });
   } catch (err) {
     next(err);
   }
@@ -2495,6 +2522,54 @@ router.patch('/users/:id/verify', authenticate, requireAdmin, async (req, res, n
         badges: user.providerDetails.badges,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================
+// PLATFORM SETTINGS
+// ============================================
+
+// GET /admin/settings — fetch singleton config (upsert if missing)
+router.get('/settings', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const settings = await AdminServiceConfig.findOneAndUpdate(
+      {},
+      {},
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ success: true, settings });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /admin/settings — update allowed fields
+router.put('/settings', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const allowed = [
+      'platformCommission',
+      'emergencySurcharge',
+      'minimumServiceFee',
+      'emailNotificationsEnabled',
+      'smsAlertsEnabled',
+      'maintenanceMode',
+      'registrationOpen',
+      'termsAndConditions',
+    ];
+    const update = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) update[key] = req.body[key];
+    }
+    update.updatedBy = req.user._id;
+
+    const settings = await AdminServiceConfig.findOneAndUpdate(
+      {},
+      { $set: update },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ success: true, settings });
   } catch (err) {
     next(err);
   }

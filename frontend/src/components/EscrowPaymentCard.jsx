@@ -1,5 +1,5 @@
 // components/EscrowPaymentCard.jsx
-import { HiCheckCircle, HiShieldCheckIcon, HiInformationCircle } from 'react-icons/hi2';
+import { HiCheckCircle, HiShieldCheck, HiInformationCircle, HiCreditCard, HiWrenchScrewdriver, HiBanknotes } from 'react-icons/hi2';
 import EsewaPaymentButton from './EsewaPaymentButton';
 
 export default function EscrowPaymentCard({ booking, disabled = false }) {
@@ -7,7 +7,7 @@ export default function EscrowPaymentCard({ booking, disabled = false }) {
     <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-200">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <HiShieldCheckIcon className="w-6 h-6 text-emerald-600" />
+        <HiShieldCheck className="w-6 h-6 text-emerald-600" />
         <h3 className="text-lg font-semibold text-gray-900">Secure Payment (Escrow)</h3>
       </div>
 
@@ -20,10 +20,10 @@ export default function EscrowPaymentCard({ booking, disabled = false }) {
               How Escrow Works
             </p>
             <ol className="text-xs text-gray-600 space-y-1">
-              <li>💳 <span className="font-medium">You pay now</span> - Funds are securely held</li>
-              <li>🔧 <span className="font-medium">Service is done</span> - Provider completes work</li>
-              <li>✓ <span className="font-medium">You confirm</span> - Review and approve completion</li>
-              <li>💰 <span className="font-medium">Payment releases</span> - Provider receives payment</li>
+              <li className="flex items-center gap-1.5"><HiCreditCard className="w-4 h-4 text-emerald-600 shrink-0" /> <span className="font-medium">You pay now</span> - Funds are securely held</li>
+              <li className="flex items-center gap-1.5"><HiWrenchScrewdriver className="w-4 h-4 text-emerald-600 shrink-0" /> <span className="font-medium">Service is done</span> - Provider completes work</li>
+              <li className="flex items-center gap-1.5"><HiCheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> <span className="font-medium">You confirm</span> - Review and approve completion</li>
+              <li className="flex items-center gap-1.5"><HiBanknotes className="w-4 h-4 text-emerald-600 shrink-0" /> <span className="font-medium">Payment releases</span> - Provider receives payment</li>
             </ol>
           </div>
         </div>

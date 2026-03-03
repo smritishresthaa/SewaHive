@@ -56,6 +56,10 @@ const PaymentSchema = new Schema(
     verifiedAt: Date,
     refundedAt: Date,
 
+    // REFUND
+    refundRequested: { type: Boolean, default: false },
+    escrowReleasedAt: Date,
+
     // OPTIONAL FOR INVOICE
     invoiceNumber: String,
     receipt: {}, // store raw gateway response

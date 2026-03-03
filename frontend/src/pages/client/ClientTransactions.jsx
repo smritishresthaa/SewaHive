@@ -1,304 +1,323 @@
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import ClientLayout from "../../layouts/ClientLayout";
 import api from "../../utils/axios";
+import {
+  HiBanknotes, HiClock, HiCheckCircle, HiInformationCircle,
+  HiArrowUturnLeft,
+} from "react-icons/hi2";
 
-const formatStatus = (status) => {
-  const mapping = {
-    RELEASED: "Released",
-    FUNDS_HELD: "Funds Held",
-    INITIATED: "Initiated",
-    FAILED: "Failed",
-    DISPUTED: "Disputed",
-    REFUNDED: "Refunded",
-    PARTIALLY_REFUNDED: "Partially Refunded",
+/* ─── helpers ────────────────────────────────────────────────────────────── */
+const fmt = (n) => Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+
+/* ─── status chip ─────────────────────────────────────────────────────────── */
+function StatusChip({ status }) {
+  const MAP = {
+    RELEASED:           "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    FUNDS_HELD:         "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    INITIATED:          "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+    FAILED:             "bg-red-50 text-red-700 ring-1 ring-red-200",
+    DISPUTED:           "bg-orange-50 text-orange-700 ring-1 ring-orange-200",
+    REFUNDED:           "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
+    PARTIALLY_REFUNDED: "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
   };
-  return mapping[status] || status || "Unknown";
-};
+  const LABELS = {
+    RELEASED: "Released", FUNDS_HELD: "Funds Held", INITIATED: "Initiated",
+    FAILED: "Failed", DISPUTED: "Disputed", REFUNDED: "Refunded", PARTIALLY_REFUNDED: "Partial Refund",
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${MAP[status] || "bg-gray-100 text-gray-500 ring-1 ring-gray-200"}`}>
+      {LABELS[status] || status || "Unknown"}
+    </span>
+  );
+}
 
-const statusStyles = (status) => {
-  if (status === "RELEASED") return "bg-green-100 text-green-700";
-  if (status === "FUNDS_HELD") return "bg-yellow-100 text-yellow-700";
-  if (status === "INITIATED") return "bg-blue-100 text-blue-700";
-  if (status === "FAILED") return "bg-red-100 text-red-700";
-  if (status === "DISPUTED") return "bg-orange-100 text-orange-700";
-  return "bg-gray-100 text-gray-700";
-};
+/* ─── inline refund confirmation ─────────────────────────────────────────── */
+function InlineRefundConfirm({ paymentId, onCancel, onDone }) {
+  const [loading, setLoading] = useState(false);
 
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      await api.post(`/payment/client/refund-request/${paymentId}`);
+      toast.success("Refund request submitted. Our team will review it shortly.");
+      onDone();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to submit refund request");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 bg-amber-50 rounded-xl p-3 text-xs">
+      <p className="text-amber-800 mb-2">Are you sure? This will notify our team to review your refund request.</p>
+      <div className="flex gap-2">
+        <button onClick={handleConfirm} disabled={loading}
+          className="bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 transition disabled:opacity-60 text-xs">
+          {loading ? "Submitting..." : "Confirm"}
+        </button>
+        <button onClick={onCancel} className="text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition text-xs">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── mobile card ─────────────────────────────────────────────────────────── */
+function MobileCard({ payment, showRefundFor, setShowRefundFor, onRefundDone }) {
+  const amt = Number(payment.amount || 0);
+  const providerName = payment.providerId?.profile?.name || "Provider";
+  const serviceTitle = payment.bookingId?.serviceTitle || "Service";
+  const initials = providerName.slice(0, 2).toUpperCase();
+  const isHeld = payment.status === "FUNDS_HELD";
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-sm font-semibold text-gray-900 leading-tight">{serviceTitle}</span>
+        <StatusChip status={payment.status} />
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+          <span className="text-[10px] font-bold text-emerald-700">{initials}</span>
+        </div>
+        <span className="text-xs text-gray-600">{providerName}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-sm font-mono font-semibold text-gray-900">NPR {fmt(amt)}</span>
+          <span className="ml-2 text-[10px] text-gray-400">{fmtDate(payment.createdAt)}</span>
+        </div>
+        {isHeld && !payment.refundRequested && (
+          <button
+            onClick={() => setShowRefundFor(showRefundFor === payment._id ? null : payment._id)}
+            className="text-xs border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition flex items-center gap-1.5"
+          >
+            <HiArrowUturnLeft className="w-3.5 h-3.5" />
+            Request Refund
+          </button>
+        )}
+        {isHeld && payment.refundRequested && (
+          <span className="text-[11px] text-amber-600 font-medium">Refund requested</span>
+        )}
+      </div>
+      {showRefundFor === payment._id && (
+        <InlineRefundConfirm
+          paymentId={payment._id}
+          onCancel={() => setShowRefundFor(null)}
+          onDone={() => { setShowRefundFor(null); onRefundDone() }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── main ────────────────────────────────────────────────────────────────── */
 export default function ClientTransactions() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [range, setRange] = useState("30d");
-  const [sortOrder, setSortOrder] = useState("newest");
+  const [showRefundFor, setShowRefundFor] = useState(null);
+
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/payment/transactions/client?limit=200");
+      setPayments(res.data?.payments || []);
+    } catch (err) {
+      console.error("Failed to load transactions", err);
+      toast.error("Failed to load transactions");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchTransactions = async () => {
-      if (document.hidden) return;
-      try {
-        setLoading(true);
-        const res = await api.get("/payment/transactions/client?limit=50");
-        if (isMounted) {
-          setPayments(res.data?.payments || []);
-          setError("");
-        }
-      } catch (err) {
-        console.error("Failed to load transactions", err);
-        if (isMounted) {
-          setError("Failed to load transactions");
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     fetchTransactions();
-    const interval = setInterval(fetchTransactions, 30000);
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchTransactions();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    const iv = setInterval(() => { if (!document.hidden) fetchTransactions(); }, 30000);
+    const vis = () => { if (!document.hidden) fetchTransactions(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", vis); };
   }, []);
 
-  const filteredPayments = useMemo(() => {
-    const now = new Date();
-    const rangeStart = (() => {
-      if (range === "all") return null;
-      const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
-      return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-    })();
-
-    const normalizedSearch = search.trim().toLowerCase();
-
-    const base = payments.filter((payment) => {
-      if (statusFilter !== "all" && payment.status !== statusFilter) {
-        return false;
-      }
-
-      if (rangeStart) {
-        const createdAt = new Date(payment.createdAt || 0);
-        if (createdAt < rangeStart) return false;
-      }
-
-      if (!normalizedSearch) return true;
-
-      const providerName = payment.providerId?.profile?.name || "";
-      const bookingId = payment.bookingId?._id || payment.bookingId || "";
-      const transactionId = payment._id || "";
-      const amount = String(payment.amount || "");
-
-      return [providerName, bookingId, transactionId, amount]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedSearch);
+  /* ── summary ── */
+  const summary = useMemo(() => {
+    let totalSpent = 0, pending = 0, completed = 0;
+    payments.forEach(p => {
+      const amt = Number(p.amount || 0);
+      if (p.status === "RELEASED") { totalSpent += amt; completed++ }
+      if (p.status === "FUNDS_HELD") pending += amt;
     });
-
-    return base.sort((a, b) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
-      return sortOrder === "oldest" ? timeA - timeB : timeB - timeA;
-    });
-  }, [payments, range, search, sortOrder, statusFilter]);
-
-  const metrics = useMemo(() => {
-    const summary = {
-      released: 0,
-      held: 0,
-      disputed: 0,
-      failed: 0,
-    };
-
-    payments.forEach((payment) => {
-      const amount = Number(payment.amount || 0);
-      if (payment.status === "RELEASED") summary.released += amount;
-      if (payment.status === "FUNDS_HELD") summary.held += amount;
-      if (payment.status === "DISPUTED") summary.disputed += amount;
-      if (payment.status === "FAILED") summary.failed += amount;
-    });
-
-    return summary;
+    return { totalSpent, pending, completed };
   }, [payments]);
+
+  const hasHeld = payments.some(p => p.status === "FUNDS_HELD");
+
+  /* ── filtered ── */
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return payments.filter(p => {
+      if (statusFilter !== "all" && p.status !== statusFilter) return false;
+      if (!q) return true;
+      const provider = p.providerId?.profile?.name || "";
+      const service = p.bookingId?.serviceTitle || "";
+      return [provider, service, String(p._id)].join(" ").toLowerCase().includes(q);
+    });
+  }, [payments, statusFilter, search]);
+
+  const kpis = [
+    { label: "Total Spent", value: `NPR ${fmt(summary.totalSpent)}`, Icon: HiBanknotes,   color: "text-emerald-700", bg: "bg-emerald-100", border: "border-l-emerald-500" },
+    { label: "Pending (Escrow)", value: `NPR ${fmt(summary.pending)}`, Icon: HiClock,      color: "text-amber-700",  bg: "bg-amber-100",   border: "border-l-amber-500"   },
+    { label: "Completed Bookings", value: summary.completed,           Icon: HiCheckCircle, color: "text-green-700",  bg: "bg-green-100",   border: "border-l-green-500"   },
+  ];
 
   return (
     <ClientLayout>
-      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-emerald-50 via-white to-slate-50 p-6">
-        <div
-          className="absolute inset-0 opacity-40"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, rgba(16,185,129,0.15), transparent 45%), radial-gradient(circle at 80% 10%, rgba(56,189,248,0.15), transparent 40%)",
-          }}
-        />
-        <div className="relative">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div style={{ fontFamily: "Satoshi, 'Space Grotesk', 'Segoe UI', sans-serif" }}>
-              <p className="text-xs uppercase tracking-[0.2em] text-emerald-700">Statement</p>
-              <h1 className="text-3xl font-semibold text-gray-900">Your Transactions</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                A clear view of payments, escrow, and releases.
-              </p>
+      <div className="space-y-4 max-w-6xl mx-auto" style={{ backgroundColor: "#f8fafc" }}>
+
+        {/* ─── SUMMARY STRIP ───────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {kpis.map(k => (
+            <div key={k.label} className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 border-l-4 ${k.border}`}>
+              <div className={`${k.bg} w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0`}>
+                <k.Icon className={`w-5 h-5 ${k.color}`} />
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide leading-none mb-1">{k.label}</p>
+                <p className="text-xl font-bold font-mono text-gray-900 leading-none">{k.value}</p>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-700">
-                Updated every 30s
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-                Gateway: eSewa
-              </span>
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
-        <div className="rounded-2xl border bg-white p-4">
-          <p className="text-xs text-gray-500">Released</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            NPR {metrics.released.toLocaleString()}
-          </p>
-          <p className="text-xs text-emerald-700 mt-2">Settled to providers</p>
-        </div>
-        <div className="rounded-2xl border bg-white p-4">
-          <p className="text-xs text-gray-500">In Escrow</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            NPR {metrics.held.toLocaleString()}
-          </p>
-          <p className="text-xs text-yellow-700 mt-2">Awaiting confirmation</p>
-        </div>
-        <div className="rounded-2xl border bg-white p-4">
-          <p className="text-xs text-gray-500">Disputed</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            NPR {metrics.disputed.toLocaleString()}
-          </p>
-          <p className="text-xs text-orange-700 mt-2">Under review</p>
-        </div>
-        <div className="rounded-2xl border bg-white p-4">
-          <p className="text-xs text-gray-500">Failed</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">
-            NPR {metrics.failed.toLocaleString()}
-          </p>
-          <p className="text-xs text-red-700 mt-2">Payment issues</p>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border bg-white p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap gap-2 text-xs">
-            {[
-              { value: "7d", label: "7 days" },
-              { value: "30d", label: "30 days" },
-              { value: "90d", label: "90 days" },
-              { value: "all", label: "All time" },
-            ].map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setRange(option.value)}
-                className={`rounded-full px-3 py-1 border ${
-                  range === option.value
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+        {/* ─── ESCROW BANNER ───────────────────────────────────────────── */}
+        {hasHeld && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-start gap-3">
+            <HiInformationCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Your payment is securely held in escrow. Funds are released to your provider only after service completion. You can request a refund if the service is not delivered.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-lg border px-3 py-2 text-sm"
-            >
-              <option value="all">All statuses</option>
-              <option value="RELEASED">Released</option>
-              <option value="FUNDS_HELD">Funds Held</option>
-              <option value="INITIATED">Initiated</option>
-              <option value="DISPUTED">Disputed</option>
-              <option value="FAILED">Failed</option>
-              <option value="REFUNDED">Refunded</option>
-              <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
-            </select>
-            <select
-              value={sortOrder}
-              onChange={(event) => setSortOrder(event.target.value)}
-              className="rounded-lg border px-3 py-2 text-sm"
-            >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search provider, booking, amount..."
-              className="rounded-lg border px-3 py-2 text-sm w-full md:w-64"
-            />
-          </div>
-        </div>
-      </div>
+        )}
 
-      {loading ? (
-        <div className="mt-6 text-gray-600">Loading transactions...</div>
-      ) : error ? (
-        <div className="mt-6 text-red-600">{error}</div>
-      ) : filteredPayments.length === 0 ? (
-        <p className="mt-6 text-gray-600">No transactions found for this view.</p>
-      ) : (
-        <div className="mt-6 overflow-hidden rounded-2xl border bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Reference</th>
-                  <th className="text-left p-3">Provider</th>
-                  <th className="text-left p-3">Amount</th>
-                  <th className="text-left p-3">Status</th>
-                  <th className="text-left p-3">Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map((payment) => {
-                  const bookingId = payment.bookingId?._id || payment.bookingId;
-                  const providerName = payment.providerId?.profile?.name || "Provider";
-                  const labelId = bookingId ? String(bookingId).slice(-6) : String(payment._id).slice(-6);
-                  return (
-                    <tr key={payment._id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 text-gray-600">
-                        {payment.createdAt ? new Date(payment.createdAt).toLocaleDateString() : "-"}
-                      </td>
-                      <td className="p-3 font-mono text-blue-600">TXN-{labelId}</td>
-                      <td className="p-3 text-gray-800">{providerName}</td>
-                      <td className="p-3 font-semibold">NPR {Number(payment.amount || 0).toLocaleString()}</td>
-                      <td className="p-3">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusStyles(payment.status)}`}>
-                          {formatStatus(payment.status)}
-                        </span>
-                      </td>
-                      <td className="p-3 text-gray-600 capitalize">
-                        {payment.purpose ? payment.purpose.replace("_", " ") : "payment"}
-                      </td>
+        {/* filters */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search provider or service..."
+            className="rounded-xl bg-white border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-100 w-56"
+          />
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="rounded-xl border border-gray-200 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          >
+            <option value="all">All Statuses</option>
+            <option value="RELEASED">Released</option>
+            <option value="FUNDS_HELD">Funds Held</option>
+            <option value="INITIATED">Initiated</option>
+            <option value="DISPUTED">Disputed</option>
+            <option value="FAILED">Failed</option>
+            <option value="REFUNDED">Refunded</option>
+          </select>
+        </div>
+
+        {/* ─── DESKTOP TABLE ───────────────────────────────────────────── */}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="h-8 w-8 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400 text-sm">No transactions found.</div>
+        ) : (
+          <>
+            {/* Desktop */}
+            <div className="hidden md:block bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                      <th className="text-left py-2.5 px-4">Service</th>
+                      <th className="text-left py-2.5 px-4">Provider</th>
+                      <th className="text-left py-2.5 px-4">Amount</th>
+                      <th className="text-left py-2.5 px-4">Platform Fee</th>
+                      <th className="text-left py-2.5 px-4">Status</th>
+                      <th className="text-left py-2.5 px-4">Date</th>
+                      <th className="text-left py-2.5 px-4">Action</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                  </thead>
+                  <tbody>
+                    {filtered.map(p => {
+                      const amt = Number(p.amount || 0);
+                      const fee = Number((amt * 0.15).toFixed(2));
+                      const providerAmt = Number((amt * 0.85).toFixed(2));
+                      const isHeld = p.status === "FUNDS_HELD";
+                      return (
+                        <>
+                          <tr key={p._id} className="border-b border-gray-50 hover:bg-emerald-50/20 transition">
+                            <td className="py-2.5 px-4 text-gray-800 font-medium">{p.bookingId?.serviceTitle || "—"}</td>
+                            <td className="py-2.5 px-4 text-gray-600">{p.providerId?.profile?.name || "—"}</td>
+                            <td className="py-2.5 px-4">
+                              <span className="font-mono font-semibold text-gray-900">NPR {fmt(amt)}</span>
+                              <div className="text-[10px] text-gray-400 font-mono">NPR {fmt(providerAmt)} goes to provider</div>
+                            </td>
+                            <td className="py-2.5 px-4 font-mono text-xs text-gray-400">NPR {fmt(fee)}</td>
+                            <td className="py-2.5 px-4"><StatusChip status={p.status} /></td>
+                            <td className="py-2.5 px-4 text-gray-500 whitespace-nowrap">{fmtDate(p.createdAt)}</td>
+                            <td className="py-2.5 px-4">
+                              {isHeld && !p.refundRequested && (
+                                <button
+                                  onClick={() => setShowRefundFor(showRefundFor === p._id ? null : p._id)}
+                                  className="text-xs border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition flex items-center gap-1.5"
+                                >
+                                  <HiArrowUturnLeft className="w-3.5 h-3.5" />
+                                  Request Refund
+                                </button>
+                              )}
+                              {isHeld && p.refundRequested && (
+                                <span className="text-[11px] text-amber-600 font-medium">Refund requested</span>
+                              )}
+                            </td>
+                          </tr>
+                          {showRefundFor === p._id && (
+                            <tr key={`${p._id}-refund`} className="bg-amber-50/30">
+                              <td colSpan={7} className="px-4 pb-3">
+                                <InlineRefundConfirm
+                                  paymentId={p._id}
+                                  onCancel={() => setShowRefundFor(null)}
+                                  onDone={() => { setShowRefundFor(null); fetchTransactions(); }}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {filtered.map(p => (
+                <MobileCard
+                  key={p._id}
+                  payment={p}
+                  showRefundFor={showRefundFor}
+                  setShowRefundFor={setShowRefundFor}
+                  onRefundDone={fetchTransactions}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </ClientLayout>
   );
 }

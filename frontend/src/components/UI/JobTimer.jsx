@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { HiPlay, HiPause, HiStop } from "react-icons/hi2";
+import { HiPlay, HiPause, HiStop, HiClock } from "react-icons/hi2";
 import toast from "react-hot-toast";
 
 export default function JobTimer({ booking, onTimerChange }) {
@@ -47,7 +47,7 @@ export default function JobTimer({ booking, onTimerChange }) {
     if (onTimerChange) {
       await onTimerChange("start", booking._id);
     }
-    toast.success("Timer started! ⏱️");
+    toast.success("Timer started");
   };
 
   const handlePauseTimer = async () => {
@@ -55,7 +55,7 @@ export default function JobTimer({ booking, onTimerChange }) {
     if (onTimerChange) {
       await onTimerChange("pause", booking._id, totalSeconds);
     }
-    toast.success("Timer paused ⏸️");
+    toast.success("Timer paused");
   };
 
   const handleResetTimer = async () => {
@@ -66,7 +66,7 @@ export default function JobTimer({ booking, onTimerChange }) {
     if (onTimerChange) {
       await onTimerChange("reset", booking._id);
     }
-    toast.success("Timer reset ⏹️");
+    toast.success("Timer reset");
   };
 
   const includedHours = Number(booking?.pricing?.includedHours || booking?.serviceId?.includedHours || 0);
@@ -94,7 +94,7 @@ export default function JobTimer({ booking, onTimerChange }) {
   return (
     <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6 mb-4">
       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-        ⏱️ Work Duration Tracker
+        <HiClock className="w-5 h-5 text-purple-600" /> Work Duration Tracker
       </h3>
 
       <div className="bg-white rounded-lg p-6 mb-4 border-2 border-purple-300 text-center">

@@ -913,6 +913,9 @@ router.get(
   roleGuard(["provider"]),
   async (req, res, next) => {
     try {
+      const Payment = require("../models/Payment");
+      const mongoose = require("mongoose");
+      const providerObjectId = new mongoose.Types.ObjectId(req.user.id);
       const wallet = await ProviderWallet.findOne({ providerId: req.user.id });
       const transactions = Array.isArray(wallet?.transactions)
         ? [...wallet.transactions].sort((a, b) => {
@@ -922,13 +925,35 @@ router.get(
           })
         : [];
 
+      // Compute totalEarned from RELEASED payments if wallet doesn't track it
+      let totalEarned = Number(wallet?.totalEarned || 0);
+      if (!totalEarned) {
+        const agg = await Payment.aggregate([
+          { $match: { providerId: providerObjectId, status: "RELEASED" } },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]);
+        totalEarned = agg[0]?.total || 0;
+      }
+
+      // pendingPayouts = FUNDS_HELD payments for this provider
+      const pendingAgg = await Payment.aggregate([
+        { $match: { providerId: providerObjectId, status: "FUNDS_HELD" } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const pendingPayouts = pendingAgg[0]?.total || 0;
+
+      const totalCommissionPaid = Number((totalEarned * 0.15).toFixed(2));
+
       res.json({
         wallet: {
-          totalEarned: wallet?.totalEarned || 0,
-          pendingBalance: wallet?.pendingBalance || 0,
-          availableBalance: wallet?.availableBalance || 0,
-          totalWithdrawn: wallet?.totalWithdrawn || 0,
-          totalRefunded: wallet?.totalRefunded || 0,
+          balance: Number(wallet?.availableBalance || 0),
+          totalEarned,
+          totalCommissionPaid,
+          pendingPayouts,
+          pendingBalance: Number(wallet?.pendingBalance || 0),
+          availableBalance: Number(wallet?.availableBalance || 0),
+          totalWithdrawn: Number(wallet?.totalWithdrawn || 0),
+          totalRefunded: Number(wallet?.totalRefunded || 0),
           transactions: transactions.slice(0, 50),
         },
       });

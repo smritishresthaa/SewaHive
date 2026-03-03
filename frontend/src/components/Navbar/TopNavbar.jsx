@@ -93,6 +93,8 @@ export default function TopNavbar() {
         <nav className="hidden md:flex gap-10 text-gray-700 font-medium items-center">
           <a href="#about" className="hover:text-brand-700">About</a>
           
+          <Link to="/help" className="hover:text-brand-700 transition-colors">Help</Link>
+
           {/* Services Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button

@@ -77,7 +77,7 @@ export default function Signup() {
         profile: { name: form.name },
       });
 
-      toast.success("Account created! Please verify your email 📧"); // ✅ NEW
+      toast.success("Account created! Please check your email to verify your account."); // ✅ NEW
 
       // Email verification flow
       navigate(`/verify-info?email=${encodeURIComponent(form.email)}`);
@@ -108,7 +108,7 @@ export default function Signup() {
         try {
           const user = await loginWithGoogle(response.credential, "client");
 
-          toast.success("Signed up with Google ✅"); // ✅ NEW
+          toast.success("Signed up with Google!"); // ✅ NEW
 
           // Role-based redirect (centralized)
           navigate(getRedirectPath(user.role));

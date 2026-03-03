@@ -61,7 +61,7 @@ export default function ClientProfile() {
 
       console.log('Avatar upload successful:', res.data);
       updateUser(res.data.user);
-      toast.success("Profile picture updated successfully! 📸");
+      toast.success("Profile picture updated successfully!");
       setPreview(null); // Clear preview since we now have the real URL
     } catch (err) {
       console.error('Avatar upload failed:', {
@@ -89,10 +89,10 @@ export default function ClientProfile() {
       const res = await api.put("/auth/profile", formData);
       updateUser(res.data.user);
 
-      toast.success("Personal information updated successfully ✅");
+      toast.success("Personal information updated successfully");
       setEditPersonal(false);
     } catch (err) {
-      toast.error("Failed to update personal information ❌");
+      toast.error("Failed to update personal information");
     }
   }
 
@@ -110,10 +110,10 @@ export default function ClientProfile() {
       const res = await api.put("/auth/profile", formData);
       updateUser(res.data.user);
 
-      toast.success("Address updated successfully 📍");
+      toast.success("Address updated successfully");
       setEditAddress(false);
     } catch (err) {
-      toast.error("Failed to update address ❌");
+      toast.error("Failed to update address");
     }
   }
 

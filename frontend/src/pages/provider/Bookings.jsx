@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProviderLayout from "../../layouts/ProviderLayout";
-import { HiCheck, HiXMark, HiClock, HiMapPin, HiCalendarDays, HiStar } from "react-icons/hi2";
+import { HiCheck, HiXMark, HiClock, HiMapPin, HiCalendarDays, HiStar, HiExclamationTriangle, HiPlay } from "react-icons/hi2";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 import JobTimer from "../../components/UI/JobTimer";
@@ -59,7 +59,7 @@ export default function ProviderBookings() {
       return `${lat}°N, ${lng}°E`;
     }
     
-    return "📍 Location not specified";
+    return "Location not specified";
   }
 
   useEffect(() => {
@@ -135,11 +135,11 @@ export default function ProviderBookings() {
     try {
       if (type === "emergency") {
         await api.post(`/bookings/provider-accept/${bookingId}`);
-        toast.success("Emergency booking accepted! 🚀");
+        toast.success("Emergency booking accepted!");
       } else {
         // For normal bookings, we need a separate accept endpoint
         await api.post(`/bookings/accept/${bookingId}`);
-        toast.success("Booking accepted ✅");
+        toast.success("Booking accepted");
       }
       fetchBookings();
     } catch (err) {
@@ -171,7 +171,7 @@ export default function ProviderBookings() {
     setProcessing({ ...processing, [bookingId]: true });
     try {
       await api.patch(`/bookings/${bookingId}/start`);
-      toast.success("Job started! 🚀");
+      toast.success("Job started!");
       fetchBookings();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to start job");
@@ -271,7 +271,7 @@ export default function ProviderBookings() {
       });
 
       if (res?.data?.warning) {
-        toast(res.data.warning, { icon: "⚠️" });
+        toast(res.data.warning);
       } else {
         toast.success("Additional charge request sent to client");
       }
@@ -373,8 +373,9 @@ export default function ProviderBookings() {
         </div>
 
         {!canAcceptBookings && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            ⚠️ KYC approval required to accept or reject bookings. Complete KYC to unlock these actions.
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+            <HiExclamationTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+            KYC approval required to accept or reject bookings. Complete KYC to unlock these actions.
           </div>
         )}
 
@@ -536,7 +537,7 @@ export default function ProviderBookings() {
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
                         <div className="flex items-start justify-between mb-2">
                           <div>
-                            <p className="text-sm font-semibold text-gray-900">⭐ Client Review</p>
+                            <p className="text-sm font-semibold text-gray-900 flex items-center gap-1"><HiStar className="w-4 h-4 text-yellow-500" /> Client Review</p>
                             <p className="text-xs text-gray-600 mt-1">
                               From: {reviews[booking._id].clientId?.profile?.name || "Client"}
                             </p>
@@ -606,7 +607,7 @@ export default function ProviderBookings() {
                     {booking.status === "accepted" && (
                       <div className="flex flex-col gap-2">
                         <div className="px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-                          <p className="text-sm font-semibold text-yellow-800">⏳ Awaiting Client Payment</p>
+                          <p className="text-sm font-semibold text-yellow-800 flex items-center justify-center gap-1"><HiClock className="w-4 h-4" /> Awaiting Client Payment</p>
                           <p className="text-xs text-yellow-700 mt-1">
                             Job can start after payment is secured and booking is confirmed
                           </p>
@@ -621,7 +622,7 @@ export default function ProviderBookings() {
                         disabled={processing[booking._id]}
                         className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                       >
-                        ▶️ Start Job
+                        <HiPlay className="w-4 h-4" /> Start Job
                       </button>
                       </div>
                     )}
@@ -661,7 +662,7 @@ export default function ProviderBookings() {
                     {(completionPendingStatuses.includes(booking.status) || normalizeStatusForTab(booking.status) === "completion_pending") && (
                       <div className="flex flex-col gap-2">
                       <div className="px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-                        <p className="text-sm font-semibold text-yellow-800">⏳ Awaiting Client</p>
+                        <p className="text-sm font-semibold text-yellow-800 flex items-center justify-center gap-1"><HiClock className="w-4 h-4" /> Awaiting Client</p>
                         <p className="text-xs text-yellow-700 mt-1">
                           Waiting for client to confirm and release payment
                         </p>

@@ -1,4 +1,4 @@
-import { HiStar, HiArrowRight, HiCheckCircle } from "react-icons/hi2";
+import { HiStar, HiArrowRight, HiCheckCircle, HiCube, HiShieldCheck, HiTrophy } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
@@ -20,7 +20,7 @@ export default function ServiceCard({
   const { isAuthenticated, user } = useAuth();
   
   const categoryName = service.categoryName || service.category?.name || "Service";
-  const categoryIcon = service.categoryIcon || service.category?.icon || "📦";
+  const categoryIcon = service.categoryIcon || service.category?.icon || null;
   
   const isProvider = isAuthenticated && user?.role === "provider";
   
@@ -37,7 +37,7 @@ export default function ServiceCard({
     
     // RBAC: Unauthenticated users get redirected to login
     if (!isAuthenticated) {
-      toast("Please log in to book a service", { icon: "🔒" });
+      toast("Please log in to book a service");
       navigate("/login", { state: { returnTo: `/services` } });
       return;
     }
@@ -62,14 +62,14 @@ export default function ServiceCard({
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl">
-            {categoryIcon}
+          <div className="w-full h-full flex items-center justify-center">
+            <HiCube className="w-16 h-16 text-emerald-400" />
           </div>
         )}
         
         {/* Category Badge (Corner) */}
         <div className="absolute top-3 left-3 bg-white/95 backdrop-blur text-brand-700 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1">
-          <span>{categoryIcon}</span>
+          <HiCube className="w-3 h-3 text-emerald-600" />
           {categoryName}
         </div>
         
@@ -128,20 +128,23 @@ export default function ServiceCard({
             <div className="flex flex-wrap gap-2 mt-2">
               {provider.badges.map((badge, i) => {
                 let style = "bg-gray-100 text-gray-600";
-                let icon = "🛡️";
                 let label = badge;
+
+                function getBadgeIcon(b) {
+                  if (b === 'verified' || b === 'Verified Provider') return <HiCheckCircle className="w-3.5 h-3.5" />;
+                  if (b === 'pro' || b === 'Pro Provider') return <HiShieldCheck className="w-3.5 h-3.5" />;
+                  if (b === 'top-rated' || b === 'Top Rated') return <HiTrophy className="w-3.5 h-3.5" />;
+                  return <HiShieldCheck className="w-3.5 h-3.5" />;
+                }
 
                 if (badge === 'verified' || badge === 'Verified Provider') {
                   style = "bg-green-100 text-green-700 ring-1 ring-green-600/20";
-                  icon = "✅";
                   label = "Verified";
                 } else if (badge === 'pro' || badge === 'Pro Provider') {
                   style = "bg-blue-100 text-blue-700 ring-1 ring-blue-600/20";
-                  icon = "💠";
                   label = "Pro";
                 } else if (badge === 'top-rated' || badge === 'Top Rated') {
                   style = "bg-amber-100 text-amber-700 ring-1 ring-amber-600/20";
-                  icon = "🏆";
                   label = "Top Rated";
                 }
 
@@ -150,7 +153,7 @@ export default function ServiceCard({
                     key={i}
                     className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold ${style}`}
                   >
-                    <span>{icon}</span> {label}
+                    {getBadgeIcon(badge)} {label}
                   </span>
                 );
               })}

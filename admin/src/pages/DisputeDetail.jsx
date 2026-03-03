@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { HiArrowLeft, HiExclamationTriangle, HiCheckCircle, HiXMark } from "react-icons/hi2";
+import { HiArrowLeft, HiExclamationTriangle, HiCheckCircle, HiXMark, HiDocumentText } from "react-icons/hi2";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
 
@@ -163,7 +163,7 @@ export default function DisputeDetail() {
               <HiArrowLeft size={20} className="text-gray-600" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dispute #{dispute._id.slice(-8).toUpperCase()}</h1>
+              <h1 className="text-xl font-bold text-gray-900">Dispute #{dispute._id.slice(-8).toUpperCase()}</h1>
               <p className="mt-1 text-gray-600">
                 Booking #{(dispute.bookingId?._id || dispute.bookingId).toString().slice(-6).toUpperCase()}
               </p>
@@ -261,7 +261,7 @@ export default function DisputeDetail() {
                           />
                         ) : (
                           <div className="mb-2 h-40 w-full rounded bg-gray-100 flex items-center justify-center">
-                            <span className="text-gray-400">📄 {file.originalName}</span>
+                            <span className="text-gray-400 flex items-center gap-1"><HiDocumentText className="w-3.5 h-3.5" /> {file.originalName}</span>
                           </div>
                         )}
                         <p className="text-sm font-medium text-gray-900">{file.originalName}</p>
@@ -423,7 +423,7 @@ export default function DisputeDetail() {
 
               <div className="rounded-lg bg-yellow-50 p-4">
                 <p className="text-sm text-yellow-800">
-                  ⚠️ This action will finalize the dispute. Both parties will be notified of the resolution.
+                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" /> This action will finalize the dispute. Both parties will be notified of the resolution.
                 </p>
               </div>
 
@@ -448,7 +448,7 @@ function DetailCard({ label, value, icon }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600">{label}</p>
-          <p className="mt-1 text-xl font-bold text-gray-900">{value}</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
         </div>
         <div className="text-gray-400">{icon}</div>
       </div>

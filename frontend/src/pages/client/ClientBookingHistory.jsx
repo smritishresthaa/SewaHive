@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ClientLayout from "../../layouts/ClientLayout";
-import { HiMapPin, HiCalendar, HiClock } from "react-icons/hi2";
+import { HiMapPin, HiCalendar, HiClock, HiCheckCircle, HiPencilSquare, HiLockClosed, HiBolt } from "react-icons/hi2";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 import ReviewModal from "../../components/UI/ReviewModal";
@@ -181,7 +181,7 @@ export default function ClientBookingHistory() {
       await api.post(`/payment/escrow/confirm-completion`, {
         bookingId
       });
-      toast.success("Payment released to provider! ✅");
+      toast.success("Payment released to provider!");
       fetchBookings();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to confirm completion");
@@ -339,8 +339,8 @@ export default function ClientBookingHistory() {
       
       case "in-progress":
         return (
-          <span className="text-sm text-gray-600 font-medium">
-            ⏳ Service in progress...
+          <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
+            <HiClock className="w-4 h-4" /> Service in progress...
           </span>
         );
       
@@ -374,12 +374,12 @@ export default function ClientBookingHistory() {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <span>Payment Released \u2714</span>
+                <span>Payment Released</span>
               </div>
             )}
             {hasReviewed ? (
               <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
-                <span>\u2713</span>
+                <HiCheckCircle className="w-4 h-4" />
                 <span>Review Submitted</span>
               </div>
             ) : (
@@ -496,8 +496,8 @@ export default function ClientBookingHistory() {
                       </h3>
                       {getStatusBadge(booking.status)}
                       {booking.type === "emergency" && (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
-                          ⚡ Emergency
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                          <HiBolt className="w-3.5 h-3.5" /> Emergency
                         </span>
                       )}
                     </div>
@@ -520,7 +520,7 @@ export default function ClientBookingHistory() {
                     {/* Show booking notes/description */}
                     {booking.notes && (
                       <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-700 font-medium mb-1">📝 Details:</p>
+                        <p className="text-sm text-gray-700 font-medium mb-1 flex items-center gap-1"><HiPencilSquare className="w-4 h-4" /> Details:</p>
                         <p className="text-sm text-gray-600">{booking.notes}</p>
                       </div>
                     )}
@@ -537,7 +537,7 @@ export default function ClientBookingHistory() {
                           )}
                           {booking.providerId?.kycStatus === "approved" && (
                             <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
-                              ✓ Verified
+                              <HiCheckCircle className="w-3.5 h-3.5" /> Verified
                             </span>
                           )}
                           {booking.providerId?.providerDetails?.badges && booking.providerId.providerDetails.badges !== "none" && booking.providerId.providerDetails.badges.length > 0 && (
@@ -567,12 +567,12 @@ export default function ClientBookingHistory() {
                               ? 'bg-red-100 text-red-700'
                               : 'bg-gray-100 text-gray-700'
                           }`}>
-                            {booking.paymentStatus === 'paid' ? '🔒 Payment Secured' : 
-                             booking.paymentStatus === 'escrow' ? '🔒 Funds Held Securely' :
-                             booking.paymentStatus === 'released' ? '✅ Payment Released' :
-                             booking.paymentStatus === 'pending' ? '⏳ Pending Payment' :
-                             booking.paymentStatus === 'initiated' ? '💳 Payment Initiated' :
-                             booking.paymentStatus === 'failed' ? '✗ Failed' :
+                            {booking.paymentStatus === 'paid' ? 'Payment Secured' : 
+                             booking.paymentStatus === 'escrow' ? 'Funds Held Securely' :
+                             booking.paymentStatus === 'released' ? 'Payment Released' :
+                             booking.paymentStatus === 'pending' ? 'Pending Payment' :
+                             booking.paymentStatus === 'initiated' ? 'Payment Initiated' :
+                             booking.paymentStatus === 'failed' ? 'Failed' :
                              booking.paymentStatus}
                           </span>
                         </div>
@@ -614,7 +614,7 @@ export default function ClientBookingHistory() {
                       {/* EXPLICIT LANDMARK DISPLAY */}
                       {booking.landmark && (
                         <div className="flex items-center gap-2 text-emerald-700 font-medium">
-                          <span>📍</span>
+                          <HiMapPin className="w-4 h-4 text-emerald-700" />
                           <span>Landmark: {booking.landmark}</span>
                         </div>
                       )}

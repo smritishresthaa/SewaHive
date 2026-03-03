@@ -6,8 +6,13 @@ const AdminServiceConfigSchema = new Schema(
     platformCommission: { type: Number, default: 15 },
     processingFee: { type: Number, default: 2.5 },
     emergencySurcharge: { type: Number, default: 12 },
-    minimumServiceFee: { type: Number, default: 2 },
+    minimumServiceFee: { type: Number, default: 200 },
     promoDiscountEnabled: { type: Boolean, default: true },
+    emailNotificationsEnabled: { type: Boolean, default: true },
+    smsAlertsEnabled: { type: Boolean, default: true },
+    maintenanceMode: { type: Boolean, default: false },
+    registrationOpen: { type: Boolean, default: true },
+    termsAndConditions: { type: String, default: '' },
     categoryOverrides: [
       {
         categoryId: { type: Schema.Types.ObjectId, ref: 'Category' },

@@ -13,6 +13,7 @@ const reviewRoutes = require("./reviews");
 const adminRoutes = require("./admin");
 const categoryRoutes = require("./categories");
 const chatRoutes = require("./chat");
+const supportRoutes = require("./support");
 
 const router = express.Router();
 
@@ -28,5 +29,6 @@ router.use("/reviews", reviewRoutes);
 router.use("/admin", adminRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/chat", chatRoutes);
+router.use("/support", supportRoutes);
 
 module.exports = { router };

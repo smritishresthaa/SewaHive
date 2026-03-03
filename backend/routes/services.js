@@ -50,6 +50,61 @@ async function getApprovedProviderIds(providerIds) {
 }
 
 /**
+ * Get popular services (public, for landing page)
+ * Sorted by bookingsCount desc, then ratingAvg desc
+ */
+router.get("/popular", async (req, res, next) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 8, 20);
+
+    let services = await Service.find({
+      isActive: true,
+      adminDisabled: { $ne: true },
+    })
+      .populate("categoryId", "name icon iconKey image status")
+      .populate("subcategoryId", "name status")
+      .populate(
+        "providerId",
+        "profile.name profile.avatarUrl providerDetails.badges providerDetails.rating"
+      )
+      .sort({ bookingsCount: -1, ratingAvg: -1 })
+      .limit(limit * 3); // fetch extra to filter
+
+    // Filter: category must be active
+    services = services.filter((s) => s.categoryId?.status === "active");
+
+    // Take top N
+    services = services.slice(0, limit);
+
+    const formatted = services.map((s) => ({
+      _id: s._id,
+      title: s.title,
+      description: s.description,
+      image: s.images?.[0] || null,
+      basePrice: s.basePrice,
+      priceMode: s.priceMode,
+      ratingAvg: s.ratingAvg || 0,
+      ratingCount: s.ratingCount || 0,
+      bookingsCount: s.bookingsCount || 0,
+      category: s.categoryId
+        ? { _id: s.categoryId._id, name: s.categoryId.name, icon: s.categoryId.icon, iconKey: s.categoryId.iconKey }
+        : null,
+      provider: s.providerId
+        ? {
+            name: s.providerId.profile?.name || "Service Provider",
+            avatar: s.providerId.profile?.avatarUrl || null,
+            badges: s.providerId.providerDetails?.badges || [],
+          }
+        : null,
+    }));
+
+    res.json({ success: true, services: formatted });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * List services (with optional location & category filter)
  */
 router.get("/list", async (req, res, next) => {

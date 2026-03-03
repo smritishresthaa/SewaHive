@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useState, useRef, useEffect } from 'react'
-import { HiBell, HiUser, HiCog, HiLockClosed, HiArrowRightOnRectangle } from 'react-icons/hi2'
+import { HiBell, HiUser, HiCog, HiLockClosed, HiArrowRightOnRectangle, HiMagnifyingGlass, HiClipboardDocumentList, HiBriefcase } from 'react-icons/hi2'
 import AdminNotificationCenter from './AdminNotificationCenter'
 import api from '../utils/axios'
 import logo from '../assets/logo.png'
@@ -141,14 +141,9 @@ export default function AdminTopNavbar() {
               searchFocused ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'
             }`}>
               {isSearching ? (
-                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
               ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <HiMagnifyingGlass className="w-5 h-5" />
               )}
             </div>
             <input
@@ -166,11 +161,11 @@ export default function AdminTopNavbar() {
                   }
                 }, 200)
               }}
-              className={`w-full pl-10 pr-4 py-2.5 rounded-lg border-2 text-sm placeholder-gray-400 transition-all duration-150 ${
+              className={`w-full pl-10 pr-4 py-2 rounded-xl text-sm placeholder-gray-400 transition-all duration-150 ${
                 searchFocused
-                  ? 'border-emerald-500 bg-white shadow-md'
-                  : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-              } focus:outline-none focus:bg-white`}
+                  ? 'bg-white border border-emerald-400 ring-1 ring-emerald-400 shadow-md'
+                  : 'bg-gray-100 border border-transparent hover:bg-gray-200'
+              } focus:outline-none`}
             />
 
             {/* Search Results Dropdown */}
@@ -228,9 +223,7 @@ export default function AdminTopNavbar() {
                         className="w-full px-4 py-2 hover:bg-gray-50 transition flex items-center gap-3 text-left"
                       >
                         <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
+                          <HiClipboardDocumentList className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
@@ -261,9 +254,7 @@ export default function AdminTopNavbar() {
                         className="w-full px-4 py-2 hover:bg-gray-50 transition flex items-center gap-3 text-left"
                       >
                         <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
+                          <HiBriefcase className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">

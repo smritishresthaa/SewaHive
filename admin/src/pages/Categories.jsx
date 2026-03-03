@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
-import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeSlash, HiChevronDown, HiChevronRight, HiDocumentText, HiExclamationTriangle, HiArrowRight } from "react-icons/hi2";
+import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeSlash, HiChevronDown, HiChevronRight, HiDocumentText, HiExclamationTriangle, HiArrowRight, HiSquares2X2, HiCheckCircle, HiXCircle, HiNoSymbol, HiClipboardDocumentList, HiBoltSlash, HiMagnifyingGlass, HiXMark } from "react-icons/hi2";
 
 export default function Categories() {
   const navigate = useNavigate();
@@ -54,6 +54,9 @@ export default function Categories() {
     emergencyServiceAllowed: false,
     kycVerificationRequired: false,
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -157,8 +160,11 @@ export default function Categories() {
   }
 
   function handleOpenForm(category = null) {
+    setImageFile(null);
+    setImagePreview(null);
     if (category) {
       setEditingId(category._id);
+      setImagePreview(category.image || null);
       setFormData({
         name: category.name,
         description: category.description,
@@ -238,17 +244,44 @@ export default function Categories() {
     }
 
     try {
+      let savedCategory;
+
       if (editingId) {
         // Update
         const res = await api.put(`/admin/categories/${editingId}`, formData);
-        setCategories(
-          categories.map((c) => (c._id === editingId ? res.data.data : c))
-        );
-        toast.success("Category updated successfully");
+        savedCategory = res.data.data;
       } else {
         // Create
         const res = await api.post("/admin/categories", formData);
-        setCategories([res.data.data, ...categories]);
+        savedCategory = res.data.data;
+      }
+
+      // Upload image if a new file was selected
+      if (imageFile && savedCategory?._id) {
+        setUploadingImage(true);
+        try {
+          const fd = new FormData();
+          fd.append("image", imageFile);
+          const imgRes = await api.post(
+            `/admin/categories/${savedCategory._id}/image`,
+            fd,
+            { headers: { "Content-Type": "multipart/form-data" } }
+          );
+          savedCategory = imgRes.data.data.category || savedCategory;
+          savedCategory.image = imgRes.data.data.image;
+        } catch (imgErr) {
+          console.error("Image upload failed:", imgErr);
+          toast.error("Category saved but image upload failed");
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      if (editingId) {
+        setCategories(categories.map((c) => (c._id === editingId ? savedCategory : c)));
+        toast.success("Category updated successfully");
+      } else {
+        setCategories([savedCategory, ...categories]);
         toast.success("Category created successfully");
       }
       setShowForm(false);
@@ -389,82 +422,51 @@ export default function Categories() {
 
       {/* Stats Cards */}
       {statsError && (
-        <div className="mb-6 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-          {statsError}
+        <div className="mb-4 p-2.5 bg-red-50 text-red-700 rounded-lg text-xs flex items-center gap-2">
+          <HiExclamationTriangle className="w-4 h-4" /> {statsError}
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        {[
+          { label: 'Total Categories', value: stats.totalCategories, Icon: HiSquares2X2, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-500' },
+          { label: 'Active', value: stats.activeCategories, Icon: HiCheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-500' },
+          { label: 'Inactive', value: stats.inactiveCategories, Icon: HiNoSymbol, color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-400' },
+          { label: 'Pending Requests', value: pendingRequestsCount, Icon: HiClipboardDocumentList, color: pendingRequestsCount > 0 ? 'text-blue-600' : 'text-gray-400', bg: pendingRequestsCount > 0 ? 'bg-blue-50' : 'bg-gray-50', border: pendingRequestsCount > 0 ? 'border-blue-500' : 'border-gray-400', onClick: () => navigate('/category-requests') },
+        ].map(kpi => (
+          <div key={kpi.label} onClick={kpi.onClick} className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${kpi.border} p-3 flex items-center gap-3 hover:shadow-md transition-shadow ${kpi.onClick ? 'cursor-pointer' : ''}`}>
+            <div className={`${kpi.bg} rounded-full p-2`}><kpi.Icon className={`w-5 h-5 ${kpi.color}`} /></div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Categories</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalCategories}</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-xl">
-              <span className="text-2xl">📚</span>
+              <p className="text-[10px] text-gray-500">{kpi.label}</p>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{kpi.value}</p>
+              {kpi.onClick && pendingRequestsCount > 0 && (
+                <p className="text-[10px] text-blue-600 font-semibold mt-0.5 flex items-center gap-0.5">Review <HiArrowRight className="w-2.5 h-2.5" /></p>
+              )}
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Categories</p>
-              <p className="text-3xl font-bold text-green-600 mt-2">{stats.activeCategories}</p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-xl">
-              <span className="text-2xl">✅</span>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Inactive Categories</p>
-              <p className="text-3xl font-bold text-gray-600 mt-2">{stats.inactiveCategories}</p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-xl">
-              <span className="text-2xl">🚫</span>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-6 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/category-requests')}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pending Requests</p>
-              <p className={`text-3xl font-bold mt-2 ${pendingRequestsCount > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
-                {pendingRequestsCount}
-              </p>
-            </div>
-            <div className={`p-3 rounded-xl ${pendingRequestsCount > 0 ? 'bg-blue-50' : 'bg-gray-50'}`}>
-              <span className="text-2xl">📋</span>
-            </div>
-          </div>
-          {pendingRequestsCount > 0 && (
-            <div className="mt-3 flex items-center text-xs text-blue-600 font-medium">
-              Review requests <HiArrowRight className="w-3 h-3 ml-1" />
-            </div>
-          )}
-        </div>
+        ))}
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search categories..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3 mb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search</label>
+            <div className="relative flex items-center">
+              <span className="absolute left-2.5 inset-y-0 flex items-center pointer-events-none">
+                <HiMagnifyingGlass className="w-3.5 h-3.5 text-gray-400" />
+              </span>
+              <input type="text" placeholder="Search categories..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Status</label>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Categories Table */}
@@ -542,12 +544,12 @@ export default function Categories() {
                             {category.name}
                             {category.emergencyServiceAllowed && (
                               <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded" title="Emergency services allowed">
-                                ⚡ Emergency
+                                Emergency
                               </span>
                             )}
                             {category.kycVerificationRequired && (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded" title="KYC verification required">
-                                ✓ KYC Req
+                              <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded" title="KYC verification required">
+                                <HiCheckCircle className="w-3 h-3" /> KYC Req
                               </span>
                             )}
                           </div>
@@ -587,13 +589,16 @@ export default function Categories() {
                       </td>
                       <td className="px-4 py-4">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ring-inset ${
                             category.status === "active"
-                              ? "bg-green-100 text-green-800 border border-green-200"
-                              : "bg-gray-100 text-gray-600 border border-gray-300"
+                              ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                              : "bg-gray-100 text-gray-600 ring-gray-200"
                           }`}
                         >
-                          {category.status === "active" ? "✓" : "×"} {category.status}
+                          {category.status === "active"
+                            ? <HiCheckCircle className="w-3.5 h-3.5" />
+                            : <HiXCircle className="w-3.5 h-3.5" />}
+                          {category.status === "active" ? "Active" : "Inactive"}
                         </span>
                       </td>
                       <td className="px-4 py-4">
@@ -796,6 +801,50 @@ export default function Categories() {
                 />
               </div>
 
+              {/* Cover Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cover Image
+                </label>
+                {(imagePreview || formData.image) && (
+                  <div className="mb-2 relative inline-block">
+                    <img
+                      src={imagePreview || formData.image}
+                      alt="Category cover"
+                      className="h-32 w-48 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageFile(null);
+                        setImagePreview(null);
+                        setFormData({ ...formData, image: "" });
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      X
+                    </button>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error("Image must be under 5MB");
+                        return;
+                      }
+                      setImageFile(file);
+                      setImagePreview(URL.createObjectURL(file));
+                    }
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                <p className="mt-1 text-xs text-gray-400">JPG, PNG, or WebP. Max 5MB. Recommended: 1200x800px.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -907,7 +956,7 @@ export default function Categories() {
                     onChange={(e) => setFormData({ ...formData, emergencyServiceAllowed: e.target.checked })}
                     className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                   />
-                  <span className="text-sm text-gray-700">⚡ Emergency Services</span>
+                  <span className="text-sm text-gray-700">Emergency Services</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -917,7 +966,7 @@ export default function Categories() {
                     onChange={(e) => setFormData({ ...formData, kycVerificationRequired: e.target.checked })}
                     className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                   />
-                  <span className="text-sm text-gray-700">✓ KYC Required</span>
+                  <span className="inline-flex items-center gap-1 text-sm text-gray-700"><HiCheckCircle className="w-4 h-4 text-emerald-600" /> KYC Required</span>
                 </label>
               </div>
             </div>
@@ -931,9 +980,10 @@ export default function Categories() {
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition"
+                disabled={uploadingImage}
+                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Category
+                {uploadingImage ? "Uploading Image..." : "Save Category"}
               </button>
             </div>
           </div>
@@ -1054,9 +1104,9 @@ export default function Categories() {
               <h2 className="text-xl font-bold">Services in {showServicesModal.name}</h2>
               <button
                 onClick={() => setShowServicesModal(null)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 hover:text-gray-700 p-1"
               >
-                ×
+                <HiXMark className="w-5 h-5" />
               </button>
             </div>
             
@@ -1131,7 +1181,7 @@ export default function Categories() {
             {showDeleteConfirm.serviceCount > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-yellow-800">
-                  ⚠️ This category has <strong>{showDeleteConfirm.serviceCount} services</strong>. 
+                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" /> This category has <strong>{showDeleteConfirm.serviceCount} services</strong>. 
                   You must reassign or delete them first.
                 </p>
               </div>
@@ -1191,7 +1241,7 @@ export default function Categories() {
             {showDisableConfirm.status === 'active' && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-orange-800">
-                  ⚠️ <strong>{showDisableConfirm.activeServiceCount || 0} active services</strong> will be automatically disabled.
+                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" /> <strong>{showDisableConfirm.activeServiceCount || 0} active services</strong> will be automatically disabled.
                 </p>
               </div>
             )}
