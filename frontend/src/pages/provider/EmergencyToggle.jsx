@@ -251,7 +251,7 @@ export default function ProviderEmergency() {
         <div
           className={`relative rounded-2xl border-2 p-8 transition-all duration-300 ${
             emergencyAvailable
-              ? "border-emerald-400 ring-4 ring-emerald-300/40"
+              ? "border-emerald-400 shadow-sm"
               : allMet
               ? "bg-white border-emerald-300 shadow-sm"
               : "bg-white border-gray-200 shadow-sm opacity-80"
@@ -291,7 +291,7 @@ export default function ProviderEmergency() {
               </div>
             </div>
 
-            {/* Big pill toggle — 64 px height, overflow-hidden keeps thumb clipped */}
+            {/* Big pill toggle — 40 px height, overflow-hidden keeps thumb clipped */}
             <div
               title={!allMet && !emergencyAvailable ? "Complete all prerequisites first" : undefined}
               className="flex-shrink-0"
@@ -303,7 +303,7 @@ export default function ProviderEmergency() {
                 aria-checked={emergencyAvailable}
                 role="switch"
                 className={`
-                  relative inline-flex items-center h-10 w-20 rounded-full p-1
+                  relative inline-flex items-center h-10 w-20 rounded-full p-1 overflow-hidden
                   transition-colors duration-300 focus:outline-none
                   ${emergencyAvailable ? "bg-emerald-800/40" : "bg-gray-300"}
                   ${saving || (!emergencyAvailable && !canEnableEmergency) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
@@ -311,11 +311,11 @@ export default function ProviderEmergency() {
               >
                 <span
                   className={`
-                    absolute top-1/2 -translate-y-1/2 z-10 h-7 w-7 rounded-full bg-white shadow-md
+                    z-10 h-8 w-8 rounded-full bg-white shadow-md
                     flex items-center justify-center
-                    transition-[left] duration-300
+                    transition-transform duration-300 ease-in-out
                   `}
-                  style={{ left: emergencyAvailable ? "calc(100% - 32px)" : "4px" }}
+                  style={{ transform: emergencyAvailable ? "translateX(40px)" : "translateX(0px)" }}
                 >
                   {saving ? (
                     <svg className="animate-spin h-4 w-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

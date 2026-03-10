@@ -9,8 +9,10 @@ export default function ServiceForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const MAX_IMAGES = 6;
 
   const [loading, setLoading] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [loadingSubcategories, setLoadingSubcategories] = useState(false);
@@ -186,6 +188,57 @@ export default function ServiceForm() {
     setInactiveSubcategory(null);
   }
 
+  async function handleImageUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    if (form.images.length + files.length > MAX_IMAGES) {
+      toast.error(`You can upload up to ${MAX_IMAGES} images only`);
+      e.target.value = "";
+      return;
+    }
+
+    const invalid = files.find((file) => !file.type?.startsWith("image/"));
+    if (invalid) {
+      toast.error("Only image files are allowed");
+      e.target.value = "";
+      return;
+    }
+
+    try {
+      setUploadingImages(true);
+      const data = new FormData();
+      files.forEach((file) => data.append("images", file));
+
+      const res = await api.post("/services/upload-images", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const uploaded = res.data?.images || [];
+      if (!uploaded.length) {
+        toast.error("Image upload failed");
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          images: [...prev.images, ...uploaded].slice(0, MAX_IMAGES),
+        }));
+        toast.success(`${uploaded.length} image${uploaded.length > 1 ? "s" : ""} uploaded`);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to upload images");
+    } finally {
+      setUploadingImages(false);
+      e.target.value = "";
+    }
+  }
+
+  function handleRemoveImage(index) {
+    setForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
 
@@ -226,6 +279,7 @@ export default function ServiceForm() {
         subcategoryId: form.subcategoryId || null,
         title: form.title,
         description: form.description,
+        images: form.images,
         priceMode: form.priceMode,
       };
 
@@ -371,6 +425,45 @@ export default function ServiceForm() {
             {categoryInactive && (
               <div className="mt-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
                 Category disabled. Existing services can be edited, but you cannot create new services under this category.
+              </div>
+            )}
+          </div>
+
+          {/* Service Photos */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Service Photos <span className="text-xs text-gray-500">(up to {MAX_IMAGES})</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              disabled={uploadingImages || form.images.length >= MAX_IMAGES}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Add clear photos of your work to improve trust and visibility on the landing page.
+            </p>
+
+            {uploadingImages && (
+              <div className="mt-3 text-sm text-green-700">Uploading images...</div>
+            )}
+
+            {form.images.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {form.images.map((img, index) => (
+                  <div key={`${img}-${index}`} className="relative rounded-lg overflow-hidden border border-gray-200">
+                    <img src={img} alt={`Service ${index + 1}`} className="h-24 w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(index)}
+                      className="absolute top-1 right-1 bg-black/70 text-white text-xs px-2 py-1 rounded hover:bg-black/80"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

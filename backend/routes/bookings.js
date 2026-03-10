@@ -17,6 +17,11 @@ const {
   isQuotePricing,
   isRangePricing,
 } = require("../utils/bookingWorkflow");
+const {
+  DEFAULT_STALE_GRACE_HOURS,
+  isActionBlockedByStaleness,
+  shouldAutoExpireUnstartedBooking,
+} = require("../utils/bookingStaleness");
 const { getIO } = require("../utils/socket");
 
 const router = express.Router();
@@ -739,6 +744,7 @@ router.get("/upcoming", authGuard, async (req, res, next) => {
       "quote_accepted",
       "accepted",
       "confirmed",
+      "provider_en_route",
       "in-progress",
       "pending-completion",
       "provider_completed",
@@ -780,9 +786,13 @@ router.get("/upcoming", authGuard, async (req, res, next) => {
       console.log(`[BOOKINGS /upcoming] Sample bookings:`, JSON.stringify(summary, null, 2));
     }
 
+    const activeBookings = bookings.filter(
+      (booking) => !shouldAutoExpireUnstartedBooking(booking)
+    );
+
     console.log(`[BOOKINGS /upcoming] END\n`);
 
-    res.json({ bookings });
+    res.json({ bookings: activeBookings });
   } catch (e) {
     console.error(`[BOOKINGS /upcoming] ERROR:`, e.message);
     next(e);
@@ -852,7 +862,11 @@ router.get(
         .sort({ createdAt: -1 })
         .limit(Number(limit));
 
-      res.json({ bookings });
+      const filteredBookings = bookings.filter(
+        (booking) => !shouldAutoExpireUnstartedBooking(booking)
+      );
+
+      res.json({ bookings: filteredBookings });
     } catch (e) {
       next(e);
     }
@@ -979,6 +993,23 @@ router.patch(
         return res.status(403).json({ message: "Not your booking" });
       }
 
+      if (isActionBlockedByStaleness(booking)) {
+        if (shouldAutoExpireUnstartedBooking(booking)) {
+          booking.status = "no-show";
+          booking.cancelledAt = new Date();
+          booking.cancellation = {
+            ...(booking.cancellation || {}),
+            reason: "Auto-marked as no-show when provider attempted action after stale window",
+            cancelledAt: new Date(),
+          };
+          await booking.save();
+        }
+
+        return res.status(400).json({
+          message: `Booking window expired. This booking is older than ${DEFAULT_STALE_GRACE_HOURS} hours past schedule.`,
+        });
+      }
+
       if (!["confirmed", "accepted"].includes(booking.status)) {
         // If already en route, just return success (idempotent)
         if (booking.status === "provider_en_route") {
@@ -1041,6 +1072,23 @@ router.patch(
 
       if (String(booking.providerId) !== req.user.id) {
         return res.status(403).json({ message: "Not your booking" });
+      }
+
+      if (isActionBlockedByStaleness(booking)) {
+        if (shouldAutoExpireUnstartedBooking(booking)) {
+          booking.status = "no-show";
+          booking.cancelledAt = new Date();
+          booking.cancellation = {
+            ...(booking.cancellation || {}),
+            reason: "Auto-marked as no-show when provider attempted action after stale window",
+            cancelledAt: new Date(),
+          };
+          await booking.save();
+        }
+
+        return res.status(400).json({
+          message: `Booking window expired. This booking is older than ${DEFAULT_STALE_GRACE_HOURS} hours past schedule.`,
+        });
       }
 
       if (!["confirmed", "accepted", "provider_en_route"].includes(booking.status)) {
@@ -2029,6 +2077,7 @@ router.get("/debug/my-bookings-check", authGuard, async (req, res, next) => {
           "quote_accepted",
           "accepted",
           "confirmed",
+          "provider_en_route",
           "in-progress",
           "pending-completion",
           "provider_completed",

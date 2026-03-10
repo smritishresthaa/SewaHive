@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import {
   HiSignal,
   HiSignalSlash,
   HiTruck,
 } from "react-icons/hi2";
+import { fetchDrivingRoute } from "../../utils/directions";
 
 /* ────────────────────────────────────────────
    Custom Leaflet Markers
@@ -182,6 +183,8 @@ export default function ClientLiveTracking({ booking, providerPos, lastUpdate, i
   const clientLng = booking?.location?.coordinates?.[0];
 
   const [autoPan, setAutoPan] = useState(true);
+  const [routePath, setRoutePath] = useState([]);
+  const lastRouteFetchRef = useRef(0);
 
   /* ── Computed ── */
   const hasClientLocation = clientLat != null && clientLng != null;
@@ -198,6 +201,45 @@ export default function ClientLiveTracking({ booking, providerPos, lastUpdate, i
     booking?.providerId?.profile?.name ||
     booking?.providerId?.email ||
     "Provider";
+
+  useEffect(() => {
+    if (!hasClientLocation || !hasProviderLocation || booking?.status !== "provider_en_route") {
+      setRoutePath([]);
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastRouteFetchRef.current < 12000) return;
+    lastRouteFetchRef.current = now;
+
+    const controller = new AbortController();
+
+    fetchDrivingRoute({
+      fromLat: providerPos.lat,
+      fromLng: providerPos.lng,
+      toLat: clientLat,
+      toLng: clientLng,
+      signal: controller.signal,
+    })
+      .then((route) => {
+        if (route?.path?.length > 1) {
+          setRoutePath(route.path);
+        }
+      })
+      .catch(() => {
+        // keep previous route when API fails
+      });
+
+    return () => controller.abort();
+  }, [
+    booking?.status,
+    hasClientLocation,
+    hasProviderLocation,
+    providerPos?.lat,
+    providerPos?.lng,
+    clientLat,
+    clientLng,
+  ]);
 
   // Only show when en route
   if (booking?.status !== "provider_en_route") return null;
@@ -266,6 +308,14 @@ export default function ClientLiveTracking({ booking, providerPos, lastUpdate, i
           {hasProviderLocation && (
             <AnimatedProviderMarker
               position={[providerPos.lat, providerPos.lng]}
+            />
+          )}
+
+          {/* Directions route polyline */}
+          {routePath.length > 1 && (
+            <Polyline
+              positions={routePath}
+              pathOptions={{ color: "#0ea5e9", weight: 5, opacity: 0.9 }}
             />
           )}
 

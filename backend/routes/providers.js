@@ -243,11 +243,12 @@ router.post(
       // Process uploaded files
       const portfolioItems = [];
       
-      // Handle BEFORE photos
+      // Handle BEFORE photos (filter duplicates by file path)
       if (req.files && req.files.portfolioBefore) {
-        req.files.portfolioBefore.forEach((file) => {
+        const uniqueBefore = Array.from(new Set(req.files.portfolioBefore.map(f => f.path)));
+        uniqueBefore.forEach((filePath) => {
           portfolioItems.push({
-            url: file.path,
+            url: filePath,
             description: "Before Service",
             type: "before",
             uploadedAt: new Date(),
@@ -255,11 +256,12 @@ router.post(
         });
       }
 
-      // Handle AFTER photos
+      // Handle AFTER photos (filter duplicates by file path)
       if (req.files && req.files.portfolioAfter) {
-        req.files.portfolioAfter.forEach((file) => {
+        const uniqueAfter = Array.from(new Set(req.files.portfolioAfter.map(f => f.path)));
+        uniqueAfter.forEach((filePath) => {
           portfolioItems.push({
-            url: file.path,
+            url: filePath,
             description: "After Service",
             type: "after", // Using 'work' or specific 'after' if schema updated
             uploadedAt: new Date(),

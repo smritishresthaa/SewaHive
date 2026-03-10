@@ -11,6 +11,9 @@ import {
   HiEnvelope,
   HiTag,
   HiCheckCircle,
+  HiInboxStack,
+  HiPaperAirplane,
+  HiClock,
 } from 'react-icons/hi2';
 import toast from 'react-hot-toast';
 import api from '../../utils/axios';
@@ -121,11 +124,11 @@ const faqData = [
 const CATEGORIES = faqData.map((f) => f.category);
 
 const QUICK_LINKS = [
-  { Icon: HiCalendarDays, label: 'How to Book a Service' },
-  { Icon: HiCreditCard, label: 'Payment & Escrow Guide' },
-  { Icon: HiShieldCheck, label: 'Provider Verification Steps' },
-  { Icon: HiBolt, label: 'Emergency Services Guide' },
-  { Icon: HiChatBubbleLeftRight, label: 'Dispute Resolution Process' },
+  { Icon: HiCalendarDays, label: 'How to Book a Service', category: 'Booking', searchTerm: 'book service' },
+  { Icon: HiCreditCard, label: 'Payment & Escrow Guide', category: 'Payments', searchTerm: 'escrow payment' },
+  { Icon: HiShieldCheck, label: 'Provider Verification Steps', category: 'Verification', searchTerm: 'verification documents' },
+  { Icon: HiBolt, label: 'Emergency Services Guide', category: 'Emergency Services', searchTerm: 'emergency' },
+  { Icon: HiChatBubbleLeftRight, label: 'Dispute Resolution Process', category: 'Payments', searchTerm: 'dispute refund' },
 ];
 
 function Spinner() {
@@ -145,10 +148,12 @@ function Spinner() {
 function InputWithIcon({ Icon, ...props }) {
   return (
     <div className="relative mb-3">
-      <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+        <Icon className="w-4 h-4 text-gray-400" />
+      </div>
       <input
         {...props}
-        className="rounded-xl border border-gray-200 pl-9 pr-3 py-2 text-sm w-full focus:ring-2 focus:ring-emerald-400 outline-none"
+        className="h-11 rounded-xl border border-gray-300 bg-white pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-500 w-full leading-5 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 outline-none"
       />
     </div>
   );
@@ -176,6 +181,14 @@ export default function HelpCenter() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function handleQuickLinkClick(link) {
+    if (link.category) {
+      setActiveCategory(link.category);
+    }
+    setSearch(link.searchTerm || '');
+    setOpenIndex(null);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     const { name, email, subject, message } = form;
@@ -183,6 +196,13 @@ export default function HelpCenter() {
       toast.error('All fields are required.');
       return;
     }
+
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailValid) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.post('/support/contact', form);
@@ -203,29 +223,38 @@ export default function HelpCenter() {
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-emerald-700 to-emerald-900 py-10 px-8">
-        <h1 className="text-2xl font-bold text-white mb-1">How can we help you?</h1>
-        <p className="text-sm text-emerald-100 mb-5">Search our knowledge base or browse by category</p>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setOpenIndex(null); }}
-          placeholder="Search articles, guides, FAQs..."
-          className="rounded-xl bg-white/20 border border-white/30 backdrop-blur-sm placeholder-white/60 text-white px-4 py-2.5 w-full max-w-lg outline-none focus:ring-2 focus:ring-white/40"
-        />
+      <div className="px-6 pt-6 md:px-8 md:pt-8">
+        <div
+          className="max-w-7xl mx-auto rounded-3xl border border-emerald-100 px-6 py-8 md:px-10 md:py-10 shadow-sm"
+          style={{
+            background:
+              'radial-gradient(circle at 8% 12%, rgba(16,185,129,0.24) 0%, rgba(16,185,129,0) 38%), linear-gradient(120deg, #dcfce7 0%, #d1fae5 45%, #ecfdf5 100%)',
+          }}
+        >
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-1">How can we help you?</h1>
+          <p className="text-sm md:text-base text-gray-600 mb-6">Search our knowledge base or browse by category</p>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setOpenIndex(null); }}
+            placeholder="Search articles, guides, FAQs..."
+            className="h-11 rounded-xl bg-white border border-gray-300 px-4 w-full max-w-xl outline-none text-gray-800 placeholder:text-gray-500 shadow-sm focus:ring-2 focus:ring-emerald-300 focus:border-emerald-300"
+          />
+        </div>
       </div>
 
       {/* Body */}
-      <div className="grid grid-cols-12 gap-6 p-6">
+      <div className="grid grid-cols-12 gap-6 p-6 max-w-7xl mx-auto">
         {/* Quick Links */}
         <div className="col-span-12 md:col-span-3">
           <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
             <p className="text-sm font-semibold text-gray-700 mb-4">Quick Links</p>
             <nav>
-              {QUICK_LINKS.map(({ Icon, label }) => (
+              {QUICK_LINKS.map(({ Icon, label, ...rest }) => (
                 <button
                   key={label}
-                  className="w-full flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 hover:text-emerald-600 transition text-sm text-gray-700 text-left"
+                  onClick={() => handleQuickLinkClick(rest)}
+                  className="w-full flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0 hover:text-emerald-700 transition text-sm text-gray-800 text-left"
                 >
                   <Icon className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                   {label}
@@ -271,7 +300,7 @@ export default function HelpCenter() {
                   className="w-full flex justify-between items-center px-4 py-3 hover:bg-gray-50 transition text-left"
                   onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
                 >
-                  <span className="text-sm font-medium text-gray-800 pr-4">{item.question}</span>
+                  <span className="text-sm font-semibold text-gray-900 pr-4">{item.question}</span>
                   <HiChevronDown
                     className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${
                       openIndex === idx ? 'rotate-180' : ''
@@ -279,7 +308,7 @@ export default function HelpCenter() {
                   />
                 </button>
                 {openIndex === idx && (
-                  <div className="px-4 pb-4 text-sm text-gray-600 leading-relaxed border-t border-gray-50 pt-2">
+                  <div className="px-4 pb-4 text-sm text-gray-700 leading-relaxed border-t border-gray-100 pt-2">
                     {item.answer}
                   </div>
                 )}
@@ -292,6 +321,24 @@ export default function HelpCenter() {
         <div className="col-span-12 md:col-span-3">
           <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
             <p className="text-sm font-semibold text-gray-700 mb-4">Contact Support</p>
+
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3.5">
+              <p className="text-xs font-semibold text-blue-900 mb-2">How support works</p>
+              <div className="space-y-2 text-xs text-blue-900/90">
+                <p className="flex items-start gap-2">
+                  <HiInboxStack className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-700" />
+                  Your message is saved as a support ticket in SewaHive.
+                </p>
+                <p className="flex items-start gap-2">
+                  <HiPaperAirplane className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-700" />
+                  A copy is forwarded to the support inbox for team follow-up.
+                </p>
+                <p className="flex items-start gap-2">
+                  <HiClock className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-700" />
+                  You get a confirmation email and response is typically within 24 hours.
+                </p>
+              </div>
+            </div>
 
             {submitted ? (
               <div className="flex flex-col items-center text-center py-6">
@@ -333,7 +380,7 @@ export default function HelpCenter() {
                   placeholder="Describe your issue..."
                   value={form.message}
                   onChange={(e) => updateForm('message', e.target.value)}
-                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm w-full focus:ring-2 focus:ring-emerald-400 outline-none resize-none mb-3"
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-500 w-full leading-6 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 outline-none resize-none mb-3"
                 />
                 <button
                   type="submit"
@@ -343,6 +390,9 @@ export default function HelpCenter() {
                   {submitting && <Spinner />}
                   {submitting ? 'Sending...' : 'Send Message'}
                 </button>
+                <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                  Use the same email you check regularly so we can follow up quickly.
+                </p>
               </form>
             )}
           </div>

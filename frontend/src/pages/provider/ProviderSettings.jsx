@@ -51,7 +51,7 @@ function ToggleSwitch({ enabled, onChange, disabled = false }) {
       onClick={onChange}
       disabled={disabled}
       className={`
-        relative inline-flex h-7 w-14 flex-shrink-0 items-center rounded-full
+        relative inline-flex h-7 w-14 flex-shrink-0 items-center rounded-full p-1 overflow-hidden
         transition-colors duration-200
         focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
         ${enabled ? "bg-emerald-500" : "bg-gray-300"}
@@ -60,10 +60,10 @@ function ToggleSwitch({ enabled, onChange, disabled = false }) {
     >
       <span
         className={`
-          inline-block h-5 w-5 transform rounded-full bg-white shadow-md
-          transition-all duration-200
-          ${enabled ? "translate-x-8" : "translate-x-1"}
+          absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md
+          transition-transform duration-200 ease-in-out
         `}
+        style={{ transform: enabled ? "translateX(28px)" : "translateX(0px)" }}
       />
     </button>
   );

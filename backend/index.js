@@ -17,6 +17,7 @@ const { runMonthlyLeaderboard } = require("./cron/monthlyLeaderboard");
 const { runReminders } = require("./cron/reminders");
 const { runEmergencyAvailability } = require("./cron/emergencyAvailability");
 const { runTrustScoring } = require("./cron/trustScoring");
+const { runStaleBookingExpiry } = require("./cron/staleBookings");
 const { sendPush, sendSMS, sendEmail } = require("./utils/notifications");
 
 const app = express();
@@ -150,6 +151,15 @@ async function start() {
         });
       } catch (err) {
         console.error("Error in runReminders cron:", err);
+      }
+    });
+
+    // Stale booking expiry – every 30 minutes
+    cron.schedule("*/30 * * * *", async () => {
+      try {
+        await runStaleBookingExpiry();
+      } catch (err) {
+        console.error("Error in runStaleBookingExpiry cron:", err);
       }
     });
   } catch (err) {

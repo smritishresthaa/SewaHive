@@ -84,7 +84,11 @@ export default function SkillProofs() {
 
   const handleFileChange = (e, type) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files);
+      let files = Array.from(e.target.files);
+      // Filter duplicates by name and size
+      files = files.filter((file, idx, arr) =>
+        arr.findIndex(f => f.name === file.name && f.size === file.size) === idx
+      );
       if (type === 'before') {
         setBeforeFiles(files);
       } else if (type === 'after') {
@@ -260,11 +264,14 @@ export default function SkillProofs() {
                            <div>
                              <h5 className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded w-fit mb-1">Before Service</h5>
                              <div className="flex gap-2 overflow-x-auto pb-1">
-                                {proof.portfolio.filter(p => p.type === 'before').map((img, i) => (
-                                  <a key={i} href={img.url} target="_blank" rel="noreferrer">
-                                    <img src={img.url} className="h-16 w-16 object-cover rounded-lg border border-amber-200 hover:opacity-75" alt="Before" />
-                                  </a>
-                                ))}
+                                {(() => {
+                                  const firstBefore = proof.portfolio.find(p => p.type === 'before');
+                                  return firstBefore ? (
+                                    <a href={firstBefore.url} target="_blank" rel="noreferrer">
+                                      <img src={firstBefore.url} className="h-16 w-16 object-cover rounded-lg border border-amber-200 hover:opacity-75" alt="Before" />
+                                    </a>
+                                  ) : null;
+                                })()}
                              </div>
                            </div>
                          )}
@@ -272,11 +279,14 @@ export default function SkillProofs() {
                            <div>
                              <h5 className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded w-fit mb-1">After Service</h5>
                              <div className="flex gap-2 overflow-x-auto pb-1">
-                                {proof.portfolio.filter(p => p.type === 'after').map((img, i) => (
-                                  <a key={i} href={img.url} target="_blank" rel="noreferrer">
-                                    <img src={img.url} className="h-16 w-16 object-cover rounded-lg border border-emerald-200 hover:opacity-75" alt="After" />
-                                  </a>
-                                ))}
+                                {(() => {
+                                  const firstAfter = proof.portfolio.find(p => p.type === 'after');
+                                  return firstAfter ? (
+                                    <a href={firstAfter.url} target="_blank" rel="noreferrer">
+                                      <img src={firstAfter.url} className="h-16 w-16 object-cover rounded-lg border border-emerald-200 hover:opacity-75" alt="After" />
+                                    </a>
+                                  ) : null;
+                                })()}
                              </div>
                            </div>
                          )}

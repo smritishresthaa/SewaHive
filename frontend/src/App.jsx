@@ -87,7 +87,7 @@ export default function App() {
         {/* ================= HELP ================= */}
         <Route path="/help" element={<HelpCenter />} />
 
-        {/* ================= CLIENT ================= */}}
+        {/* ================= CLIENT ================= */}
         <Route
           path="/client/dashboard"
           element={

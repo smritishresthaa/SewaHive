@@ -207,9 +207,9 @@ export default function SkillReviews() {
                    <div className="mb-4">
                      <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded mb-2 inline-block">Before Service</span>
                      <div className="grid grid-cols-3 gap-2">
-                       {selectedItem.proof.portfolio.filter(p => p.type === 'before').map((img, i) => (
-                         <a key={i} href={img.url} target="_blank" rel="noreferrer">
-                           <img src={img.url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="Before" />
+                       {Array.from(new Set(selectedItem.proof.portfolio.filter(p => p.type === 'before').map(img => img.url))).map((url, i) => (
+                         <a key={i} href={url} target="_blank" rel="noreferrer">
+                           <img src={url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="Before" />
                          </a>
                        ))}
                      </div>
@@ -221,9 +221,9 @@ export default function SkillReviews() {
                    <div className="mb-4">
                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-1 rounded mb-2 inline-block">After Service</span>
                      <div className="grid grid-cols-3 gap-2">
-                       {selectedItem.proof.portfolio.filter(p => p.type === 'after').map((img, i) => (
-                         <a key={i} href={img.url} target="_blank" rel="noreferrer">
-                           <img src={img.url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="After" />
+                       {Array.from(new Set(selectedItem.proof.portfolio.filter(p => p.type === 'after').map(img => img.url))).map((url, i) => (
+                         <a key={i} href={url} target="_blank" rel="noreferrer">
+                           <img src={url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="After" />
                          </a>
                        ))}
                      </div>

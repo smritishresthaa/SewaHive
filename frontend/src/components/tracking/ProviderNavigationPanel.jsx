@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import {
   HiMapPin,
@@ -9,6 +9,7 @@ import {
   HiXMark,
 } from "react-icons/hi2";
 import { connectChatSocket, releaseChatSocket } from "../../utils/chatSocket";
+import { fetchDrivingRoute } from "../../utils/directions";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 
@@ -119,6 +120,7 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
   const clientLng = booking?.location?.coordinates?.[0];
 
   const [providerPos, setProviderPos] = useState(null); // { lat, lng }
+  const [routePath, setRoutePath] = useState([]);
   const [gpsError, setGpsError] = useState("");
   const [gpsPermission, setGpsPermission] = useState("prompt"); // prompt | granted | denied
   const [isEnRoute, setIsEnRoute] = useState(booking?.status === "provider_en_route");
@@ -127,6 +129,7 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
   const socketRef = useRef(null);
   const watchIdRef = useRef(null);
   const lastEmitRef = useRef(0);
+  const lastRouteFetchRef = useRef(0);
   const isEnRouteRef = useRef(isEnRoute);
 
   const GPS_EMIT_INTERVAL = 5000; // Emit every 5 seconds
@@ -268,6 +271,46 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
     "Client";
 
   const showPanel = ["confirmed", "accepted", "provider_en_route"].includes(booking?.status);
+
+  useEffect(() => {
+    if (!hasClientLocation || !hasProviderLocation || !isEnRoute) {
+      setRoutePath([]);
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastRouteFetchRef.current < 12000) return;
+    lastRouteFetchRef.current = now;
+
+    const controller = new AbortController();
+
+    fetchDrivingRoute({
+      fromLat: providerPos.lat,
+      fromLng: providerPos.lng,
+      toLat: clientLat,
+      toLng: clientLng,
+      signal: controller.signal,
+    })
+      .then((route) => {
+        if (route?.path?.length > 1) {
+          setRoutePath(route.path);
+        }
+      })
+      .catch(() => {
+        // keep existing path if API call fails
+      });
+
+    return () => controller.abort();
+  }, [
+    hasClientLocation,
+    hasProviderLocation,
+    isEnRoute,
+    providerPos?.lat,
+    providerPos?.lng,
+    clientLat,
+    clientLng,
+  ]);
+
   if (!showPanel) return null;
 
   return (
@@ -351,6 +394,14 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
               </Marker>
             )}
 
+            {/* Directions route polyline */}
+            {routePath.length > 1 && (
+              <Polyline
+                positions={routePath}
+                pathOptions={{ color: "#0ea5e9", weight: 5, opacity: 0.9 }}
+              />
+            )}
+
             {/* Fix tile sizing after mount */}
             <InvalidateSize />
 
@@ -388,8 +439,8 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
           <button
             onClick={handleMarkEnRoute}
             disabled={markingEnRoute}
-            className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3.5 text-white font-semibold text-sm
-              hover:from-emerald-700 hover:to-teal-700 transition-all shadow-md hover:shadow-lg
+            className="w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-white font-semibold text-sm
+              hover:bg-emerald-700 transition-all shadow-sm hover:shadow-md border border-emerald-700
               disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <HiArrowTrendingUp className="h-5 w-5" />
@@ -401,8 +452,8 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
         {hasClientLocation && (
           <button
             onClick={openGoogleMapsNavigation}
-            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3.5 text-white font-semibold text-sm
-              hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg
+            className="w-full rounded-xl bg-blue-600 px-4 py-3.5 text-white font-semibold text-sm
+              hover:bg-blue-700 transition-all shadow-sm hover:shadow-md border border-blue-700
               flex items-center justify-center gap-2"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">

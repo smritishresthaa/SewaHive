@@ -301,7 +301,7 @@ export default function Landing() {
               const svcs = svcRes.data?.services || [];
               serviceMap[cat.name] = svcs.slice(0, 4).map((s) => ({
                 title: s.title,
-                img: s.images?.[0] || cat.image || null,
+                img: s.images?.[0] || s.categoryId?.image || cat.image || null,
                 _id: s._id,
               }));
             } catch {

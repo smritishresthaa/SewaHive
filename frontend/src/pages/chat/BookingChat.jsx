@@ -12,6 +12,7 @@ import {
   HiStopCircle,
   HiPlayCircle,
   HiXCircle,
+  HiFilm,
 } from "react-icons/hi2";
 import toast from "react-hot-toast";
 import ClientLayout from "../../layouts/ClientLayout";
@@ -122,6 +123,7 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
   const isFailed = message.status === "failed";
   const isImage = message.type === "image";
   const isVoice = message.type === "voice";
+  const isVideo = message.type === "video";
 
   const bubbleBase = mine
     ? "bg-emerald-600 text-white"
@@ -136,6 +138,7 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
           isSending ? "opacity-60" : ""
         } ${isImage || isVoice ? "p-1" : "px-3.5 py-2"} ${bubbleBase}`}
       >
+
         {/* ── Image bubble ── */}
         {isImage && message.attachment?.url && (
           <button
@@ -151,6 +154,18 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
               style={{ minHeight: 80, minWidth: 120 }}
             />
           </button>
+        )}
+
+        {/* ── Video bubble ── */}
+        {isVideo && message.attachment?.url && (
+          <div className="flex flex-col items-center">
+            <video
+              src={message.attachment.url}
+              controls
+              className="max-h-64 max-w-full rounded-xl object-cover bg-black"
+              style={{ minHeight: 80, minWidth: 120 }}
+            />
+          </div>
         )}
 
         {/* ── Voice bubble ── */}
@@ -331,8 +346,10 @@ export default function BookingChat() {
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
 
+
   /* ── Media state ── */
   const [imagePreview, setImagePreview] = useState(null); // { file, dataUrl }
+  const [videoPreview, setVideoPreview] = useState(null); // { file, dataUrl }
   const [uploadProgress, setUploadProgress] = useState(0);
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
@@ -340,6 +357,82 @@ export default function BookingChat() {
   const listRef = useRef(null);
   const bottomRef = useRef(null);
   const imageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+
+  // Video handlers
+  function handleVideoSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ALLOWED = ["video/mp4", "video/webm", "video/ogg"];
+    if (!ALLOWED.includes(file.type)) {
+      toast.error("Only MP4, WebM, and Ogg videos are allowed");
+      return;
+    }
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error("Video must be under 200 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setVideoPreview({ file, dataUrl: reader.result });
+    reader.readAsDataURL(file);
+
+    // Reset input so re-selecting same file works
+    e.target.value = "";
+  }
+
+  function cancelVideoPreview() {
+    setVideoPreview(null);
+    setUploadProgress(0);
+  }
+
+  async function sendVideo() {
+    if (!videoPreview?.file || sending) return;
+
+    const tempId = makeTempId();
+    const optimistic = {
+      _id: tempId,
+      bookingId,
+      senderId: selfId,
+      type: "video",
+      text: "",
+      attachment: { url: videoPreview.dataUrl },
+      status: "sending",
+      createdAt: new Date().toISOString(),
+    };
+
+    setSending(true);
+    setMessages((prev) => [...prev, optimistic]);
+    setVideoPreview(null);
+    setTimeout(() => scrollToBottom(true), 0);
+
+    try {
+      const fd = new FormData();
+      fd.append("video", videoPreview.file);
+
+      const res = await api.post(`/chat/booking/${bookingId}/upload-video`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (p) => {
+          if (p.total) setUploadProgress(Math.round((p.loaded / p.total) * 100));
+        },
+      });
+
+      setMessages((prev) => {
+        const realId = res.data.message._id;
+        const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
+        return filtered.map((m) => (m._id === tempId ? res.data.message : m));
+      });
+    } catch (err) {
+      setMessages((prev) =>
+        prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
+      );
+      toast.error(err?.response?.data?.message || "Video upload failed");
+    } finally {
+      setSending(false);
+      setUploadProgress(0);
+    }
+  }
 
   const Layout = user?.role === "provider" ? ProviderLayout : ClientLayout;
   const selfId = String(user?._id || user?.id || "");
@@ -853,6 +946,41 @@ export default function BookingChat() {
             </div>
           )}
 
+          {/* ── Video preview tray ── */}
+          {videoPreview && (
+            <div className="border-t bg-gray-50 px-4 py-3">
+              <div className="relative inline-block">
+                <video
+                  src={videoPreview.dataUrl}
+                  controls
+                  className="h-28 w-28 rounded-lg object-cover border shadow-sm bg-black"
+                />
+                <button
+                  onClick={cancelVideoPreview}
+                  className="absolute -top-2 -right-2 rounded-full bg-gray-800 p-0.5 text-white shadow hover:bg-red-600 transition"
+                  aria-label="Remove video"
+                >
+                  <HiXMark className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={sendVideo}
+                  disabled={sending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  <HiPaperAirplane className="h-4 w-4" /> Send Video
+                </button>
+                <button
+                  onClick={cancelVideoPreview}
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Voice recording / preview tray ── */}
           {isRecording && (
             <div className="border-t bg-red-50 px-4 py-3">
@@ -917,6 +1045,7 @@ export default function BookingChat() {
           {!isMediaActive && (
             <div className="border-t px-3 py-3">
               <div className="flex items-end gap-2">
+
                 {/* Image picker */}
                 <input
                   ref={imageInputRef}
@@ -934,6 +1063,25 @@ export default function BookingChat() {
                   title="Send a photo"
                 >
                   <HiPhoto className="h-5 w-5" />
+                </button>
+
+                {/* Video picker */}
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/ogg"
+                  onChange={handleVideoSelect}
+                  className="hidden"
+                  aria-label="Attach video"
+                />
+                <button
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={sending}
+                  className="flex-shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-emerald-600 transition disabled:opacity-40"
+                  aria-label="Attach video"
+                  title="Send a video"
+                >
+                  <HiFilm className="h-5 w-5" />
                 </button>
 
                 {/* Voice recorder */}

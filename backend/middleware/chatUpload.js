@@ -68,4 +68,33 @@ const chatVoiceUpload = multer({
   },
 });
 
-module.exports = { chatImageUpload, chatVoiceUpload };
+// ─── Video upload (chat) ───────────────────────────────
+const videoStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "sewahive/chat-videos",
+    resource_type: "video",
+    allowed_formats: ["mp4", "webm", "ogg"],
+  },
+});
+
+const chatVideoUpload = multer({
+  storage: videoStorage,
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
+  fileFilter(_req, file, cb) {
+    const ALLOWED_VIDEO_MIMES = [
+      "video/mp4",
+      "video/webm",
+      "video/ogg"
+    ];
+    if (!ALLOWED_VIDEO_MIMES.includes(file.mimetype)) {
+      return cb(
+        new Error("Only MP4, WebM, and OGG video formats are allowed"),
+        false
+      );
+    }
+    cb(null, true);
+  },
+});
+
+module.exports = { chatImageUpload, chatVoiceUpload, chatVideoUpload };

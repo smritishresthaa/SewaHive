@@ -6,6 +6,7 @@ const User = require("../models/User");
 const Category = require("../models/Category");
 const Subcategory = require("../models/Subcategory");
 const ProviderVerification = require("../models/ProviderVerification");
+const serviceImageUpload = require("../middleware/serviceImageUpload");
 
 const router = express.Router();
 
@@ -80,7 +81,7 @@ router.get("/popular", async (req, res, next) => {
       _id: s._id,
       title: s.title,
       description: s.description,
-      image: s.images?.[0] || null,
+      image: s.images?.[0] || s.categoryId?.image || null,
       basePrice: s.basePrice,
       priceMode: s.priceMode,
       ratingAvg: s.ratingAvg || 0,
@@ -115,7 +116,7 @@ router.get("/list", async (req, res, next) => {
     if (categoryId) query.categoryId = categoryId;
 
     let services = await Service.find(query)
-      .populate('categoryId', 'name icon iconKey status')
+      .populate('categoryId', 'name icon iconKey image status')
       .populate('subcategoryId', 'name status')
       .populate('providerId', 'kycStatus profile.name profile.avatarUrl providerDetails.badges providerDetails.rating providerDetails.metrics providerDetails.approvedCategories')
       .limit(100);
@@ -190,6 +191,31 @@ router.get("/list", async (req, res, next) => {
     next(e);
   }
 });
+
+/**
+ * Upload service images (provider only)
+ */
+router.post(
+  "/upload-images",
+  authGuard,
+  roleGuard(["provider"]),
+  serviceImageUpload.array("images", 6),
+  async (req, res, next) => {
+    try {
+      const images = (req.files || [])
+        .map((file) => file.path || file.secure_url || file.url)
+        .filter(Boolean);
+
+      if (images.length === 0) {
+        return res.status(400).json({ message: "No valid images uploaded" });
+      }
+
+      res.json({ success: true, images });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 /**
  * Get provider's own services

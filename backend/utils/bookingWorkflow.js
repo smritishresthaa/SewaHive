@@ -19,7 +19,7 @@ const pricingTypeAliasMap = {
 const STATUS_ALIASES = Object.freeze({
   requested: ["requested", "quote_requested", "quote_sent", "quote_pending_admin_review", "quote_rejected"],
   pending_payment: ["pending_payment", "quote_accepted"],
-  confirmed: ["confirmed", "accepted"],
+  confirmed: ["confirmed", "accepted", "provider_en_route"],
   in_progress: ["in-progress", "in_progress"],
   completion_pending: ["pending-completion", "pending_completion", "completion_pending", "provider_completed", "awaiting_client_confirmation"],
   completed: ["completed", "resolved_refunded"],

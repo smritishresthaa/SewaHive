@@ -2,7 +2,11 @@ const express = require("express");
 const { authGuard } = require("../middleware/auth");
 const Conversation = require("../models/Conversation");
 const Notification = require("../models/Notification");
-const { chatImageUpload, chatVoiceUpload } = require("../middleware/chatUpload");
+const { chatImageUpload, chatVoiceUpload, chatVideoUpload } = require("../middleware/chatUpload");
+
+
+
+
 const {
   ensureBookingForChat,
   getOrCreateConversationForBooking,
@@ -12,6 +16,61 @@ const {
 } = require("../utils/chatService");
 
 const router = express.Router();
+
+// ─── Video Upload ─────────────────────────────────────────────────────
+router.post(
+  "/booking/:bookingId/upload-video",
+  authGuard,
+  chatVideoUpload.single("video"),
+  async (req, res, next) => {
+    try {
+      const { bookingId } = req.params;
+
+      // Verify booking participant
+      const { booking } = await ensureBookingForChat({
+        bookingId,
+        user: req.user,
+      });
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No video file provided" });
+      }
+
+      console.log(`[ChatUpload] Video uploaded by user ${req.user.id} for booking ${bookingId}`);
+
+      const attachment = {
+        url: req.file.path,
+        publicId: req.file.filename || "",
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size || 0,
+        width: null,
+        height: null,
+      };
+
+      // Send as message
+      const { message } = await sendBookingMessage({
+        booking,
+        senderId: req.user.id,
+        text: "",
+        type: "video",
+        attachment,
+      });
+
+      // Emit via socket
+      try {
+        const { getIO } = require("../utils/socket");
+        const io = getIO();
+        if (io) {
+          io.to(`booking:${booking._id}`).emit("new_message", message);
+        }
+      } catch (_) {}
+
+      res.status(201).json({ message });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 router.get("/conversations", authGuard, async (req, res, next) => {
   try {
@@ -37,38 +96,46 @@ router.get("/conversations", authGuard, async (req, res, next) => {
       })
       .lean();
 
-    const data = conversations
-      .filter((conversation) => Boolean(conversation.bookingId))
-      .map((conversation) => {
-        const booking = conversation.bookingId;
-        const unreadCount = role === "client"
-          ? Number(conversation.unreadByClient || 0)
-          : Number(conversation.unreadByProvider || 0);
-
-        return {
-          _id: conversation._id,
-          bookingId: booking._id,
-          bookingStatus: booking.status,
-          serviceTitle: booking.serviceId?.title || "Service",
-          peer:
-            role === "client"
-              ? {
-                  id: booking.providerId?._id,
-                  name: booking.providerId?.profile?.name || booking.providerId?.email || "Provider",
-                }
-              : {
-                  id: booking.clientId?._id,
-                  name: booking.clientId?.profile?.name || booking.clientId?.email || "Client",
-                },
-          lastMessageAt: conversation.lastMessageAt,
-          lastMessageText: conversation.lastMessageText,
-          unreadCount,
-          route:
-            role === "client"
-              ? `/client/bookings/${booking._id}/chat`
-              : `/provider/bookings/${booking._id}/chat`,
-        };
+    // Deduplicate by peer (show only latest conversation per unique peer)
+    const seenPeers = new Set();
+    const data = [];
+    for (const conversation of conversations) {
+      if (!conversation.bookingId) continue;
+      const booking = conversation.bookingId;
+      const peerId = role === "client"
+        ? String(booking.providerId?._id || booking.providerId)
+        : String(booking.clientId?._id || booking.clientId);
+      if (seenPeers.has(peerId)) continue;
+      seenPeers.add(peerId);
+      const unreadCount = role === "client"
+        ? Number(conversation.unreadByClient || 0)
+        : Number(conversation.unreadByProvider || 0);
+      data.push({
+        _id: conversation._id,
+        bookingId: booking._id,
+        bookingStatus: booking.status,
+        serviceTitle: booking.serviceId?.title || "Service",
+        peer:
+          role === "client"
+            ? {
+                id: booking.providerId?._id,
+                name: booking.providerId?.profile?.name || booking.providerId?.email || "Provider",
+                avatarUrl: booking.providerId?.profile?.avatarUrl || null,
+              }
+            : {
+                id: booking.clientId?._id,
+                name: booking.clientId?.profile?.name || booking.clientId?.email || "Client",
+                avatarUrl: booking.clientId?.profile?.avatarUrl || null,
+              },
+        lastMessageAt: conversation.lastMessageAt,
+        lastMessageText: conversation.lastMessageText,
+        unreadCount,
+        route:
+          role === "client"
+            ? `/client/bookings/${booking._id}/chat`
+            : `/provider/bookings/${booking._id}/chat`,
       });
+    }
 
     res.json({ conversations: data });
   } catch (e) {

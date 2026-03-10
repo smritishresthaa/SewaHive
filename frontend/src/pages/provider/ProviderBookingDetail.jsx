@@ -157,6 +157,19 @@ export default function ProviderBookingDetail() {
     }
   }
 
+  async function handleMarkEnRoute() {
+    try {
+      setProcessingAction(true);
+      await api.patch(`/bookings/${bookingId}/en-route`);
+      toast.success("You're on the way. Client has been notified.");
+      await fetchBooking();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to mark as on the way");
+    } finally {
+      setProcessingAction(false);
+    }
+  }
+
   async function handleMarkComplete() {
     try {
       setProcessingAction(true);
@@ -594,6 +607,16 @@ export default function ProviderBookingDetail() {
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm"
               >
                 {showAdjustmentForm ? "Hide Additional Charges" : "Request Additional Charges"}
+              </button>
+            )}
+
+            {["confirmed", "accepted"].includes(booking.status) && (
+              <button
+                onClick={handleMarkEnRoute}
+                disabled={processingAction}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium text-sm disabled:opacity-50"
+              >
+                I'm On The Way
               </button>
             )}
 

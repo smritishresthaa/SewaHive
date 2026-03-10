@@ -7,7 +7,7 @@ import {
 } from "react-icons/hi2";
 import {
   BarChart, Bar, XAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie, Cell, Label,
 } from "recharts";
 
 /* ─── helpers ────────────────────────────────────────────────────────────── */
@@ -132,6 +132,9 @@ export default function ProviderEarnings() {
 
   /* ── custom center label ── */
   const DonutCenter = ({ viewBox }) => {
+    if (!viewBox || typeof viewBox.cx !== "number" || typeof viewBox.cy !== "number") {
+      return null;
+    }
     const { cx, cy } = viewBox;
     return (
       <>
@@ -210,7 +213,7 @@ export default function ProviderEarnings() {
                       labelLine={false}
                     >
                       {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
-                      <DonutCenter />
+                      <Label content={DonutCenter} position="center" />
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
