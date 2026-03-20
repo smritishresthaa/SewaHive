@@ -8,17 +8,24 @@ import {
   HiCheckCircle,
   HiArrowRight,
   HiMagnifyingGlass,
-  HiStar,
 } from "react-icons/hi2";
+import {
+  FiHome,
+  FiDroplet,
+  FiZap,
+  FiTool,
+  FiPenTool,
+  FiSun,
+} from "react-icons/fi";
 import api from "../../utils/axios";
 
 const QUICK_SERVICES = [
-  { name: "Cleaning", icon: "🧹", category: "Cleaning" },
-  { name: "Plumbing", icon: "💧", category: "Plumbing" },
-  { name: "Electrical", icon: "⚡", category: "Electrical" },
-  { name: "Carpentry", icon: "🔨", category: "Carpentry" },
-  { name: "Painting", icon: "🎨", category: "Painting" },
-  { name: "Gardening", icon: "🌱", category: "Gardening" },
+  { name: "Cleaning", icon: FiHome, category: "Cleaning", subtitle: "Home & office care" },
+  { name: "Plumbing", icon: FiDroplet, category: "Plumbing", subtitle: "Repairs & fittings" },
+  { name: "Electrical", icon: FiZap, category: "Electrical", subtitle: "Wiring & maintenance" },
+  { name: "Carpentry", icon: FiTool, category: "Carpentry", subtitle: "Woodwork solutions" },
+  { name: "Painting", icon: FiPenTool, category: "Painting", subtitle: "Interior & exterior" },
+  { name: "Gardening", icon: FiSun, category: "Gardening", subtitle: "Outdoor upkeep" },
 ];
 
 export default function ClientDashboard() {
@@ -141,21 +148,27 @@ export default function ClientDashboard() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             Browse Services
           </h2>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-            {QUICK_SERVICES.map((service) => (
-              <button
-                key={service.name}
-                onClick={() => navigate(`/services?category=${service.category}`)}
-                className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md hover:border-brand-500 transition-all group"
-              >
-                <div className="text-4xl mb-2 group-hover:scale-110 transition-transform">
-                  {service.icon}
-                </div>
-                <p className="text-sm font-medium text-gray-700">
-                  {service.name}
-                </p>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            {QUICK_SERVICES.map((service) => {
+              const Icon = service.icon;
+              return (
+                <button
+                  key={service.name}
+                  onClick={() => navigate(`/services?category=${service.category}`)}
+                  className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md hover:border-brand-500 transition-all group text-left"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 mb-3 group-hover:bg-brand-100 group-hover:scale-105 transition-all">
+                    <Icon className="text-xl" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {service.name}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 leading-5">
+                    {service.subtitle}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -217,25 +230,26 @@ export default function ClientDashboard() {
         </div>
 
         {/* Search Services */}
-            <div className="brand-gradient rounded-2xl shadow-lg p-8 mb-8 text-white relative overflow-hidden">
-            <div className="relative z-10">
-              <h2 className="text-2xl font-bold mb-2">
-                Need a service?
-              </h2>
-              <p className="text-white/90 mb-6">
-                Search from hundreds of verified providers in your area
-              </p>
-              <button
-                onClick={() => navigate("/services")}
-                className="bg-white text-brand-700 px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center gap-2"
-              >
-                <HiMagnifyingGlass className="text-xl" />
-                Browse All Services
-              </button>
-            </div>
-            {/* Decorative background circle */}
-            <div className="absolute -right-10 -top-10 w-64 h-64 bg-brand-500 rounded-full opacity-50 blur-3xl"></div>
+        <div className="brand-gradient rounded-2xl shadow-lg p-8 mb-8 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <h2 className="text-2xl font-bold mb-2">
+              Need a service?
+            </h2>
+            <p className="text-white/90 mb-6">
+              Search from hundreds of verified providers in your area
+            </p>
+            <button
+              onClick={() => navigate("/services")}
+              className="bg-white text-brand-700 px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center gap-2"
+            >
+              <HiMagnifyingGlass className="text-xl" />
+              Browse All Services
+            </button>
           </div>
+          {/* Decorative background circle */}
+          <div className="absolute -right-10 -top-10 w-64 h-64 bg-brand-500 rounded-full opacity-50 blur-3xl"></div>
+        </div>
+
         {/* Recent Bookings */}
         <div className="bg-white rounded-2xl shadow-sm border p-6">
           <div className="flex items-center justify-between mb-6">
@@ -305,4 +319,3 @@ export default function ClientDashboard() {
     </ClientLayout>
   );
 }
-
