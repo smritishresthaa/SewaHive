@@ -30,7 +30,7 @@ export default function DisputeDetail() {
     try {
       setLoading(true);
       const res = await api.get(`/disputes/${id}`);
-      setDispute(res.data);
+      setDispute(res.data.dispute || null);
     } catch (err) {
       console.error("Failed to load dispute:", err);
       toast.error("Failed to load dispute");
@@ -125,7 +125,7 @@ export default function DisputeDetail() {
           <HiExclamationTriangle className="mx-auto h-12 w-12 text-gray-400" />
           <p className="mt-2 text-gray-600">Dispute not found</p>
           <button
-            onClick={() => navigate("/admin/disputes")}
+            onClick={() => navigate("/disputes")}
             className="mt-4 text-emerald-600 hover:text-emerald-700"
           >
             Back to Disputes
@@ -157,7 +157,7 @@ export default function DisputeDetail() {
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate("/admin/disputes")}
+              onClick={() => navigate("/disputes")}
               className="rounded-lg p-2 hover:bg-gray-100"
             >
               <HiArrowLeft size={20} className="text-gray-600" />

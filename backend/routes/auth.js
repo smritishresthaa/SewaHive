@@ -8,6 +8,7 @@ const sendEmail = require("../utils/sendEmail");
 const { authGuard } = require("../middleware/auth");
 const upload = require("../middleware/upload");
 const cloudinary = require("../utils/cloudinary");
+const { normalizeNepalPhone, isValidNepalMobile } = require("../utils/phone");
 
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -15,9 +16,9 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // ----------------------------------------------
 // Generate Access + Refresh tokens
 // ----------------------------------------------
-const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "1h"; // keep short-lived access
-const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "365d"; // extended session (1 year)
-const REFRESH_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000; // 1 year for cookie
+const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "1h";
+const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "365d";
+const REFRESH_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 const RESET_SECRET =
   process.env.PASSWORD_RESET_SECRET || process.env.JWT_ACCESS_SECRET;
 const RESET_EXPIRES = process.env.PASSWORD_RESET_EXPIRES || "10m";
@@ -51,6 +52,15 @@ router.post("/register", async (req, res, next) => {
   try {
     const { email, password, phone, role = "client", profile } = req.body;
 
+    // Check registrationOpen
+    const AdminServiceConfig = require("../models/AdminServiceConfig");
+    const settings = await AdminServiceConfig.findOne({});
+    if (settings && settings.registrationOpen === false) {
+      return res
+        .status(403)
+        .json({ message: "Registration is currently closed by the platform admin." });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "Email already in use" });
@@ -58,9 +68,20 @@ router.post("/register", async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    let normalizedPhone = "";
+    if (phone !== undefined && phone !== null && String(phone).trim() !== "") {
+      normalizedPhone = normalizeNepalPhone(phone);
+
+      if (!isValidNepalMobile(normalizedPhone)) {
+        return res.status(400).json({
+          message: "Please enter a valid Nepal mobile number (97/98XXXXXXXX)",
+        });
+      }
+    }
+
     const user = await User.create({
       email,
-      phone,
+      phone: normalizedPhone,
       passwordHash,
       role,
       profile: {
@@ -72,7 +93,7 @@ router.post("/register", async (req, res, next) => {
           country: "",
           city: "",
           postalCode: "",
-          area: "", // ✅ initialized safely
+          area: "",
         },
       },
       providerDetails: {
@@ -157,7 +178,7 @@ router.post("/login", async (req, res, next) => {
 });
 
 // ----------------------------------------------
-// GOOGLE LOGIN
+// GOOGLE LOGIN / SIGNUP
 // ----------------------------------------------
 router.post("/google", async (req, res) => {
   try {
@@ -171,47 +192,58 @@ router.post("/google", async (req, res) => {
     const payload = ticket.getPayload();
 
     let user = await User.findOne({ email: payload.email });
-      let avatarUrl = "";
-      
-      // Fetch and upload Google profile picture to Cloudinary (if configured)
-      const hasCloudinary = !!(
-        process.env.CLOUDINARY_CLOUD_NAME &&
-        process.env.CLOUDINARY_API_KEY &&
-        process.env.CLOUDINARY_API_SECRET
-      );
-      if (payload.picture) {
-        try {
-          if (hasCloudinary) {
-            const response = await axios.get(payload.picture, { responseType: "arraybuffer" });
-            const base64 = Buffer.from(response.data).toString("base64");
-            const dataURI = `data:${response.headers["content-type"]};base64,${base64}`;
+    let avatarUrl = "";
 
-            const uploadResult = await cloudinary.uploader.upload(dataURI, {
-              folder: "sewahive/avatars",
-              resource_type: "auto",
-              width: 200,
-              height: 200,
-              crop: "fill",
-              gravity: "face",
-            });
-
-            avatarUrl = uploadResult.secure_url;
-          } else {
-            // Cloudinary not configured, use Google picture directly
-            avatarUrl = payload.picture;
-          }
-        } catch (err) {
-          console.error("Failed to upload Google avatar:", err);
-          // Fall back to Google URL if upload fails
-          avatarUrl = payload.picture || "";
-        }
+    // If this is a NEW user, respect registrationOpen
+    if (!user) {
+      const AdminServiceConfig = require("../models/AdminServiceConfig");
+      const settings = await AdminServiceConfig.findOne({});
+      if (settings && settings.registrationOpen === false) {
+        return res
+          .status(403)
+          .json({ message: "Registration is currently closed by the platform admin." });
       }
-      
+    }
+
+    // Fetch and upload Google profile picture to Cloudinary (if configured)
+    const hasCloudinary = !!(
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+    );
+
+    if (payload.picture) {
+      try {
+        if (hasCloudinary) {
+          const response = await axios.get(payload.picture, {
+            responseType: "arraybuffer",
+          });
+          const base64 = Buffer.from(response.data).toString("base64");
+          const dataURI = `data:${response.headers["content-type"]};base64,${base64}`;
+
+          const uploadResult = await cloudinary.uploader.upload(dataURI, {
+            folder: "sewahive/avatars",
+            resource_type: "auto",
+            width: 200,
+            height: 200,
+            crop: "fill",
+            gravity: "face",
+          });
+
+          avatarUrl = uploadResult.secure_url;
+        } else {
+          avatarUrl = payload.picture;
+        }
+      } catch (err) {
+        console.error("Failed to upload Google avatar:", err);
+        avatarUrl = payload.picture || "";
+      }
+    }
 
     if (!user) {
       user = await User.create({
         email: payload.email,
-        role: role, // ✅ Use the role passed from frontend
+        role: role,
         googleId: payload.sub,
         profile: {
           name: payload.name || "",
@@ -222,7 +254,7 @@ router.post("/google", async (req, res) => {
             country: "",
             city: "",
             postalCode: "",
-            area: "", // ✅ initialized safely
+            area: "",
           },
         },
         location: {
@@ -236,7 +268,6 @@ router.post("/google", async (req, res) => {
 
     const { accessToken, refreshToken } = generateTokens(user);
 
-    // Set long-lived refresh cookie for Google login too
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       sameSite: "lax",
@@ -267,8 +298,6 @@ router.post("/google", async (req, res) => {
 // ----------------------------------------------
 router.get("/me", authGuard, async (req, res, next) => {
   try {
-    // Fetch fresh user data from database to ensure KYC status is up-to-date
-    // (don't rely on JWT token which may be cached)
     const user = await User.findById(req.user.id);
 
     if (!user) {
@@ -294,7 +323,7 @@ router.get("/me", authGuard, async (req, res, next) => {
 });
 
 // ----------------------------------------------
-// UPDATE PROFILE (✅ FULLY FIXED, NON-BREAKING)
+// UPDATE PROFILE
 // ----------------------------------------------
 router.put(
   "/profile",
@@ -313,31 +342,48 @@ router.put(
         country,
         city,
         postalCode,
-        area, // ✅ ADDED
+        area,
       } = req.body;
 
       if (typeof name === "string") user.profile.name = name;
-      if (typeof phone === "string") user.phone = phone;
+
+      if (phone !== undefined) {
+        const rawPhone = String(phone).trim();
+
+        if (rawPhone === "") {
+          user.phone = "";
+          if (user.isPhoneVerified !== undefined) {
+            user.isPhoneVerified = false;
+          }
+        } else {
+          const normalizedPhone = normalizeNepalPhone(rawPhone);
+
+          if (!isValidNepalMobile(normalizedPhone)) {
+            return res.status(400).json({
+              message: "Please enter a valid Nepal mobile number (97/98XXXXXXXX)",
+            });
+          }
+
+          if (user.phone !== normalizedPhone) {
+            user.phone = normalizedPhone;
+
+            if (user.isPhoneVerified !== undefined) {
+              user.isPhoneVerified = false;
+            }
+          }
+        }
+      }
 
       if (!user.profile.address) {
         user.profile.address = {};
       }
 
-      if (typeof country === "string")
-        user.profile.address.country = country;
+      if (typeof country === "string") user.profile.address.country = country;
+      if (typeof city === "string") user.profile.address.city = city;
+      if (typeof postalCode === "string") user.profile.address.postalCode = postalCode;
+      if (typeof area === "string") user.profile.address.area = area;
 
-      if (typeof city === "string")
-        user.profile.address.city = city;
-
-      if (typeof postalCode === "string")
-        user.profile.address.postalCode = postalCode;
-
-      if (typeof area === "string") // ✅ FIX
-        user.profile.address.area = area;
-
-      // Handle file upload - Cloudinary returns URL in different properties
       if (req.file) {
-        // CloudinaryStorage returns the URL in req.file.path
         const fileUrl = req.file.path || req.file.secure_url || req.file.url;
         if (fileUrl) {
           user.profile.avatarUrl = fileUrl;
@@ -410,7 +456,6 @@ router.post("/resend-verification", async (req, res) => {
       return res.status(400).json({ message: "Email is already verified" });
     }
 
-    // Generate new verification token
     const verifyToken = jwt.sign(
       { sub: user._id },
       process.env.EMAIL_VERIFICATION_SECRET,
@@ -440,7 +485,7 @@ router.post("/resend-verification", async (req, res) => {
 });
 
 // ----------------------------------------------
-// FORGOT PASSWORD - Send OTP via email
+// FORGOT PASSWORD
 // ----------------------------------------------
 router.post("/forgot-password", async (req, res) => {
   try {
@@ -455,10 +500,8 @@ router.post("/forgot-password", async (req, res) => {
       return res.status(404).json({ message: "No account found with this email" });
     }
 
-    // Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store OTP with 10-minute expiration without full-document validation
     await User.updateOne(
       { _id: user._id },
       {
@@ -469,7 +512,6 @@ router.post("/forgot-password", async (req, res) => {
       }
     );
 
-    // Send OTP via email
     const subject = "Your SewaHive Password Reset Code";
     const html = `
       <h2>Password Reset Request</h2>
@@ -492,7 +534,7 @@ router.post("/forgot-password", async (req, res) => {
 });
 
 // ----------------------------------------------
-// VERIFY OTP - Validate OTP for password reset
+// VERIFY OTP
 // ----------------------------------------------
 router.post("/verify-otp", async (req, res) => {
   try {
@@ -507,7 +549,6 @@ router.post("/verify-otp", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Check if OTP is valid and not expired
     if (user.resetOtp !== otp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
@@ -515,6 +556,7 @@ router.post("/verify-otp", async (req, res) => {
     if (!user.resetOtpExpires || user.resetOtpExpires < new Date()) {
       return res.status(400).json({ message: "OTP has expired. Request a new one." });
     }
+
     const resetToken = generatePasswordResetToken(user);
 
     res.json({
@@ -528,18 +570,22 @@ router.post("/verify-otp", async (req, res) => {
 });
 
 // ----------------------------------------------
-// RESET PASSWORD - Update password with valid OTP
+// RESET PASSWORD
 // ----------------------------------------------
 router.post("/reset-password", async (req, res) => {
   try {
     const { token, password } = req.body;
 
     if (!token || !password) {
-      return res.status(400).json({ message: "Reset token and password are required" });
+      return res.status(400).json({
+        message: "Reset token and password are required",
+      });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res.status(400).json({
+        message: "Password must be at least 6 characters",
+      });
     }
 
     let decoded;
@@ -554,15 +600,14 @@ router.post("/reset-password", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Verify OTP is still valid
     if (!user.resetOtp || user.resetOtpExpires < new Date()) {
-      return res.status(400).json({ message: "OTP expired. Start password reset again." });
+      return res.status(400).json({
+        message: "OTP expired. Start password reset again.",
+      });
     }
 
-    // Hash new password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Update password and clear OTP fields without full-document validation
     await User.updateOne(
       { _id: user._id },
       {
@@ -589,18 +634,13 @@ router.post("/refresh", async (req, res) => {
       return res.status(401).json({ message: "No refresh token provided" });
     }
 
-    const decoded = jwt.verify(
-      refreshToken,
-      process.env.JWT_REFRESH_SECRET
-    );
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-    // Get user to include role in new token
     const user = await User.findById(decoded.sub);
     if (!user) {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Generate new access token
     const accessToken = jwt.sign(
       { sub: user._id, role: user.role },
       process.env.JWT_ACCESS_SECRET,
@@ -621,7 +661,6 @@ router.post("/logout", (req, res) => {
     httpOnly: true,
     sameSite: "lax",
     secure: false,
-    maxAge: REFRESH_MAX_AGE_MS,
   });
 
   res.json({ message: "Logged out successfully" });

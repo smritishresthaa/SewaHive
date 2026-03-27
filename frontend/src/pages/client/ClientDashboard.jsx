@@ -26,7 +26,73 @@ const QUICK_SERVICES = [
   { name: "Carpentry", icon: FiTool, category: "Carpentry", subtitle: "Woodwork solutions" },
   { name: "Painting", icon: FiPenTool, category: "Painting", subtitle: "Interior & exterior" },
   { name: "Gardening", icon: FiSun, category: "Gardening", subtitle: "Outdoor upkeep" },
+=======
+import { MdEmojiEvents } from "react-icons/md";
+import api from "../../utils/axios";
+
+const QUICK_SERVICES = [
+  {
+    name: "Cleaning",
+    icon: FiHome,
+    category: "Cleaning",
+    subtitle: "Home & office care",
+  },
+  {
+    name: "Plumbing",
+    icon: FiDroplet,
+    category: "Plumbing",
+    subtitle: "Repairs & fittings",
+  },
+  {
+    name: "Electrical",
+    icon: FiZap,
+    category: "Electrical",
+    subtitle: "Wiring & maintenance",
+  },
+  {
+    name: "Carpentry",
+    icon: FiTool,
+    category: "Carpentry",
+    subtitle: "Woodwork solutions",
+  },
+  {
+    name: "Painting",
+    icon: FiPenTool,
+    category: "Painting",
+    subtitle: "Interior & exterior",
+  },
+  {
+    name: "Gardening",
+    icon: FiSun,
+    category: "Gardening",
+    subtitle: "Outdoor upkeep",
+  },
+>>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
+import api from "../../utils/axios";
+
+const QUICK_SERVICES = [
+  { name: "Cleaning", icon: FiHome, category: "Cleaning", subtitle: "Home & office care" },
+  { name: "Plumbing", icon: FiDroplet, category: "Plumbing", subtitle: "Repairs & fittings" },
+  { name: "Electrical", icon: FiZap, category: "Electrical", subtitle: "Wiring & maintenance" },
+  { name: "Carpentry", icon: FiTool, category: "Carpentry", subtitle: "Woodwork solutions" },
+  { name: "Painting", icon: FiPenTool, category: "Painting", subtitle: "Interior & exterior" },
+  { name: "Gardening", icon: FiSun, category: "Gardening", subtitle: "Outdoor upkeep" },
 ];
+];
+
+function getRankBadgeClass(idx) {
+  if (idx === 0) {
+    return "bg-amber-500 text-white ring-4 ring-amber-100 shadow-sm";
+  }
+  if (idx === 1) {
+    return "bg-slate-500 text-white ring-4 ring-slate-100 shadow-sm";
+  }
+  if (idx === 2) {
+    return "bg-orange-600 text-white ring-4 ring-orange-100 shadow-sm";
+  }
+
+  return "bg-brand-700 text-white ring-4 ring-brand-100 shadow-sm";
+}
 
 export default function ClientDashboard() {
   const { user } = useAuth();
@@ -90,8 +156,8 @@ export default function ClientDashboard() {
   if (loading) {
     return (
       <ClientLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-10 w-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
         </div>
       </ClientLayout>
     );
@@ -99,62 +165,66 @@ export default function ClientDashboard() {
 
   return (
     <ClientLayout>
-      <div className="max-w-7xl mx-auto">
-        {/* Welcome Header */}
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             Welcome back, {user?.profile?.name || "there"}! 👋
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="mt-1 text-sm text-gray-600 sm:text-base">
             Manage your bookings and discover new services
           </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border">
-            <div className="flex items-center justify-between mb-2">
+        {/* Dashboard Stat Cards */}
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
+            <div className="mb-2 flex items-center justify-between">
               <HiCalendar className="text-3xl text-blue-500" />
             </div>
-            <p className="text-gray-600 text-sm">Upcoming Bookings</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-gray-600">Upcoming Bookings</p>
+            <p className="mt-1 text-3xl font-bold text-gray-900">
               {stats.upcomingBookings}
             </p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border">
-            <div className="flex items-center justify-between mb-2">
+          <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
+            <div className="mb-2 flex items-center justify-between">
               <HiCheckCircle className="text-3xl text-green-500" />
             </div>
-            <p className="text-gray-600 text-sm">Completed Services</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-gray-600">Completed Services</p>
+            <p className="mt-1 text-3xl font-bold text-gray-900">
               {stats.completedBookings}
             </p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border">
-            <div className="flex items-center justify-between mb-2">
+          <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
+            <div className="mb-2 flex items-center justify-between">
               <HiClock className="text-3xl text-orange-500" />
             </div>
-            <p className="text-gray-600 text-sm">Pending Requests</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-gray-600">Pending Requests</p>
+            <p className="mt-1 text-3xl font-bold text-gray-900">
               {stats.pendingBookings}
             </p>
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Browse Services */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
+          <h2 className="mb-4 text-lg font-bold text-gray-900 sm:text-xl">
             Browse Services
           </h2>
+<<<<<<< HEAD
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+=======
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+>>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
             {QUICK_SERVICES.map((service) => {
               const Icon = service.icon;
               return (
                 <button
                   key={service.name}
                   onClick={() => navigate(`/services?category=${service.category}`)}
+<<<<<<< HEAD
                   className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md hover:border-brand-500 transition-all group text-left"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 mb-3 group-hover:bg-brand-100 group-hover:scale-105 transition-all">
@@ -164,6 +234,15 @@ export default function ClientDashboard() {
                     {service.name}
                   </p>
                   <p className="text-xs text-gray-500 mt-1 leading-5">
+=======
+                  className="group rounded-xl border bg-white p-4 text-left shadow-sm transition-all hover:border-brand-500 hover:shadow-md"
+                >
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 transition-all group-hover:scale-105 group-hover:bg-brand-100">
+                    <Icon className="text-xl" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800">{service.name}</p>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+>>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
                     {service.subtitle}
                   </p>
                 </button>
@@ -172,20 +251,24 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* Leaderboard Widget */}
-        <div className="bg-white rounded-2xl shadow-sm border p-6 mb-8">
-          <div className="flex items-center justify-between mb-6">
+        {/* Top Providers Leaderboard */}
+        <div className="mb-8 rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                🏆 Top Providers (Last 30 Days)
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
+              <div className="flex items-center gap-2">
+                <MdEmojiEvents className="text-2xl text-amber-500" />
+                <h2 className="text-lg font-bold text-gray-900">
+                  Top Providers (Last 30 Days)
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
                 Based on ratings, bookings & response time
               </p>
             </div>
+
             <button
               onClick={() => navigate("/services")}
-              className="text-brand-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all"
+              className="flex items-center gap-1 text-sm font-medium text-brand-700 transition-all hover:gap-2"
             >
               View all
               <HiArrowRight />
@@ -195,7 +278,7 @@ export default function ClientDashboard() {
           {loadingRank ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />
+                <div key={i} className="h-16 animate-pulse rounded-lg bg-gray-100" />
               ))}
             </div>
           ) : userRankData && userRankData.length > 0 ? (
@@ -203,32 +286,40 @@ export default function ClientDashboard() {
               {userRankData.map((entry, idx) => (
                 <div
                   key={entry._id}
-                  className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex flex-col gap-3 rounded-lg border p-3 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center"
                 >
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full font-bold text-white bg-gradient-to-br from-brand-600 to-brand-700">
+                  <div
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold ${getRankBadgeClass(
+                      idx
+                    )}`}
+                  >
                     {idx + 1}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-gray-900">
                       {entry.providerId?.profile?.name || "Provider"}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      ⭐ {(entry.metrics?.avgRating || 0).toFixed(1)} • {entry.metrics?.completedBookings || 0} jobs
+                    <p className="mt-1 text-xs text-gray-500">
+                      ⭐ {(entry.metrics?.avgRating || 0).toFixed(1)} •{" "}
+                      {entry.metrics?.completedBookings || 0} jobs
                     </p>
                   </div>
-                  <span className="text-sm font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full whitespace-nowrap">
+
+                  <span className="w-fit whitespace-nowrap rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
                     {Math.round(entry.scores?.totalScore || entry.points || 0)}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 text-sm">
+            <div className="py-8 text-center text-sm text-gray-500">
               Leaderboard data will appear here soon
             </div>
           )}
         </div>
 
+<<<<<<< HEAD
         {/* Search Services */}
         <div className="brand-gradient rounded-2xl shadow-lg p-8 mb-8 text-white relative overflow-hidden">
           <div className="relative z-10">
@@ -236,16 +327,28 @@ export default function ClientDashboard() {
               Need a service?
             </h2>
             <p className="text-white/90 mb-6">
+=======
+        {/* Need a Service Banner */}
+        <div className="brand-gradient relative mb-8 overflow-hidden rounded-2xl p-4 text-white shadow-lg sm:p-6 lg:p-8">
+          <div className="relative z-10">
+            <h2 className="mb-2 text-xl font-bold sm:text-2xl">Need a service?</h2>
+            <p className="mb-6 text-white/90">
+>>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
               Search from hundreds of verified providers in your area
             </p>
             <button
               onClick={() => navigate("/services")}
+<<<<<<< HEAD
               className="bg-white text-brand-700 px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center gap-2"
+=======
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-medium text-brand-700 transition-all hover:shadow-lg sm:w-auto"
+>>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
             >
               <HiMagnifyingGlass className="text-xl" />
               Browse All Services
             </button>
           </div>
+<<<<<<< HEAD
           {/* Decorative background circle */}
           <div className="absolute -right-10 -top-10 w-64 h-64 bg-brand-500 rounded-full opacity-50 blur-3xl"></div>
         </div>
@@ -254,11 +357,20 @@ export default function ClientDashboard() {
         <div className="bg-white rounded-2xl shadow-sm border p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">
+=======
+          <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-brand-500 opacity-50 blur-3xl" />
+        </div>
+
+        {/* Upcoming Bookings */}
+        <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
+>>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
               Your Upcoming Bookings
             </h2>
             <button
               onClick={() => navigate("/client/bookings")}
-              className="text-brand-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all"
+              className="flex items-center gap-1 text-sm font-medium text-brand-700 transition-all hover:gap-2"
             >
               View All
               <HiArrowRight />
@@ -266,12 +378,12 @@ export default function ClientDashboard() {
           </div>
 
           {recentBookings.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📅</div>
-              <p className="text-gray-500 mb-4">No upcoming bookings</p>
+            <div className="py-12 text-center">
+              <div className="mb-4 text-6xl">📅</div>
+              <p className="mb-4 text-gray-500">No upcoming bookings</p>
               <button
                 onClick={() => navigate("/services")}
-                className="bg-brand-700 text-white px-6 py-2 rounded-lg hover:bg-brand-800 transition-colors"
+                className="rounded-lg bg-brand-700 px-6 py-2 text-white transition-colors hover:bg-brand-800"
               >
                 Book a Service
               </button>
@@ -281,25 +393,26 @@ export default function ClientDashboard() {
               {recentBookings.map((booking) => (
                 <div
                   key={booking._id}
-                  className="flex items-center justify-between p-4 border rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex flex-col gap-3 rounded-xl border p-4 transition-colors hover:bg-gray-50 lg:flex-row lg:items-center lg:justify-between"
                 >
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words font-medium text-gray-900">
                       {booking.serviceId?.title || "Service"}
                     </p>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="mt-1 text-sm text-gray-600">
                       {booking.providerId?.profile?.name || "Provider"} •{" "}
                       {new Date(
                         booking.schedule?.date || booking.createdAt
                       ).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4">
+
+                  <div className="flex flex-wrap items-center gap-3 lg:gap-4">
                     <span className="text-lg font-bold text-gray-900">
                       NPR {booking.price}
                     </span>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
                         booking.status === "confirmed"
                           ? "bg-green-100 text-green-700"
                           : booking.status === "requested"

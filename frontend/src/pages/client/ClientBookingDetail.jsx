@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { HiArrowLeft, HiCalendar, HiClock, HiMapPin, HiCalendarDays, HiCheckBadge, HiStar, HiPhone, HiEnvelope } from "react-icons/hi2";
+import {
+  HiArrowLeft,
+  HiCalendar,
+  HiClock,
+  HiMapPin,
+  HiCalendarDays,
+  HiCheckBadge,
+  HiStar,
+  HiPhone,
+  HiEnvelope,
+  HiDocumentText,
+  HiXMark,
+} from "react-icons/hi2";
 import ClientLayout from "../../layouts/ClientLayout";
 import DisputeModal from "../../components/DisputeModal";
 import ClientLiveTracking from "../../components/tracking/ClientLiveTracking";
@@ -23,7 +35,11 @@ export default function ClientBookingDetail() {
   const [respondingAdjustment, setRespondingAdjustment] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  /* ── Live tracking state (lifted from ClientLiveTracking) ── */
+  const [requestInfoResponses, setRequestInfoResponses] = useState([]);
+  const [responseEvidenceFiles, setResponseEvidenceFiles] = useState([]);
+  const [submittingRequestedInfo, setSubmittingRequestedInfo] = useState(false);
+  const [isDraggingRequestedInfo, setIsDraggingRequestedInfo] = useState(false);
+
   const [providerPos, setProviderPos] = useState(null);
   const [trackingLastUpdate, setTrackingLastUpdate] = useState(null);
   const [trackingConnected, setTrackingConnected] = useState(false);
@@ -33,7 +49,6 @@ export default function ClientBookingDetail() {
     fetchBooking();
   }, [bookingId]);
 
-  /* ── Seed provider position from persisted booking data ── */
   useEffect(() => {
     if (booking?.providerLiveLocation?.lat && booking?.providerLiveLocation?.lng) {
       setProviderPos({
@@ -46,17 +61,20 @@ export default function ClientBookingDetail() {
     }
   }, [booking?.providerLiveLocation?.lat, booking?.providerLiveLocation?.lng]);
 
-  /* ── Silent refetch (no loading spinner) for socket-triggered updates ── */
+  useEffect(() => {
+    const initialResponses = Array.isArray(dispute?.requestedInfo)
+      ? dispute.requestedInfo.map((item) => item?.response || "")
+      : [];
+    setRequestInfoResponses(initialResponses);
+  }, [dispute]);
+
   const silentRefetch = useCallback(async () => {
     try {
       const res = await api.get(`/bookings/${bookingId}`);
       setBooking(res.data.booking);
-    } catch (_) {
-      // silently ignore — user can manually refresh if needed
-    }
+    } catch (_) {}
   }, [bookingId]);
 
-  /* ── Real-time tracking socket ── */
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token || !bookingId) return;
@@ -95,7 +113,6 @@ export default function ClientBookingDetail() {
     socket.on("booking_status_changed", onStatusChanged);
     socket.on("live_location", onLiveLocation);
 
-    // Handle already-connected socket (socket.io-client may reuse Manager)
     if (socket.connected) {
       onConnect();
     }
@@ -152,26 +169,25 @@ export default function ClientBookingDetail() {
     }
   }
 
-  // PHASE 2B: Download calendar file
   async function handleDownloadCalendar() {
     try {
       const response = await api.get(`/bookings/${bookingId}/calendar`, {
         responseType: "blob",
       });
 
-      // Create blob and download
       const blob = new Blob([response.data], { type: "text/calendar" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      
-      // Generate filename
+
       const serviceName = (booking.serviceId?.title || "service")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-");
-      const date = new Date(booking.scheduledAt || booking.createdAt).toISOString().split("T")[0];
+      const date = new Date(booking.scheduledAt || booking.createdAt)
+        .toISOString()
+        .split("T")[0];
       link.download = `sewahive-${serviceName}-${date}.ics`;
-      
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -183,13 +199,12 @@ export default function ClientBookingDetail() {
     }
   }
 
-  // PHASE 2C: Request quote
   async function handleRequestQuote() {
     if (!quoteMessage.trim() && quoteMessage.length > 500) {
       toast.error("Please provide a valid message (max 500 characters)");
       return;
     }
-    
+
     try {
       setRequestingQuote(true);
       await api.post(`/bookings/${bookingId}/request-quote`, {
@@ -208,7 +223,6 @@ export default function ClientBookingDetail() {
     }
   }
 
-  // PHASE 2C: Accept approved quote
   async function handleAcceptQuote() {
     try {
       setAcceptingQuote(true);
@@ -225,7 +239,9 @@ export default function ClientBookingDetail() {
   async function handleAdjustedQuoteResponse(action) {
     try {
       setRespondingAdjustment(true);
-      const res = await api.post(`/bookings/${bookingId}/respond-adjusted-quote`, { action });
+      const res = await api.post(`/bookings/${bookingId}/respond-adjusted-quote`, {
+        action,
+      });
       if (action === "accept") {
         const due = Number(res?.data?.amountDue || 0);
         toast.success(
@@ -238,9 +254,85 @@ export default function ClientBookingDetail() {
       }
       await fetchBooking();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to update additional charge request");
+      toast.error(
+        err?.response?.data?.message || "Failed to update additional charge request"
+      );
     } finally {
       setRespondingAdjustment(false);
+    }
+  }
+
+  function handleRequestedInfoFileAdd(file) {
+    if (responseEvidenceFiles.length >= 5) {
+      toast.error("Maximum 5 files allowed");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Each file must be 5MB or smaller");
+      return;
+    }
+
+    setResponseEvidenceFiles((prev) => [
+      ...prev,
+      {
+        name: file.name,
+        size: file.size,
+        file,
+      },
+    ]);
+  }
+
+  function handleRequestedInfoFileRemove(index) {
+    setResponseEvidenceFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateRequestedInfoResponse(index, value) {
+    setRequestInfoResponses((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }
+
+  async function handleSubmitRequestedInfo() {
+    if (!dispute?._id) {
+      toast.error("Dispute not found");
+      return;
+    }
+
+    const hasTypedResponse = requestInfoResponses.some((value) => value?.trim());
+    const hasFiles = responseEvidenceFiles.length > 0;
+
+    if (!hasTypedResponse && !hasFiles) {
+      toast.error("Please add your response or upload supporting evidence");
+      return;
+    }
+
+    try {
+      setSubmittingRequestedInfo(true);
+
+      const formData = new FormData();
+      formData.append("responses", JSON.stringify(requestInfoResponses));
+
+      responseEvidenceFiles.forEach((item) => {
+        formData.append("evidence", item.file);
+      });
+
+      await api.patch(`/disputes/${dispute._id}/respond-info`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      toast.success("Additional dispute information submitted");
+      setResponseEvidenceFiles([]);
+      await fetchDispute();
+      await fetchBooking();
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message || "Failed to submit dispute information"
+      );
+    } finally {
+      setSubmittingRequestedInfo(false);
     }
   }
 
@@ -257,22 +349,29 @@ export default function ClientBookingDetail() {
 
   const showDisputeBanner =
     booking?.status === "disputed" ||
-    (!!dispute && ["opened", "under_review"].includes(dispute.status));
+    (!!dispute && ["opened", "under_review", "client_provided", "provider_responded"].includes(dispute.status));
+
   const disputeStatusLabel =
-    dispute?.status?.replace(/_/g, " ") || (booking?.status === "disputed" ? "disputed" : "");
+    dispute?.status?.replace(/_/g, " ") ||
+    (booking?.status === "disputed" ? "disputed" : "");
+
   const isDisputed = booking?.status === "disputed" || showDisputeBanner;
+
   const canConfirmCompletion = new Set([
     "provider_completed",
     "awaiting_client_confirmation",
     "pending-completion",
   ]).has(booking?.status);
+
   const pricingType = useMemo(() => resolvePricingType(booking), [booking]);
   const isFixed = pricingType === PRICING_TYPES.FIXED;
   const isRange = pricingType === PRICING_TYPES.RANGE;
   const isQuote = pricingType === PRICING_TYPES.QUOTE;
+
   const canPayNow =
     booking?.status === "pending_payment" &&
     (!isQuote || booking?.quote?.status === "accepted");
+
   const canOpenChat = new Set([
     "requested",
     "accepted",
@@ -290,6 +389,16 @@ export default function ClientBookingDetail() {
     "quote_pending_admin_review",
     "quote_accepted",
   ]).has(booking?.status);
+
+  const hasRequestedInfo =
+    Array.isArray(dispute?.requestedInfo) && dispute.requestedInfo.length > 0;
+
+  const hasOutstandingInfoRequest =
+    hasRequestedInfo &&
+    dispute.requestedInfo.some((item) => !item?.response?.trim()) &&
+    ["opened", "under_review", "client_provided", "provider_responded"].includes(
+      dispute?.status
+    );
 
   if (loading) {
     return (
@@ -340,10 +449,14 @@ export default function ClientBookingDetail() {
               Your dispute is being reviewed. We will notify you of updates.
             </p>
             <p className="text-xs text-yellow-700 mt-2">Status: {disputeStatusLabel}</p>
+            {hasOutstandingInfoRequest && (
+              <p className="text-xs text-yellow-800 mt-2">
+                Admin has requested more information. Please respond below.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Live Tracking Map — shows when provider is en route */}
         <ClientLiveTracking
           booking={booking}
           providerPos={providerPos}
@@ -351,7 +464,6 @@ export default function ClientBookingDetail() {
           isConnected={trackingConnected}
         />
 
-        {/* Provider Info Card */}
         <div className="bg-white rounded-2xl border p-6 shadow-sm mb-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Provider Details</h3>
           <div className="flex items-start gap-4">
@@ -369,11 +481,16 @@ export default function ClientBookingDetail() {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h4 className="text-lg font-semibold text-gray-900">
-                  {booking.providerId?.profile?.name || booking.providerId?.email || "Provider"}
+                  {booking.providerId?.profile?.name ||
+                    booking.providerId?.email ||
+                    "Provider"}
                 </h4>
-                {(booking.providerId?.kycStatus === "approved" || 
+                {(booking.providerId?.kycStatus === "approved" ||
                   booking.providerId?.providerDetails?.badges?.includes("verified")) && (
-                  <HiCheckBadge className="text-emerald-500 text-xl" title="Verified Provider" />
+                  <HiCheckBadge
+                    className="text-emerald-500 text-xl"
+                    title="Verified Provider"
+                  />
                 )}
               </div>
               {booking.providerId?.providerDetails?.rating?.average > 0 && (
@@ -403,7 +520,6 @@ export default function ClientBookingDetail() {
           </div>
         </div>
 
-        {/* Booking Details Card */}
         <div className="bg-white rounded-2xl border p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="space-y-3">
@@ -414,24 +530,24 @@ export default function ClientBookingDetail() {
                 <HiCalendar className="text-gray-400" />
                 <span>
                   {booking.scheduledAt
-                    ? new Date(booking.scheduledAt).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
+                    ? new Date(booking.scheduledAt).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
                       })
                     : booking.schedule?.date
-                    ? new Date(booking.schedule.date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
+                    ? new Date(booking.schedule.date).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
                       })
                     : booking.requestedAt
-                    ? new Date(booking.requestedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
+                    ? new Date(booking.requestedAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
                       })
                     : "Date not scheduled"}
                 </span>
@@ -440,10 +556,10 @@ export default function ClientBookingDetail() {
                 <HiClock className="text-gray-400" />
                 <span>
                   {booking.scheduledAt
-                    ? new Date(booking.scheduledAt).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
+                    ? new Date(booking.scheduledAt).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
                       })
                     : booking.schedule?.slot
                     ? booking.schedule.slot
@@ -459,22 +575,27 @@ export default function ClientBookingDetail() {
                     <span className="font-medium text-gray-800">{booking.landmark}</span>
                   )}
                   <span className="text-gray-600">
-                    {booking.addressText || 
-                     [booking.address?.area, booking.address?.city, booking.address?.country]
-                       .filter(Boolean)
-                       .join(", ") || 
-                     "Location not specified"}
+                    {booking.addressText ||
+                      [booking.address?.area, booking.address?.city, booking.address?.country]
+                        .filter(Boolean)
+                        .join(", ") ||
+                      "Location not specified"}
                   </span>
                 </div>
               </div>
             </div>
 
             <div className="text-right">
-              <p className="text-2xl font-bold text-gray-900">NPR {booking.totalAmount?.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Status: {booking.status?.replace(/_/g, " ")}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                NPR {booking.totalAmount?.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500">
+                Status: {booking.status?.replace(/_/g, " ")}
+              </p>
               {Number(booking.pricing?.additionalEscrowRequired || 0) > 0 && (
                 <p className="text-xs text-amber-700 mt-1">
-                  Additional escrow due: NPR {Number(booking.pricing?.additionalEscrowRequired || 0).toLocaleString()}
+                  Additional escrow due: NPR{" "}
+                  {Number(booking.pricing?.additionalEscrowRequired || 0).toLocaleString()}
                 </p>
               )}
             </div>
@@ -483,9 +604,17 @@ export default function ClientBookingDetail() {
           {(isFixed || isRange) && (
             <div className="mt-4 grid sm:grid-cols-3 gap-3">
               <div className="rounded-lg border bg-gray-50 p-3">
-                <p className="text-xs text-gray-500">{isRange ? "Minimum Service Fee" : "Base Price"}</p>
+                <p className="text-xs text-gray-500">
+                  {isRange ? "Minimum Service Fee" : "Base Price"}
+                </p>
                 <p className="text-sm font-semibold text-gray-900">
-                  NPR {Number(booking.pricing?.basePrice || booking.pricing?.basePriceAtBooking || booking.price || 0).toLocaleString()}
+                  NPR{" "}
+                  {Number(
+                    booking.pricing?.basePrice ||
+                      booking.pricing?.basePriceAtBooking ||
+                      booking.price ||
+                      0
+                  ).toLocaleString()}
                 </p>
               </div>
               <div className="rounded-lg border bg-gray-50 p-3">
@@ -497,7 +626,10 @@ export default function ClientBookingDetail() {
               <div className="rounded-lg border bg-gray-50 p-3">
                 <p className="text-xs text-gray-500">Approved Total</p>
                 <p className="text-sm font-semibold text-gray-900">
-                  NPR {Number(booking.pricing?.finalApprovedPrice || booking.totalAmount || 0).toLocaleString()}
+                  NPR{" "}
+                  {Number(
+                    booking.pricing?.finalApprovedPrice || booking.totalAmount || 0
+                  ).toLocaleString()}
                 </p>
               </div>
               {isRange && (
@@ -521,7 +653,10 @@ export default function ClientBookingDetail() {
                   <div className="rounded-lg border bg-gray-50 p-3">
                     <p className="text-xs text-gray-500">Approved Extra Charges</p>
                     <p className="text-sm font-semibold text-gray-900">
-                      NPR {Number(booking.pricing?.approvedAdjustmentsTotal || 0).toLocaleString()}
+                      NPR{" "}
+                      {Number(
+                        booking.pricing?.approvedAdjustmentsTotal || 0
+                      ).toLocaleString()}
                     </p>
                   </div>
                 </>
@@ -534,16 +669,25 @@ export default function ClientBookingDetail() {
               <h3 className="font-semibold text-blue-900 text-sm mb-2">Quote Timeline</h3>
               <div className="space-y-1 text-sm">
                 <p className="text-blue-800">
-                  Status: <span className="font-medium">{booking.quote.status?.replace(/_/g, " ")}</span>
+                  Status:{" "}
+                  <span className="font-medium">
+                    {booking.quote.status?.replace(/_/g, " ")}
+                  </span>
                 </p>
                 {booking.quote.quotedPrice && (
                   <p className="text-blue-800">
-                    Quoted Price: <span className="font-bold">NPR {booking.quote.quotedPrice.toLocaleString()}</span>
+                    Quoted Price:{" "}
+                    <span className="font-bold">
+                      NPR {booking.quote.quotedPrice.toLocaleString()}
+                    </span>
                   </p>
                 )}
                 {booking.quote.approvedPrice && (
                   <p className="text-green-800">
-                    Approved Price: <span className="font-bold">NPR {booking.quote.approvedPrice.toLocaleString()}</span>
+                    Approved Price:{" "}
+                    <span className="font-bold">
+                      NPR {booking.quote.approvedPrice.toLocaleString()}
+                    </span>
                   </p>
                 )}
                 {booking.quote.quoteMessage && (
@@ -565,17 +709,41 @@ export default function ClientBookingDetail() {
 
           {isRange && booking.pricing?.adjustment?.status === "pending_client_approval" && (
             <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <h3 className="font-semibold text-amber-900 text-sm mb-2">Additional Charge Approval Required</h3>
+              <h3 className="font-semibold text-amber-900 text-sm mb-2">
+                Additional Charge Approval Required
+              </h3>
               <p className="text-sm text-amber-800">
-                Provider proposed: <span className="font-bold">NPR {Number(booking.pricing.adjustment.proposedPrice || 0).toLocaleString()}</span>
+                Provider proposed:{" "}
+                <span className="font-bold">
+                  NPR{" "}
+                  {Number(
+                    booking.pricing.adjustment.proposedPrice || 0
+                  ).toLocaleString()}
+                </span>
               </p>
               <p className="text-xs text-amber-700 mt-1">
-                Base price: NPR {Number(booking.pricing.adjustment.basePrice || booking.pricing?.basePrice || booking.pricing?.basePriceAtBooking || booking.price || 0).toLocaleString()}
+                Base price: NPR{" "}
+                {Number(
+                  booking.pricing.adjustment.basePrice ||
+                    booking.pricing?.basePrice ||
+                    booking.pricing?.basePriceAtBooking ||
+                    booking.price ||
+                    0
+                ).toLocaleString()}
               </p>
               <p className="text-xs text-amber-700">
-                Extra time cost: NPR {Number(booking.pricing.adjustment.extraTimeCost || booking.pricing?.extraTimeCost || 0).toLocaleString()}
+                Extra time cost: NPR{" "}
+                {Number(
+                  booking.pricing.adjustment.extraTimeCost ||
+                    booking.pricing?.extraTimeCost ||
+                    0
+                ).toLocaleString()}
               </p>
-              <p className="text-xs text-amber-700 mt-1">Reason: {booking.pricing.adjustment.adjustedQuoteReason || booking.pricing.adjustment.reason}</p>
+              <p className="text-xs text-amber-700 mt-1">
+                Reason:{" "}
+                {booking.pricing.adjustment.adjustedQuoteReason ||
+                  booking.pricing.adjustment.reason}
+              </p>
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={() => handleAdjustedQuoteResponse("accept")}
@@ -595,6 +763,156 @@ export default function ClientBookingDetail() {
             </div>
           )}
 
+          {hasRequestedInfo && (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-amber-900">
+                    Additional Information Requested
+                  </h3>
+                  <p className="mt-1 text-sm text-amber-800">
+                    Admin asked for more details to review your dispute fairly.
+                  </p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+                  {dispute?.status?.replace(/_/g, " ")}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                {dispute.requestedInfo.map((item, index) => (
+                  <div key={`${item.field}-${index}`} className="rounded-xl bg-white border border-amber-100 p-4">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Request {index + 1}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-700">{item.field}</p>
+                    {item.requestedAt && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Requested on {new Date(item.requestedAt).toLocaleString()}
+                      </p>
+                    )}
+
+                    <textarea
+                      value={requestInfoResponses[index] || ""}
+                      onChange={(e) =>
+                        updateRequestedInfoResponse(index, e.target.value)
+                      }
+                      placeholder="Write your response here..."
+                      rows={4}
+                      className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                    />
+
+                    {item.response && (
+                      <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-xs font-semibold text-emerald-700">
+                          Submitted response
+                        </p>
+                        <p className="mt-1 text-sm text-emerald-900">{item.response}</p>
+                        {item.respondedAt && (
+                          <p className="mt-1 text-xs text-emerald-700">
+                            Submitted on {new Date(item.respondedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5">
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Upload extra proof (optional)
+                </label>
+
+                <div
+                  className={`border-2 border-dashed rounded-xl p-4 text-center transition ${
+                    isDraggingRequestedInfo
+                      ? "border-emerald-400 bg-emerald-50"
+                      : "border-amber-200 bg-white"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingRequestedInfo(true);
+                  }}
+                  onDragLeave={() => setIsDraggingRequestedInfo(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingRequestedInfo(false);
+                    Array.from(e.dataTransfer.files || []).forEach((file) =>
+                      handleRequestedInfoFileAdd(file)
+                    );
+                  }}
+                >
+                  <input
+                    type="file"
+                    id="requested-info-evidence"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      Array.from(e.target.files || []).forEach((file) =>
+                        handleRequestedInfoFileAdd(file)
+                      );
+                    }}
+                  />
+                  <label htmlFor="requested-info-evidence" className="cursor-pointer">
+                    <p className="text-sm text-gray-700">
+                      Drag files here or{" "}
+                      <span className="font-semibold text-emerald-700">
+                        click to upload
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Photos, PDFs, and supporting documents up to 5MB each
+                    </p>
+                  </label>
+                </div>
+
+                {responseEvidenceFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {responseEvidenceFiles.map((file, idx) => (
+                      <div
+                        key={`${file.name}-${idx}`}
+                        className="flex items-center justify-between rounded-lg bg-white border border-gray-200 p-3"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <HiDocumentText className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900">
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRequestedInfoFileRemove(idx)}
+                          className="rounded p-1 text-red-500 hover:bg-red-50"
+                        >
+                          <HiXMark className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={handleSubmitRequestedInfo}
+                  disabled={submittingRequestedInfo}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {submittingRequestedInfo ? "Submitting..." : "Submit Requested Info"}
+                </button>
+                <p className="text-xs text-gray-600 self-center">
+                  Your response will be sent to admin for review.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mt-6 flex flex-wrap gap-3">
             {canPayNow && (
               <button
@@ -605,26 +923,33 @@ export default function ClientBookingDetail() {
               </button>
             )}
 
-            {isQuote && ["requested", "pending_payment", "quote_rejected", "quote_requested"].includes(booking.status) &&
+            {isQuote &&
+              ["requested", "pending_payment", "quote_rejected", "quote_requested"].includes(
+                booking.status
+              ) &&
               ["none", "rejected"].includes(booking.quote?.status || "none") && (
-              <button
-                onClick={() => setShowQuoteRequest(!showQuoteRequest)}
-                disabled={requestingQuote}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {requestingQuote ? "Requesting..." : "Request Quote"}
-              </button>
-            )}
+                <button
+                  onClick={() => setShowQuoteRequest(!showQuoteRequest)}
+                  disabled={requestingQuote}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {requestingQuote ? "Requesting..." : "Request Quote"}
+                </button>
+              )}
 
-            {isQuote && ["sent", "approved"].includes(booking.quote?.status) && ["quote_sent", "quote_accepted", "pending_payment"].includes(booking.status) && (
-              <button
-                onClick={handleAcceptQuote}
-                disabled={acceptingQuote}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {acceptingQuote ? "Processing..." : "Accept Quote & Proceed to Payment"}
-              </button>
-            )}
+            {isQuote &&
+              ["sent", "approved"].includes(booking.quote?.status) &&
+              ["quote_sent", "quote_accepted", "pending_payment"].includes(
+                booking.status
+              ) && (
+                <button
+                  onClick={handleAcceptQuote}
+                  disabled={acceptingQuote}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {acceptingQuote ? "Processing..." : "Accept Quote & Proceed to Payment"}
+                </button>
+              )}
 
             {Number(booking.pricing?.additionalEscrowRequired || 0) > 0 && (
               <button
@@ -674,8 +999,14 @@ export default function ClientBookingDetail() {
               </button>
             )}
 
-            {/* PHASE 2B: Add to Calendar button */}
-            {["confirmed", "accepted", "provider_en_route", "in-progress", "pending-completion", "completed"].includes(booking.status) && (
+            {[
+              "confirmed",
+              "accepted",
+              "provider_en_route",
+              "in-progress",
+              "pending-completion",
+              "completed",
+            ].includes(booking.status) && (
               <button
                 onClick={handleDownloadCalendar}
                 className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 font-medium text-sm flex items-center gap-2"
@@ -703,7 +1034,9 @@ export default function ClientBookingDetail() {
                 rows={3}
                 maxLength={500}
               />
-              <div className="text-xs text-gray-500 mt-1">{quoteMessage.length}/500 characters</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {quoteMessage.length}/500 characters
+              </div>
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={handleRequestQuote}

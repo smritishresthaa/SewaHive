@@ -12,6 +12,7 @@ const { router: apiRouter } = require("./routes");
 const { errorHandler, notFoundHandler } = require("./middleware/error");
 const { initSocket } = require("./utils/socket");
 
+
 const cron = require("node-cron");
 const { runMonthlyLeaderboard } = require("./cron/monthlyLeaderboard");
 const { runReminders } = require("./cron/reminders");
@@ -55,6 +56,8 @@ app.options("*", cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Maintenance mode middleware (must be after auth, before routes)
 
 // ----------------------------------------
 // Rate limiting (auth & payment only)

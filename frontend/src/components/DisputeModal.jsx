@@ -94,16 +94,16 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
   if (!booking) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md mx-2 sm:mx-0 max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-white border-b p-4 sm:p-6 flex items-center justify-between z-10">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h2 className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
               <HiExclamationTriangle className="text-amber-600" />
               Open a Dispute
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
               Booking #
               {booking._id?.toString().slice(-6) || "..."}
             </p>
@@ -111,17 +111,18 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition"
+            aria-label="Close dispute modal"
           >
             <HiXMark className="text-2xl text-gray-400" />
           </button>
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 flex flex-col gap-6">
           {/* Booking Summary */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm font-semibold text-blue-900">Booking summary</p>
-            <div className="mt-2 text-sm text-blue-900 space-y-1">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+            <p className="text-xs sm:text-sm font-semibold text-blue-900">Booking summary</p>
+            <div className="mt-2 text-xs sm:text-sm text-blue-900 space-y-1">
               <p><strong>Provider:</strong> {booking.providerId?.profile?.name || "Provider"}</p>
               <p><strong>Service:</strong> {booking.serviceId?.title || "Unknown service"}</p>
               <p>
@@ -141,7 +142,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
           {submitted && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
               <p className="font-semibold flex items-center gap-1.5"><HiCheckCircle className="w-4 h-4 text-emerald-600" /> Dispute submitted</p>
-              <p className="mt-1 text-sm">Admin will review it shortly. You’ll be notified of updates.</p>
+              <p className="mt-1 text-xs sm:text-sm">Admin will review it shortly. You’ll be notified of updates.</p>
             </div>
           )}
 
@@ -150,13 +151,13 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
             <label className="block text-sm font-semibold text-gray-900 mb-3">
               Issue category
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {categories.map((cat) => (
                 <button
                   key={cat.value}
                   type="button"
                   onClick={() => setCategory(cat.value)}
-                  className={`p-3 rounded-lg border-2 transition text-left ${
+                  className={`p-2 sm:p-3 rounded-lg border-2 transition text-left ${
                     category === cat.value
                       ? "border-emerald-500 bg-emerald-50"
                       : "border-gray-200 hover:border-emerald-200"
@@ -182,7 +183,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Explain what happened. Keep it short and clear."
               rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none text-sm"
               disabled={submitted}
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -196,7 +197,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
               Evidence (optional)
             </label>
             <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition ${
+              className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition ${
                 isDragging ? "border-emerald-400 bg-emerald-50" : "border-gray-300"
               }`}
               onDragOver={(e) => {
@@ -259,7 +260,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
             <button
               type="button"
               onClick={onClose}

@@ -22,37 +22,85 @@
 /* ============================== */
 /* 🌞 Light Theme */
 /* ============================== */
-:root { 
-  color-scheme: light; 
+:root {
+  color-scheme: light;
+}
+
+/* ============================== */
+/* 🔧 Global Reset / Responsive Safety */
+/* ============================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #fff;
+  color: #111827;
+  font-family: "Inter", sans-serif;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+img,
+video,
+canvas {
+  height: auto;
+}
+
+/* Helps prevent flex/grid children from overflowing */
+.min-w-0-safe > * {
+  min-width: 0;
 }
 
 /* ============================== */
 /* 📌 Global Typography */
 /* ============================== */
-body {
-  background: #fff;
-  color: #111827;
-  font-family: 'Inter', sans-serif;
-}
-
-/* Brand gradient helper */
 .brand-gradient {
   background-image: linear-gradient(135deg, #1c6c3b 0%, #2fae5e 100%);
 }
 
-/* Typography utility classes */
-.heading-1 { @apply font-poppins font-semibold text-4xl md:text-6xl; }
-.heading-2 { @apply font-poppins font-medium text-3xl md:text-4xl; }
-.heading-3 { @apply font-poppins font-medium text-2xl; }
+.heading-1 {
+  @apply font-poppins font-semibold text-3xl sm:text-4xl md:text-5xl lg:text-6xl;
+}
 
-.body-text { @apply font-inter text-base md:text-lg text-gray-700; }
-.small-text { @apply text-sm font-inter text-gray-500; }
+.heading-2 {
+  @apply font-poppins font-medium text-2xl sm:text-3xl md:text-4xl;
+}
+
+.heading-3 {
+  @apply font-poppins font-medium text-xl sm:text-2xl;
+}
+
+.body-text {
+  @apply font-inter text-sm sm:text-base md:text-lg text-gray-700;
+}
+
+.small-text {
+  @apply text-sm font-inter text-gray-500;
+}
 
 /* ============================== */
 /* 🔥 ANIMATIONS (Premium UI Level) */
 /* ============================== */
-
-/* Fade + slide up for section headers */
 .fade-up {
   opacity: 0;
   transform: translateY(20px);
@@ -64,7 +112,6 @@ body {
   transform: translateY(0);
 }
 
-/* Step number circle pop animation */
 .step-pop {
   opacity: 0;
   transform: scale(0.6);
@@ -76,7 +123,6 @@ body {
   transform: scale(1);
 }
 
-/* Slide-in for step title + description */
 .step-slide {
   opacity: 0;
   transform: translateX(25px);
@@ -101,45 +147,33 @@ body {
 }
 
 /* ============================== */
-/* 🧭 Smooth Scroll */
-/* ============================== */
-html {
-  scroll-behavior: smooth;
-}
-
-/* ============================== */
 /* 🗺️ Leaflet Mapping Overrides */
 /* ============================== */
-
-/* 1. Prevent map from rendering OVER Tailwind fixed navbars/modals (they usually have z-index: 50) */
 .leaflet-container {
-  z-index: 0 !important; 
+  z-index: 0 !important;
 }
 
-/* 2. UNDO Tailwind's global img resets that drastically break Leaflet tiles */
 .leaflet-container img {
   max-width: none !important;
   max-height: none !important;
-  /* Reset object-fit that Tailwind v4 might apply */
   object-fit: unset !important;
 }
 
-/* 3. Allow Leaflet default interactions and cursor states */
 .leaflet-grab {
   cursor: grab;
 }
+
 .leaflet-dragging .leaflet-grab,
 .leaflet-dragging .leaflet-grab .leaflet-interactive,
 .leaflet-dragging .leaflet-marker-draggable {
   cursor: grabbing !important;
 }
 
-/* 4. Fix popups taking inherited background styles */
-.leaflet-popup-content-wrapper, 
+.leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   background: white;
   color: #333;
-  box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
 }
 
 /* Pulse ring animation for provider marker */

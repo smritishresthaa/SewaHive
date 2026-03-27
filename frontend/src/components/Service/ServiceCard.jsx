@@ -1,157 +1,168 @@
-import { HiStar, HiArrowRight, HiCheckCircle, HiCube, HiShieldCheck, HiTrophy } from "react-icons/hi2";
+import {
+  HiStar,
+  HiArrowRight,
+  HiCheckCircle,
+  HiCube,
+  HiShieldCheck,
+  HiTrophy,
+} from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
 /**
  * Rich Service Card Component
- * 
+ *
  * Props:
  * - service: { _id, title, description, categoryId, subcategoryId, images, basePrice, priceRange, priceMode }
  * - provider: { _id, name, avatar, kycStatus, badges, rating, completionRate, responseTimeMinutes }
  * - onBook: callback when "Book Now" clicked
  */
-export default function ServiceCard({ 
-  service, 
-  provider, 
-  onBook 
-}) {
+export default function ServiceCard({ service, provider, onBook }) {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  
+
   const categoryName = service.categoryName || service.category?.name || "Service";
-  const categoryIcon = service.categoryIcon || service.category?.icon || null;
-  
   const isProvider = isAuthenticated && user?.role === "provider";
-  
+
   function handleViewProfile() {
     navigate(`/provider/${provider._id}`);
   }
-  
+
   function handleBook() {
-    // RBAC: Providers cannot book services
     if (isAuthenticated && isProvider) {
       toast.error("Providers cannot book services. Please use a client account.");
       return;
     }
-    
-    // RBAC: Unauthenticated users get redirected to login
+
     if (!isAuthenticated) {
       toast("Please log in to book a service");
       navigate("/login", { state: { returnTo: `/services` } });
       return;
     }
-    
-    // Authenticated client — proceed with booking
+
     if (onBook) {
       onBook(service._id);
     } else {
       navigate(`/booking/${service._id}`);
     }
   }
-  
+
+  function getBadgeIcon(badge) {
+    if (badge === "verified" || badge === "Verified Provider") {
+      return <HiCheckCircle className="h-3.5 w-3.5" />;
+    }
+    if (badge === "pro" || badge === "Pro Provider") {
+      return <HiShieldCheck className="h-3.5 w-3.5" />;
+    }
+    if (badge === "top-rated" || badge === "Top Rated") {
+      return <HiTrophy className="h-3.5 w-3.5" />;
+    }
+    return <HiShieldCheck className="h-3.5 w-3.5" />;
+  }
+
+  function getBadgeStyles(badge) {
+    if (badge === "verified" || badge === "Verified Provider") {
+      return { style: "bg-green-100 text-green-700 ring-1 ring-green-600/20", label: "Verified" };
+    }
+    if (badge === "pro" || badge === "Pro Provider") {
+      return { style: "bg-blue-100 text-blue-700 ring-1 ring-blue-600/20", label: "Pro" };
+    }
+    if (badge === "top-rated" || badge === "Top Rated") {
+      return { style: "bg-amber-100 text-amber-700 ring-1 ring-amber-600/20", label: "Top Rated" };
+    }
+    return { style: "bg-gray-100 text-gray-600", label: badge };
+  }
+
+  const providerResponse =
+    provider.responseTimeMinutes || provider.responseTimeMinutes === 0
+      ? `${Math.round(provider.responseTimeMinutes)}m avg response`
+      : "Response time N/A";
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border hover:shadow-lg transition-all overflow-hidden group flex flex-col h-full">
-      
-      {/* IMAGE SECTION (Top) */}
-      <div className="relative h-48 bg-gradient-to-br from-emerald-100 to-emerald-200 overflow-hidden">
+    <div className="group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all hover:shadow-lg w-full max-w-full">
+      {/* IMAGE SECTION */}
+      <div className="relative h-36 xs:h-44 sm:h-48 overflow-hidden bg-gradient-to-br from-emerald-100 to-emerald-200">
         {service.images?.[0] ? (
           <img
             src={service.images[0]}
             alt={service.title}
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+            className="h-full w-full max-w-full object-cover transition-transform duration-300 group-hover:scale-110"
+            draggable="false"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <HiCube className="w-16 h-16 text-emerald-400" />
+          <div className="flex h-full w-full items-center justify-center">
+            <HiCube className="h-14 w-14 text-emerald-400 sm:h-16 sm:w-16" />
           </div>
         )}
-        
-        {/* Category Badge (Corner) */}
-        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur text-brand-700 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1">
-          <HiCube className="w-3 h-3 text-emerald-600" />
-          {categoryName}
+
+        <div className="absolute left-2 top-2 xs:left-3 xs:top-3 inline-flex max-w-[70vw] sm:max-w-[70%] items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[10px] font-bold text-brand-700 backdrop-blur xs:px-3 xs:py-1.5 xs:text-[11px] sm:px-4 sm:py-2 sm:text-xs">
+          <HiCube className="h-3 w-3 flex-shrink-0 text-emerald-600" />
+          <span className="truncate">{categoryName}</span>
         </div>
-        
-        {/* Rating Badge (Corner) */}
+
         {provider.rating?.average > 0 && (
-          <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-3 py-1.5 rounded-full flex items-center gap-1 text-sm font-semibold">
-            <HiStar className="text-yellow-500" />
+          <div className="absolute right-2 top-2 xs:right-3 xs:top-3 inline-flex max-w-[40vw] sm:max-w-[42%] items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold backdrop-blur xs:px-2.5 xs:py-1.5 sm:px-3 sm:text-sm">
+            <HiStar className="flex-shrink-0 text-yellow-500" />
             <span>{provider.rating.average.toFixed(1)}</span>
-            <span className="text-xs text-gray-600">({provider.rating.count})</span>
+            <span className="truncate text-[10px] xs:text-[11px] text-gray-600 sm:text-xs">
+              ({provider.rating.count})
+            </span>
           </div>
         )}
       </div>
-      
-      {/* SERVICE INFO (Middle) */}
-      <div className="p-4 flex-1 flex flex-col">
-        
-        {/* Service Title & Category */}
-        <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-2">
+
+      {/* CONTENT */}
+      <div className="flex flex-1 flex-col p-3 sm:p-4 lg:p-5">
+        <h3 className="mb-1 line-clamp-2 text-base xs:text-lg sm:text-xl font-bold text-gray-900 break-words">
           {service.title}
         </h3>
-        
+
         {service.subcategoryName && (
-          <p className="text-xs text-gray-500 mb-3">
-            in <span className="text-brand-700 font-medium">{service.subcategoryName}</span>
+          <p className="mb-2 xs:mb-3 text-xs sm:text-sm text-gray-500 break-words">
+            in <span className="font-medium text-brand-700">{service.subcategoryName}</span>
           </p>
         )}
-        
-        {/* Service Description */}
-        <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-1">
+
+        <p className="mb-3 xs:mb-4 line-clamp-2 flex-1 text-sm sm:text-base text-gray-600 break-words">
           {service.description || "Professional service at your doorstep"}
         </p>
-        
-        {/* Provider Mini Card */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-          <div className="flex items-center gap-3 mb-2">
-            <img 
+
+        {/* Provider mini card */}
+        <div className="mb-3 xs:mb-4 rounded-lg border border-gray-200 bg-gray-50 p-2 sm:p-3">
+          <div className="mb-2 flex flex-col sm:flex-row items-start gap-2 sm:gap-3">
+            <img
               src={provider.avatar || "https://via.placeholder.com/40"}
               alt={provider.name}
-              className="w-10 h-10 rounded-full object-cover"
+              className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
             />
-            <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <p className="font-semibold text-sm text-gray-900">{provider.name}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1">
+                <p className="truncate text-sm font-semibold text-gray-900 break-words max-w-full">
+                  {provider.name}
+                </p>
                 {provider.kycStatus === "approved" && (
-                  <HiCheckCircle className="text-emerald-500 w-4 h-4" title="Verified" />
+                  <HiCheckCircle
+                    className="h-4 w-4 flex-shrink-0 text-emerald-500"
+                    title="Verified"
+                  />
                 )}
               </div>
-              <p className="text-xs text-gray-500">
-                {provider.completionRate}% completion • {Math.round(provider.responseTimeMinutes)}m avg response
+              <p className="mt-0.5 text-xs text-gray-500">
+                {provider.completionRate}% completion • {providerResponse}
               </p>
             </div>
           </div>
-          
-          {/* Badges */}
+
           {provider.badges?.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {provider.badges.map((badge, i) => {
-                let style = "bg-gray-100 text-gray-600";
-                let label = badge;
-
-                function getBadgeIcon(b) {
-                  if (b === 'verified' || b === 'Verified Provider') return <HiCheckCircle className="w-3.5 h-3.5" />;
-                  if (b === 'pro' || b === 'Pro Provider') return <HiShieldCheck className="w-3.5 h-3.5" />;
-                  if (b === 'top-rated' || b === 'Top Rated') return <HiTrophy className="w-3.5 h-3.5" />;
-                  return <HiShieldCheck className="w-3.5 h-3.5" />;
-                }
-
-                if (badge === 'verified' || badge === 'Verified Provider') {
-                  style = "bg-green-100 text-green-700 ring-1 ring-green-600/20";
-                  label = "Verified";
-                } else if (badge === 'pro' || badge === 'Pro Provider') {
-                  style = "bg-blue-100 text-blue-700 ring-1 ring-blue-600/20";
-                  label = "Pro";
-                } else if (badge === 'top-rated' || badge === 'Top Rated') {
-                  style = "bg-amber-100 text-amber-700 ring-1 ring-amber-600/20";
-                  label = "Top Rated";
-                }
+                const { style, label } = getBadgeStyles(badge);
 
                 return (
-                  <span 
+                  <span
                     key={i}
-                    className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold ${style}`}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style}`}
                   >
                     {getBadgeIcon(badge)} {label}
                   </span>
@@ -160,41 +171,43 @@ export default function ServiceCard({
             </div>
           )}
         </div>
-        
-        {/* Price Section */}
-        <div className="border-t pt-3 mb-4">
-          <p className="text-xs text-gray-500 mb-1">
+
+        {/* Price */}
+        <div className="mb-3 xs:mb-4 border-t pt-2 xs:pt-3">
+          <p className="mb-1 text-xs sm:text-sm text-gray-500">
             {service.priceMode === "fixed"
               ? "Service Price"
               : service.priceMode === "range"
               ? "Starting from"
               : "Quote required"}
           </p>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="break-words text-lg xs:text-xl sm:text-2xl font-bold text-gray-900">
             {service.priceMode === "quote_required"
               ? "Quote"
               : service.priceMode === "range"
-              ? `NPR ${service.priceRange?.min || service.basePrice} - NPR ${service.priceRange?.max || service.basePrice}`
+              ? `NPR ${service.priceRange?.min || service.basePrice} - NPR ${
+                  service.priceRange?.max || service.basePrice
+                }`
               : `NPR ${service.basePrice}`}
           </p>
         </div>
       </div>
-      
-      {/* ACTIONS (Bottom) */}
-      <div className="border-t px-4 py-3 bg-gray-50 flex gap-2">
+
+      {/* ACTIONS */}
+      <div className="flex flex-col gap-2 border-t bg-gray-50 px-3 sm:px-4 py-3 sm:flex-row sm:gap-3">
         <button
           onClick={handleViewProfile}
-          className="flex-1 px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-white transition-colors font-medium text-sm flex items-center justify-center gap-1"
+          className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-white w-full sm:w-auto"
         >
           Profile
-          <HiArrowRight className="w-4 h-4" />
+          <HiArrowRight className="h-4 w-4" />
         </button>
         <button
           onClick={handleBook}
           disabled={isProvider}
-          className={`flex-1 px-4 py-2.5 rounded-lg transition-colors font-medium text-sm ${
+          className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors w-full sm:w-auto ${
             isProvider
-              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              ? "cursor-not-allowed bg-gray-300 text-gray-500"
               : "bg-brand-700 text-white hover:bg-brand-800"
           }`}
           title={isProvider ? "Providers cannot book services" : ""}

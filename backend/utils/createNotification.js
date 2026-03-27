@@ -5,68 +5,163 @@ const User = require("../models/User");
 
 /**
  * Determine the target route based on notification type and context
- * This enables deep-linking: click notification → open correct page
+ * This enables deep-linking: click notification -> open correct page
  */
 function getTargetRoute(type, targetId) {
   const routes = {
     // Booking notifications
-    'booking_request': { route: '/provider/bookings', params: { bookingId: targetId, tab: 'requests' } },
-    'booking_accepted': { route: '/client/bookings/history', params: { bookingId: targetId, tab: 'active' } },
-    'booking_confirmed': { route: '/bookings/:bookingId', params: { bookingId: targetId } },
-    'booking_started': { route: '/bookings/:bookingId', params: { bookingId: targetId } },
-    'booking_completed': { route: '/bookings/:bookingId', params: { bookingId: targetId } },
-    'booking_cancelled': { route: '/client/bookings/history', params: { bookingId: targetId } },
-    
+    booking_request: {
+      route: "/provider/bookings",
+      params: { bookingId: targetId, tab: "requests" },
+    },
+    booking_accepted: {
+      route: "/client/bookings/history",
+      params: { bookingId: targetId, tab: "active" },
+    },
+    booking_confirmed: {
+      route: "/bookings/:bookingId",
+      params: { bookingId: targetId },
+    },
+    booking_started: {
+      route: "/bookings/:bookingId",
+      params: { bookingId: targetId },
+    },
+    booking_completed: {
+      route: "/bookings/:bookingId",
+      params: { bookingId: targetId },
+    },
+    provider_completed_service: {
+      route: "/bookings/:bookingId",
+      params: { bookingId: targetId },
+    },
+    booking_cancelled: {
+      route: "/client/bookings/history",
+      params: { bookingId: targetId },
+    },
+
     // Quote notifications
-    'quote_requested': { route: '/provider/bookings', params: { bookingId: targetId, tab: 'quotes' } },
-    'quote_sent': { route: '/client/bookings/history', params: { bookingId: targetId, tab: 'quotes' } },
-    'quote_approved': { route: '/provider/bookings', params: { bookingId: targetId } },
-    'quote_rejected': { route: '/provider/bookings', params: { bookingId: targetId } },
-    
+    quote_requested: {
+      route: "/provider/bookings",
+      params: { bookingId: targetId, tab: "quotes" },
+    },
+    quote_sent: {
+      route: "/client/bookings/history",
+      params: { bookingId: targetId, tab: "quotes" },
+    },
+    quote_approved: {
+      route: "/provider/bookings",
+      params: { bookingId: targetId },
+    },
+    quote_rejected: {
+      route: "/provider/bookings",
+      params: { bookingId: targetId },
+    },
+
     // Payment notifications
-    'payment_received': { route: '/provider/earnings', params: {} },
-    'payment_failed': { route: '/bookings/:bookingId', params: { bookingId: targetId } },
-    
+    payment_received: {
+      route: "/provider/earnings",
+      params: {},
+    },
+    payment_failed: {
+      route: "/bookings/:bookingId",
+      params: { bookingId: targetId },
+    },
+    payment_held: {
+      route: "/client/bookings/history",
+      params: { bookingId: targetId },
+    },
+    payment_released: {
+      route: "/provider/earnings",
+      params: { bookingId: targetId },
+    },
+    refund_processed: {
+      route: "/client/bookings/history",
+      params: { bookingId: targetId },
+    },
+    payment_refunded: {
+      route: "/client/bookings/history",
+      params: { bookingId: targetId },
+    },
+
     // Review notifications
-    'review_received': { route: '/provider/reviews', params: {} },
+    review_received: {
+      route: "/provider/reviews",
+      params: {},
+    },
 
     // Chat notifications
-    'chat_message': { route: '/chat/booking/:bookingId', params: { bookingId: targetId } },
-    
+    chat_message: {
+      route: "/chat/booking/:bookingId",
+      params: { bookingId: targetId },
+    },
+
     // Dispute notifications
-    'dispute_created': { route: '/disputes/:disputeId', params: { disputeId: targetId } },
-    'dispute_resolved': { route: '/disputes/:disputeId', params: { disputeId: targetId } },
-    
+    dispute_opened: {
+      route: "/disputes/:disputeId",
+      params: { disputeId: targetId },
+    },
+    dispute_info_requested: {
+      route: "/disputes/:disputeId",
+      params: { disputeId: targetId },
+    },
+    dispute_resolved: {
+      route: "/disputes/:disputeId",
+      params: { disputeId: targetId },
+    },
+
     // Verification notifications
-    'verification_submitted': { route: '/admin/verification', params: {} },
-    'verification_approved': { route: '/provider/profile', params: { tab: 'verification' } },
-    'verification_rejected': { route: '/provider/profile', params: { tab: 'verification' } },
-    'verification_needs_correction': { route: '/provider/verification', params: {} },
-    'verification_under_review': { route: '/provider/verification', params: {} },
-    
+    verification_submitted: {
+      route: "/admin/verification",
+      params: {},
+    },
+    verification_approved: {
+      route: "/provider/profile",
+      params: { tab: "verification" },
+    },
+    verification_rejected: {
+      route: "/provider/profile",
+      params: { tab: "verification" },
+    },
+    verification_needs_correction: {
+      route: "/provider/verification",
+      params: {},
+    },
+    verification_under_review: {
+      route: "/provider/verification",
+      params: {},
+    },
+
     // Default
-    'system_message': { route: '/dashboard', params: {} },
+    system_message: {
+      route: "/dashboard",
+      params: {},
+    },
   };
 
-  return routes[type] || { route: '/dashboard', params: {} };
+  return routes[type] || { route: "/dashboard", params: {} };
+}
+
+function buildSmsMessage({ type, title, message, metadata = {} }) {
+  const isEmergency = Boolean(metadata?.isEmergency);
+
+  if (isEmergency && type === "booking_request") {
+    return "SewaHive emergency alert: You have a new emergency booking request. Open the app now.";
+  }
+
+  if (isEmergency && type === "quote_requested") {
+    return "SewaHive emergency alert: A client requested an emergency quote. Open the app now.";
+  }
+
+  if (isEmergency && type === "booking_accepted") {
+    return "SewaHive update: Your emergency booking has been accepted by the provider. Open the app for details.";
+  }
+
+  const compact = `${title}: ${message}`.replace(/\s+/g, " ").trim();
+  return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
 }
 
 /**
  * Create an in-app notification and optionally send email/SMS
- * @param {Object} options - Notification options
- * @param {String} options.userId - Recipient user ID
- * @param {String} options.type - Notification type
- * @param {String} options.title - Notification title
- * @param {String} options.message - Notification message
- * @param {String} options.category - Category (booking, payment, review, etc)
- * @param {String} options.bookingId - Related booking ID (optional)
- * @param {String} options.disputeId - Related dispute ID (optional)
- * @param {String} options.fromUserId - Sender user ID (optional)
- * @param {Object} options.metadata - Additional data (optional)
- * @param {Boolean} options.sendEmail - Whether to send email (default: false)
- * @param {Boolean} options.sendSMS - Whether to send SMS (default: false)
- * @param {String} options.targetRoute - Override the default target route (optional)
- * @param {Object} options.targetRouteParams - Override target route params (optional)
  */
 async function createNotification({
   userId,
@@ -84,14 +179,12 @@ async function createNotification({
   targetRouteParams,
 }) {
   try {
-    // Determine target route for deep-linking
     const targetId = bookingId || disputeId;
     const routeConfig = getTargetRoute(type, targetId);
-    
+
     const finalRoute = targetRoute || routeConfig.route;
     const finalParams = targetRouteParams || routeConfig.params;
 
-    // Create in-app notification
     const notification = await Notification.create({
       userId,
       category,
@@ -113,20 +206,22 @@ async function createNotification({
       notification,
     });
 
-    // Get user details for email/SMS
     const user = await User.findById(userId);
     if (!user) return notification;
 
-    // Check if user has notifications enabled
-    if (user.role === "provider" && !user.providerDetails?.notificationsEnabled) {
-      return notification; // Skip email/SMS if notifications disabled
+    if (
+      user.role === "provider" &&
+      user.providerDetails &&
+      user.providerDetails.notificationsEnabled === false
+    ) {
+      return notification;
     }
 
-    // Send email if requested and user has email
+    // EMAIL
     if (shouldSendEmail && user.email) {
       try {
         const appLink = `${process.env.CLIENT_URL}${finalRoute}`;
-        
+
         await sendEmail(
           user.email,
           title,
@@ -139,9 +234,6 @@ async function createNotification({
                   View Details
                 </a>
               </p>
-              <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                This is an automated notification from SewaHive. If you wish to stop receiving these emails, update your notification preferences in Settings.
-              </p>
             </div>
           `
         );
@@ -153,13 +245,24 @@ async function createNotification({
       }
     }
 
-    // Send SMS if requested and user has phone
+    // SMS
     if (shouldSendSMS && user.phone) {
       try {
-        const smsMessage = `${title}: ${message}`;
-        await sendSMS(user.phone, smsMessage);
+        const smsMessage = buildSmsMessage({
+          type,
+          title,
+          message,
+          metadata,
+        });
 
-        notification.smsSent = true;
+        const smsResult = await sendSMS(user.phone, smsMessage, {
+          userId: user._id,
+          bookingId,
+          emergency: metadata?.isEmergency,
+          mockMode: process.env.SMS_MOCK_MODE === "true",
+        });
+
+        notification.smsSent = Boolean(smsResult?.ok);
         await notification.save();
       } catch (err) {
         console.error("Failed to send SMS notification:", err);
@@ -174,24 +277,13 @@ async function createNotification({
 }
 
 /**
- * Notify all admin users about an important event
- * @param {Object} options - Notification options
- * @param {String} options.type - Notification type
- * @param {String} options.title - Notification title
- * @param {String} options.message - Notification message
- * @param {String} options.category - Category (default: 'admin')
- * @param {String} options.bookingId - Related booking ID (optional)
- * @param {String} options.disputeId - Related dispute ID (optional)
- * @param {String} options.fromUserId - Sender user ID (optional)
- * @param {Object} options.metadata - Additional data (optional)
- * @param {String} options.targetRoute - Target route for admins (optional)
- * @param {Object} options.targetRouteParams - Target route params (optional)
+ * Notify all admin users
  */
 async function notifyAllAdmins({
   type,
   title,
   message,
-  category = 'admin',
+  category = "admin",
   bookingId,
   disputeId,
   fromUserId,
@@ -200,17 +292,15 @@ async function notifyAllAdmins({
   targetRouteParams,
 }) {
   try {
-    // Find all admin users
-    const adminUsers = await User.find({ role: 'admin' }).select('_id');
-    
+    const adminUsers = await User.find({ role: "admin" }).select("_id");
+
     if (adminUsers.length === 0) {
-      console.log('No admin users found to notify');
+      console.log("No admin users found to notify");
       return [];
     }
 
-    // Create notifications for all admins
     const notifications = await Promise.all(
-      adminUsers.map(admin => 
+      adminUsers.map((admin) =>
         createNotification({
           userId: admin._id,
           type,
@@ -223,24 +313,27 @@ async function notifyAllAdmins({
           metadata,
           targetRoute,
           targetRouteParams,
-          sendEmail: false, // Don't spam admin emails
+          sendEmail: false,
           sendSMS: false,
         })
       )
     );
 
-    // Also broadcast to all connected admin SSE streams
-    const { broadcastToRole } = require('./notificationStream');
-    broadcastToRole('admin', {
-      event: 'notification',
-      notification: notifications[0], // Send one as template
+    const { broadcastToRole } = require("./notificationStream");
+    broadcastToRole("admin", {
+      event: "notification",
+      notification: notifications[0],
     });
 
     return notifications;
   } catch (error) {
-    console.error('Error notifying admins:', error);
+    console.error("Error notifying admins:", error);
     throw error;
   }
 }
 
-module.exports = { createNotification, createNotificationForUser: createNotification, notifyAllAdmins };
+module.exports = {
+  createNotification,
+  createNotificationForUser: createNotification,
+  notifyAllAdmins,
+};

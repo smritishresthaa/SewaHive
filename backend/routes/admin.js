@@ -34,7 +34,6 @@ router.get('/skills-review', authenticate, requireAdmin, async (req, res, next) 
     const { status = 'pending_review', page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
-    // Find users who have a skill proof matching the requested status
     const users = await User.find({
       'providerDetails.skillProofs.status': status
     })
@@ -43,7 +42,6 @@ router.get('/skills-review', authenticate, requireAdmin, async (req, res, next) 
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Flatten the results to return individual skill proof requests
     const items = [];
     users.forEach(user => {
       user.providerDetails.skillProofs.forEach(proof => {
@@ -58,8 +56,7 @@ router.get('/skills-review', authenticate, requireAdmin, async (req, res, next) 
       });
     });
 
-    // Note: Total count is approximate here due to flattening
-    const total = items.length; 
+    const total = items.length;
 
     res.json({
       items,
@@ -95,12 +92,10 @@ router.put('/skills-review/:providerId/:categoryId', authenticate, requireAdmin,
       return res.status(404).json({ message: 'Skill proof not found for this category' });
     }
 
-    // Update the proof status
     user.providerDetails.skillProofs[proofIndex].status = status;
     user.providerDetails.skillProofs[proofIndex].adminFeedback = adminFeedback || '';
     user.providerDetails.skillProofs[proofIndex].reviewedAt = new Date();
 
-    // If approved, add to approvedCategories (if not already there)
     if (status === 'approved') {
       const isAlreadyApproved = user.providerDetails.approvedCategories.some(
         id => id.toString() === categoryId
@@ -109,7 +104,6 @@ router.put('/skills-review/:providerId/:categoryId', authenticate, requireAdmin,
         user.providerDetails.approvedCategories.push(categoryId);
       }
     } else {
-      // If rejected or needs correction, ensure it's removed from approvedCategories
       user.providerDetails.approvedCategories = user.providerDetails.approvedCategories.filter(
         id => id.toString() !== categoryId
       );
@@ -117,8 +111,8 @@ router.put('/skills-review/:providerId/:categoryId', authenticate, requireAdmin,
 
     await user.save();
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: `Skill proof marked as ${status}`,
       skillProof: user.providerDetails.skillProofs[proofIndex]
     });
@@ -165,7 +159,7 @@ router.get('/moderation', authenticate, requireAdmin, async (req, res, next) => 
 router.put('/moderation/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { status, adminComment } = req.body;
-    
+
     if (!['resolved', 'dismissed'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
@@ -182,7 +176,6 @@ router.put('/moderation/:id', authenticate, requireAdmin, async (req, res, next)
 
     await item.save();
 
-    // If resolved (meaning the content is inappropriate), remove it from the provider's profile
     if (status === 'resolved') {
       const provider = await User.findById(item.providerId);
       if (provider) {
@@ -215,40 +208,29 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
     const User = require('../models/User');
     const Payment = require('../models/Payment');
 
-    // Count total users (clients)
     const totalUsers = await User.countDocuments({ role: 'client' });
-
-    // Count total providers
     const totalProviders = await User.countDocuments({ role: 'provider' });
 
-    // Count verified providers (get all providers with approved verification status)
-    // Method 1: Get providers with 'approved' verification status
     const approvedVerificationProviders = await ProviderVerification.distinct('providerId', {
       status: 'approved',
     });
 
-    // Method 2: Get providers with approved kycStatus
     const approvedKycProviders = await User.find({
       role: 'provider',
       kycStatus: 'approved',
     }).select('_id');
 
-    // Combine both sets to get unique verified providers
     const verifiedProviderIds = new Set();
     approvedVerificationProviders.forEach(id => verifiedProviderIds.add(String(id)));
     approvedKycProviders.forEach(user => verifiedProviderIds.add(String(user._id)));
 
     const verifiedProviders = verifiedProviderIds.size;
 
-    // Count pending badge applications (for user stats)
     const pendingBadgeVerifications = await ProviderVerification.countDocuments({
       status: { $in: ['submitted', 'under_review'] },
     });
 
-    // Count total bookings
     const totalBookings = await Booking.countDocuments();
-
-    // Count bookings by status
     const completedBookings = await Booking.countDocuments({ status: 'completed' });
     const ongoingBookings = await Booking.countDocuments({
       status: { $in: ['accepted', 'work_in_progress', 'on_the_way'] },
@@ -257,14 +239,12 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
       status: { $in: ['cancelled', 'declined'] },
     });
 
-    // Count disputes by status
     const totalDisputes = await Dispute.countDocuments();
     const openDisputes = await Dispute.countDocuments({ status: 'open' });
     const resolvedDisputes = await Dispute.countDocuments({ status: 'resolved' });
     const rejectedDisputes = await Dispute.countDocuments({ status: 'rejected' });
-    const pendingDisputes = openDisputes; // For backward compatibility with admin dashboard
+    const pendingDisputes = openDisputes;
 
-    // Count verifications by status
     const totalVerifications = await ProviderVerification.countDocuments();
     const pendingVerifications = await ProviderVerification.countDocuments({
       status: 'pending',
@@ -276,14 +256,12 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
       status: 'rejected',
     });
 
-    // Get total revenue (sum of all released payments)
     const revenueData = await Payment.aggregate([
       { $match: { status: 'RELEASED' } },
       { $group: { _id: null, totalRevenue: { $sum: '$amount' } } },
     ]);
     const totalRevenue = revenueData[0]?.totalRevenue || 0;
 
-    // Count payment transactions
     const totalTransactions = await Payment.countDocuments();
     const completedTransactions = await Payment.countDocuments({ status: 'RELEASED' });
     const pendingTransactions = await Payment.countDocuments({
@@ -291,19 +269,16 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
     });
     const failedTransactions = await Payment.countDocuments({ status: 'FAILED' });
 
-    // Count categories by status
     const totalCategories = await Category.countDocuments();
     const activeCategories = await Category.countDocuments({ status: 'active' });
     const inactiveCategories = await Category.countDocuments({ status: 'inactive' });
 
-    // Count reviews and calculate average rating
     const totalReviews = await Review.countDocuments();
     const reviewStats = await Review.aggregate([
       { $group: { _id: null, avgRating: { $avg: '$rating' } } },
     ]);
     const averageRating = reviewStats[0]?.avgRating || 0;
 
-    // Count services by moderation status
     const activeServices = await Service.countDocuments({
       isActive: true,
       $or: [{ adminDisabled: false }, { adminDisabled: { $exists: false } }],
@@ -315,7 +290,6 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
       isActive: false,
     });
 
-    // Get recent bookings (last 10)
     const recentBookings = await Booking.find()
       .populate('clientId', 'profile.name email')
       .populate('providerId', 'profile.name email')
@@ -328,7 +302,7 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
         users: {
           totalUsers,
           totalProviders,
-          verifiedProviders, // Providers with verified badge
+          verifiedProviders,
           pendingVerifications: pendingBadgeVerifications,
         },
         bookings: {
@@ -405,7 +379,6 @@ router.get('/categories', authenticate, requireAdmin, async (req, res, next) => 
       .populate('updatedBy', 'profile.name email')
       .sort({ createdAt: -1 });
 
-    // Add service count, price range, and analytics for each category
     const categoriesWithCounts = await Promise.all(
       categories.map(async (category) => {
         const categoryNameRegex = new RegExp(`^${escapeRegex(category.name)}$`, 'i');
@@ -423,7 +396,6 @@ router.get('/categories', authenticate, requireAdmin, async (req, res, next) => 
           $or: [{ adminDisabled: false }, { adminDisabled: { $exists: false } }]
         });
 
-        // Get dynamic price range from actual services
         const priceAgg = await Service.aggregate([
           { $match: serviceFilter },
           {
@@ -446,10 +418,8 @@ router.get('/categories', authenticate, requireAdmin, async (req, res, next) => 
           max: priceAgg[0].maxPrice || category.recommendedPriceRange?.max || 10000
         } : category.recommendedPriceRange || { min: 0, max: 10000 };
 
-        // Get provider count
         const providerCount = await Service.distinct('providerId', serviceFilter).then(arr => arr.length);
 
-        // Get booking count
         const bookingCount = await Booking.aggregate([
           {
             $lookup: {
@@ -473,7 +443,6 @@ router.get('/categories', authenticate, requireAdmin, async (req, res, next) => 
 
         const totalBookings = bookingCount.length > 0 ? bookingCount[0].total : 0;
 
-        // Get revenue (completed bookings)
         const revenueAgg = await Booking.aggregate([
           {
             $lookup: {
@@ -500,7 +469,7 @@ router.get('/categories', authenticate, requireAdmin, async (req, res, next) => 
 
         const subcategoriesDetailed = await Subcategory.find({ categoryId: category._id })
           .sort({ sortOrder: 1, name: 1 })
-          .select('name description status sortOrder');
+          .select('name description status sortOrder suggestedPriceMode image iconKey');
 
         let subcategories = subcategoriesDetailed.map((sub) => sub.name);
         if (!subcategories.length) {
@@ -647,14 +616,12 @@ router.post('/categories', authenticate, requireAdmin, async (req, res, next) =>
       status,
     } = req.body;
 
-    // Validate required fields
     if (!name || !description) {
       return res
         .status(400)
         .json({ success: false, message: 'Name and description are required' });
     }
 
-    // Check if category already exists
     const existing = await Category.findOne({ name: { $regex: `^${name}$`, $options: 'i' } });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Category already exists' });
@@ -710,7 +677,6 @@ router.put('/categories/:categoryId', authenticate, requireAdmin, async (req, re
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
 
-    // Check if new name conflicts with another category
     if (name && name !== category.name) {
       const existing = await Category.findOne({
         name: { $regex: `^${name}$`, $options: 'i' },
@@ -722,7 +688,6 @@ router.put('/categories/:categoryId', authenticate, requireAdmin, async (req, re
       category.name = name.trim();
     }
 
-    // Update fields
     if (description !== undefined) category.description = description;
     if (icon !== undefined) category.icon = icon;
     if (image !== undefined) category.image = image;
@@ -805,7 +770,7 @@ router.post('/categories/:categoryId/image', authenticate, requireAdmin, categor
       return res.status(400).json({ success: false, message: 'No image file provided' });
     }
 
-    category.image = req.file.path; // Cloudinary URL
+    category.image = req.file.path;
     category.updatedBy = req.user._id;
     await category.save();
 
@@ -819,7 +784,7 @@ router.post('/categories/:categoryId/image', authenticate, requireAdmin, categor
   }
 });
 
-// DISABLE/ENABLE category (soft delete pattern)
+// DISABLE/ENABLE category
 router.patch('/categories/:categoryId/status', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { status } = req.body;
@@ -840,8 +805,6 @@ router.patch('/categories/:categoryId/status', authenticate, requireAdmin, async
     if (!category) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
-
-    // Keep existing services active; only block new ones via validation.
 
     res.json({
       success: true,
@@ -874,8 +837,8 @@ router.get('/categories/:categoryId/services', authenticate, requireAdmin, async
         { category: categoryNameRegex }
       ]
     })
-    .populate('providerId', 'profile.name profile.avatar email')
-    .sort({ createdAt: -1 });
+      .populate('providerId', 'profile.name profile.avatar email')
+      .sort({ createdAt: -1 });
 
     res.json({ success: true, data: services });
   } catch (err) {
@@ -887,7 +850,6 @@ router.get('/categories/:categoryId/services', authenticate, requireAdmin, async
 // SUBCATEGORIES CRUD
 // ============================================
 
-// GET subcategories (optional filters)
 router.get('/subcategories', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { categoryId, status, search } = req.query;
@@ -912,7 +874,16 @@ router.get('/subcategories', authenticate, requireAdmin, async (req, res, next) 
 // CREATE subcategory
 router.post('/subcategories', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    const { categoryId, name, description, status, sortOrder, suggestedPriceMode } = req.body;
+    const {
+      categoryId,
+      name,
+      description,
+      image,
+      iconKey,
+      status,
+      sortOrder,
+      suggestedPriceMode
+    } = req.body;
 
     if (!categoryId || !name) {
       return res.status(400).json({ success: false, message: 'Category and name are required' });
@@ -935,6 +906,8 @@ router.post('/subcategories', authenticate, requireAdmin, async (req, res, next)
       categoryId,
       name: name.trim(),
       description: description || '',
+      image: image || '',
+      iconKey: iconKey || '',
       status: status || 'active',
       sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
       suggestedPriceMode,
@@ -946,10 +919,43 @@ router.post('/subcategories', authenticate, requireAdmin, async (req, res, next)
   }
 });
 
+// UPLOAD subcategory image via Cloudinary
+router.post('/subcategories/:subcategoryId/image', authenticate, requireAdmin, categoryImageUpload.single('image'), async (req, res, next) => {
+  try {
+    const subcategory = await Subcategory.findById(req.params.subcategoryId);
+    if (!subcategory) {
+      return res.status(404).json({ success: false, message: 'Subcategory not found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file provided' });
+    }
+
+    subcategory.image = req.file.path;
+    await subcategory.save();
+
+    res.json({
+      success: true,
+      message: 'Subcategory image uploaded successfully',
+      data: { image: subcategory.image, subcategory },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // UPDATE subcategory
 router.put('/subcategories/:subcategoryId', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    const { name, description, status, sortOrder, suggestedPriceMode } = req.body;
+    const {
+      name,
+      description,
+      image,
+      iconKey,
+      status,
+      sortOrder,
+      suggestedPriceMode
+    } = req.body;
 
     const subcategory = await Subcategory.findById(req.params.subcategoryId);
     if (!subcategory) {
@@ -969,6 +975,8 @@ router.put('/subcategories/:subcategoryId', authenticate, requireAdmin, async (r
     }
 
     if (description !== undefined) subcategory.description = description;
+    if (image !== undefined) subcategory.image = image;
+    if (iconKey !== undefined) subcategory.iconKey = iconKey;
     if (status) subcategory.status = status;
     if (sortOrder !== undefined) {
       subcategory.sortOrder = Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0;
@@ -1007,7 +1015,7 @@ router.patch('/subcategories/:subcategoryId/status', authenticate, requireAdmin,
   }
 });
 
-// DELETE subcategory (only if no services)
+// DELETE subcategory
 router.delete('/subcategories/:subcategoryId', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const subcategory = await Subcategory.findById(req.params.subcategoryId);
@@ -1035,11 +1043,10 @@ router.delete('/subcategories/:subcategoryId', authenticate, requireAdmin, async
 // CATEGORY REQUESTS
 // ============================================
 
-// GET all category requests
 router.get('/category-requests', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { status } = req.query;
-    
+
     const filter = {};
     if (status) filter.status = status;
 
@@ -1055,7 +1062,6 @@ router.get('/category-requests', authenticate, requireAdmin, async (req, res, ne
   }
 });
 
-// APPROVE category request
 router.post('/category-requests/:requestId/approve', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const request = await CategoryRequest.findById(req.params.requestId);
@@ -1067,9 +1073,8 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
       return res.status(400).json({ success: false, message: 'Request already reviewed' });
     }
 
-    // Check if category already exists
-    const existingCategory = await Category.findOne({ 
-      name: { $regex: `^${escapeRegex(request.name)}$`, $options: 'i' } 
+    const existingCategory = await Category.findOne({
+      name: { $regex: `^${escapeRegex(request.name)}$`, $options: 'i' }
     });
 
     if (existingCategory) {
@@ -1079,14 +1084,13 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
       request.reviewedAt = new Date();
       await request.save();
 
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: 'Category already exists',
-        category: existingCategory 
+        category: existingCategory
       });
     }
 
-    // Create new category
     const category = await Category.create({
       name: request.name,
       description: request.description,
@@ -1095,7 +1099,6 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
       updatedBy: req.user._id,
     });
 
-    // Update request
     request.status = 'approved';
     request.categoryId = category._id;
     request.adminNotes = req.body.adminNotes || 'Approved';
@@ -1103,10 +1106,9 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
     request.reviewedAt = new Date();
     await request.save();
 
-    // Notify provider
     broadcastToRole('provider', {
       event: 'category_request_approved',
-      data: { 
+      data: {
         requestId: String(request._id),
         categoryId: String(category._id),
         categoryName: category.name,
@@ -1114,17 +1116,16 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
       },
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Category request approved and category created',
-      category 
+      category
     });
   } catch (err) {
     next(err);
   }
 });
 
-// REJECT category request
 router.post('/category-requests/:requestId/reject', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const request = await CategoryRequest.findById(req.params.requestId);
@@ -1142,18 +1143,17 @@ router.post('/category-requests/:requestId/reject', authenticate, requireAdmin, 
     request.reviewedAt = new Date();
     await request.save();
 
-    // Notify provider
     broadcastToRole('provider', {
       event: 'category_request_rejected',
-      data: { 
+      data: {
         requestId: String(request._id),
         reason: request.adminNotes,
         providerId: String(request.providerId)
       },
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Category request rejected'
     });
   } catch (err) {
@@ -1212,10 +1212,9 @@ router.patch('/services/:serviceId/status', authenticate, requireAdmin, async (r
 });
 
 // ============================================
-// SERVICE MANAGEMENT (PRICING, FEATURED, MODERATION, ANALYTICS)
+// SERVICE MANAGEMENT
 // ============================================
 
-// GET service pricing configuration
 router.get('/services/pricing', authenticate, requireAdmin, async (req, res, next) => {
   try {
     let config = await AdminServiceConfig.findOne()
@@ -1248,7 +1247,6 @@ router.get('/services/pricing', authenticate, requireAdmin, async (req, res, nex
   }
 });
 
-// UPDATE service pricing configuration
 router.put('/services/pricing', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const {
@@ -1279,7 +1277,6 @@ router.put('/services/pricing', authenticate, requireAdmin, async (req, res, nex
   }
 });
 
-// GET featured providers
 router.get('/providers/featured', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const scope = req.query.scope || 'featured';
@@ -1307,7 +1304,6 @@ router.get('/providers/featured', authenticate, requireAdmin, async (req, res, n
   }
 });
 
-// TOGGLE featured provider
 router.patch('/providers/:providerId/featured', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { featured } = req.body;
@@ -1327,7 +1323,6 @@ router.patch('/providers/:providerId/featured', authenticate, requireAdmin, asyn
   }
 });
 
-// GET service moderation queue
 router.get('/services/moderation', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { search, status } = req.query;
@@ -1354,10 +1349,10 @@ router.get('/services/moderation', authenticate, requireAdmin, async (req, res, 
     if (search) {
       const searchClause = {
         $or: [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } },
-        { subcategory: { $regex: search, $options: 'i' } },
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { category: { $regex: search, $options: 'i' } },
+          { subcategory: { $regex: search, $options: 'i' } },
         ],
       };
 
@@ -1398,10 +1393,8 @@ router.get('/services/moderation', authenticate, requireAdmin, async (req, res, 
   }
 });
 
-// GET service analytics
 router.get('/services/analytics', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    // Get top services by actual booking count
     const topServicesAgg = await Booking.aggregate([
       { $group: { _id: '$serviceId', bookingCount: { $sum: 1 } } },
       { $sort: { bookingCount: -1 } },
@@ -1473,7 +1466,6 @@ router.get('/services/analytics', authenticate, requireAdmin, async (req, res, n
       };
     });
 
-    // Get top providers by actual completed booking count
     const topProvidersAgg = await Booking.aggregate([
       { $match: { status: 'completed' } },
       { $group: { _id: '$providerId', completedJobs: { $sum: 1 } } },
@@ -1509,7 +1501,6 @@ router.get('/services/analytics', authenticate, requireAdmin, async (req, res, n
   }
 });
 
-// GET stats for a category (how many services use it)
 router.get('/categories/:categoryId/stats', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const category = await Category.findById(req.params.categoryId);
@@ -1540,12 +1531,10 @@ router.get('/categories/:categoryId/stats', authenticate, requireAdmin, async (r
 // PRICE REVIEW / QUOTE APPROVAL
 // ============================================
 
-// GET pending quotes/pricing that need review
 router.get('/quotes/pending', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const Booking = require('../models/Booking');
-    
-    // Get bookings with quotes that need admin review
+
     const pendingQuotes = await Booking.find({
       'quote.status': 'pending_admin_review',
     })
@@ -1560,7 +1549,6 @@ router.get('/quotes/pending', authenticate, requireAdmin, async (req, res, next)
   }
 });
 
-// APPROVE or REJECT quote
 router.patch('/quotes/:bookingId/review', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const Booking = require('../models/Booking');
@@ -1580,7 +1568,6 @@ router.patch('/quotes/:bookingId/review', authenticate, requireAdmin, async (req
     }
 
     if (action === 'approve') {
-      // Use provided approvedPrice or provider's quoted price
       const finalPrice = approvedPrice || booking.quote.quotedPrice;
       booking.quote.status = 'approved';
       booking.quote.approvedPrice = finalPrice;
@@ -1592,13 +1579,11 @@ router.patch('/quotes/:bookingId/review', authenticate, requireAdmin, async (req
       booking.quote.status = 'rejected';
       booking.quote.rejectionReason = adminComment;
       booking.quote.rejectedAt = new Date();
-      // When rejected, booking reverts to pending state
       booking.status = 'quote_rejected';
     }
 
     await booking.save();
 
-    // Notify provider
     const { createNotification } = require('../utils/createNotification');
     await createNotification({
       userId: booking.providerId,
@@ -1627,7 +1612,6 @@ router.patch('/quotes/:bookingId/review', authenticate, requireAdmin, async (req
 // PROVIDER VERIFICATION & MANAGEMENT
 // ============================================
 
-// GET all providers with verification status
 router.get('/providers', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -1655,7 +1639,6 @@ router.get('/providers', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET provider verification documents
 router.get('/providers/:providerId/verification', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -1681,7 +1664,6 @@ router.get('/providers/:providerId/verification', authenticate, requireAdmin, as
   }
 });
 
-// APPROVE/REJECT provider verification
 router.patch(
   '/providers/:providerId/verification/:docIndex/review',
   authenticate,
@@ -1709,7 +1691,6 @@ router.patch(
       provider.providerDetails.verificationDocs[docIndex].adminComment = adminComment;
       provider.providerDetails.verificationDocs[docIndex].reviewedAt = new Date();
 
-      // If all docs approved, update provider badge
       const allApproved = provider.providerDetails.verificationDocs.every(
         (doc) => doc.status === 'approved'
       );
@@ -1743,7 +1724,6 @@ router.patch(
         kycStatus: status === 'approved' ? 'approved' : 'rejected',
       });
 
-      // Notify provider
       const { createNotification } = require('../utils/createNotification');
       await createNotification({
         userId: provider._id,
@@ -1768,7 +1748,6 @@ router.patch(
 // PROVIDER KYC VERIFICATIONS (NEW FLOW)
 // ============================================
 
-// GET all provider verifications
 router.get('/verifications', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { status, search } = req.query;
@@ -1798,7 +1777,6 @@ router.get('/verifications', authenticate, requireAdmin, async (req, res, next) 
   }
 });
 
-// APPROVE/REJECT provider verification
 router.patch('/verifications/:verificationId/review', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const {
@@ -1827,10 +1805,9 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
       return res.status(404).json({ success: false, message: 'Verification not found' });
     }
 
-    // Update documents with review status
     if (Array.isArray(docReviews) && docReviews.length > 0) {
       console.log('Processing doc reviews:', docReviews.length);
-      
+
       docReviews.forEach((review) => {
         if (!review?.docId) {
           console.warn('⚠️ Review missing docId:', review);
@@ -1838,19 +1815,17 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
         }
 
         console.log('Updating doc:', review.docId, 'with status:', review.status);
-        
+
         let targetDoc = null;
-        
-        // Try to find in documents array
+
         if (verification.documents && verification.documents.length > 0) {
           targetDoc = verification.documents.find(d => String(d._id) === String(review.docId));
         }
-        
-        // Try to find in addressDocuments array if not found
+
         if (!targetDoc && verification.addressDocuments && verification.addressDocuments.length > 0) {
           targetDoc = verification.addressDocuments.find(d => String(d._id) === String(review.docId));
         }
-        
+
         if (targetDoc) {
           if (review.status) targetDoc.status = review.status;
           if (typeof review.adminComment === 'string') targetDoc.adminComment = review.adminComment;
@@ -1862,12 +1837,11 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
       });
     }
 
-    // Determine overall status based on document reviews
     const allDocs = [
       ...(verification.documents || []),
       ...(verification.addressDocuments || []),
     ];
-    
+
     console.log('Total docs to check:', allDocs.length);
     const anyRejected = allDocs.some((doc) => doc.status === 'rejected');
     const allApproved = allDocs.length > 0 && allDocs.every((doc) => doc.status === 'approved');
@@ -1888,8 +1862,7 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
     }
     if (screeningStatus) verification.screeningStatus = screeningStatus;
     if (typeof flagReason === 'string') verification.flagReason = flagReason || null;
-    
-    // Save badge to verification document if approved
+
     if (derivedStatus === 'approved' && badge) {
       verification.badge = badge;
     }
@@ -1908,28 +1881,23 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
 
     const User = require('../models/User');
     const { normalizeKycStatus } = require('../utils/kyc');
-    
+
     if (derivedStatus === 'approved') {
       const nextBadge = badge || 'verified';
       console.log('Approving provider with badge:', nextBadge);
-      
-      // Fetch user first and ensure badges is an array
+
       const user = await User.findById(verification.providerId);
       if (user) {
-        // Ensure providerDetails.badges is an array
         if (!Array.isArray(user.providerDetails.badges)) {
           user.providerDetails.badges = [];
         }
-        
-        // Add badge if it doesn't already exist
+
         if (!user.providerDetails.badges.includes(nextBadge)) {
           user.providerDetails.badges.push(nextBadge);
         }
-        
-        // Update KYC status
+
         user.kycStatus = normalizeKycStatus(derivedStatus);
-        
-        // Save the user
+
         await user.save();
         console.log('✅ Provider updated with approved status and badge:', nextBadge);
       } else {
@@ -1937,7 +1905,7 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
       }
     } else if (['rejected', 'needs_correction', 'under_review', 'submitted'].includes(derivedStatus)) {
       console.log('Setting provider KYC status to:', derivedStatus);
-      
+
       await User.findByIdAndUpdate(verification.providerId, {
         kycStatus: normalizeKycStatus(derivedStatus),
       });
@@ -1957,7 +1925,7 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
         : baseMessage;
 
       console.log('Sending notification with message:', message);
-      
+
       await createNotification({
         userId: verification.providerId,
         type: `verification_${derivedStatus}`,
@@ -2129,8 +2097,8 @@ router.get('/reviews', authenticate, requireAdmin, async (req, res, next) => {
 
     const total = await Review.countDocuments();
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: reviews,
       pagination: {
         total,
@@ -2144,11 +2112,10 @@ router.get('/reviews', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
-// DELETE a review (admin moderation)
 router.delete('/reviews/:reviewId', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const review = await Review.findByIdAndDelete(req.params.reviewId);
-    
+
     if (!review) {
       return res.status(404).json({ success: false, message: 'Review not found' });
     }
@@ -2163,7 +2130,6 @@ router.delete('/reviews/:reviewId', authenticate, requireAdmin, async (req, res,
 // PROVIDER STATUS MANAGEMENT
 // ============================================
 
-// GET all providers with their status
 router.get('/providers/status/list', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2188,7 +2154,6 @@ router.get('/providers/status/list', authenticate, requireAdmin, async (req, res
   }
 });
 
-// UPDATE provider status (pending -> verified/rejected)
 router.patch('/providers/:providerId/status', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2210,7 +2175,6 @@ router.patch('/providers/:providerId/status', authenticate, requireAdmin, async 
     const previousStatus = provider.providerStatus;
     provider.providerStatus = providerStatus;
 
-    // Add admin comment if provided
     if (adminComment && provider.admin) {
       provider.admin.notes = adminComment;
     } else if (adminComment) {
@@ -2219,7 +2183,6 @@ router.patch('/providers/:providerId/status', authenticate, requireAdmin, async 
 
     await provider.save();
 
-    // Broadcast notification to provider
     const message = `Your provider account status has been updated to: ${providerStatus}`;
     broadcastToRole('provider', {
       type: 'provider_status_changed',
@@ -2246,7 +2209,6 @@ router.patch('/providers/:providerId/status', authenticate, requireAdmin, async 
   }
 });
 
-// GET provider details for admin review
 router.get('/providers/:providerId/details', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2287,7 +2249,6 @@ router.get('/providers/:providerId/details', authenticate, requireAdmin, async (
   }
 });
 
-// GET all users (clients and providers)
 router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2320,7 +2281,6 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET all bookings with search
 router.get('/bookings', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { search, status } = req.query;
@@ -2333,10 +2293,8 @@ router.get('/bookings', authenticate, requireAdmin, async (req, res, next) => {
     let bookings = [];
 
     if (search) {
-      // Search by booking ID or populate and search user/service details
       const User = require('../models/User');
-      
-      // Try to find users matching the search
+
       const matchingUsers = await User.find({
         $or: [
           { 'profile.name': { $regex: search, $options: 'i' } },
@@ -2346,13 +2304,11 @@ router.get('/bookings', authenticate, requireAdmin, async (req, res, next) => {
 
       const userIds = matchingUsers.map((u) => u._id);
 
-      // Search bookings by user IDs or booking ID
       filter.$or = [
         { clientId: { $in: userIds } },
         { providerId: { $in: userIds } },
       ];
 
-      // If search looks like an ID, include it
       if (search.match(/^[0-9a-fA-F]{24}$/)) {
         filter.$or.push({ _id: search });
       }
@@ -2371,7 +2327,6 @@ router.get('/bookings', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET all services with search
 router.get('/services', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { search, status } = req.query;
@@ -2405,7 +2360,6 @@ router.get('/services', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
-// PATCH /admin/users/:id/suspend - Toggle suspend status
 router.patch('/users/:id/suspend', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2415,18 +2369,16 @@ router.patch('/users/:id/suspend', authenticate, requireAdmin, async (req, res, 
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Toggle suspend status
     const newStatus = user.accountStatus === 'suspended' ? 'active' : 'suspended';
     user.accountStatus = newStatus;
     await user.save();
 
-    // Send notification to user
     const createNotification = require('../utils/createNotification');
     await createNotification({
       userId: user._id,
       type: 'account_update',
       title: newStatus === 'suspended' ? 'Account Suspended' : 'Account Reactivated',
-      message: newStatus === 'suspended' 
+      message: newStatus === 'suspended'
         ? 'Your account has been suspended by an administrator. Please contact support for more information.'
         : 'Your account has been reactivated. You can now use all services.',
       priority: 'high',
@@ -2442,7 +2394,6 @@ router.patch('/users/:id/suspend', authenticate, requireAdmin, async (req, res, 
   }
 });
 
-// DELETE /admin/users/:id - Delete a user
 router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2452,15 +2403,9 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) =
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Soft delete - mark as deleted and suspended
     user.accountStatus = 'deleted';
     user.isDeleted = true;
     await user.save();
-
-    // Note: You may want to also handle:
-    // - Canceling active bookings
-    // - Archiving services if provider
-    // - Handling payments/refunds
 
     res.json({
       success: true,
@@ -2471,7 +2416,6 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) =
   }
 });
 
-// PATCH /admin/users/:id/verify - Verify a provider
 router.patch('/users/:id/verify', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
@@ -2485,10 +2429,8 @@ router.patch('/users/:id/verify', authenticate, requireAdmin, async (req, res, n
       return res.status(400).json({ success: false, message: 'Can only verify provider accounts' });
     }
 
-    // Update provider verification status
     user.providerStatus = 'verified';
-    
-    // Add verified badge if not already present
+
     if (!user.providerDetails) {
       user.providerDetails = {};
     }
@@ -2501,10 +2443,9 @@ router.patch('/users/:id/verify', authenticate, requireAdmin, async (req, res, n
     user.providerDetails.badges = currentBadges.includes('verified')
       ? currentBadges
       : [...currentBadges, 'verified'];
-    
+
     await user.save();
 
-    // Send notification to provider
     const createNotification = require('../utils/createNotification');
     await createNotification({
       userId: user._id,
@@ -2557,11 +2498,15 @@ router.put('/settings', authenticate, requireAdmin, async (req, res, next) => {
       'maintenanceMode',
       'registrationOpen',
       'termsAndConditions',
+      'termsVersion',
+      'termsUpdatedAt',
     ];
+
     const update = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) update[key] = req.body[key];
     }
+
     update.updatedBy = req.user._id;
 
     const settings = await AdminServiceConfig.findOneAndUpdate(
@@ -2569,6 +2514,7 @@ router.put('/settings', authenticate, requireAdmin, async (req, res, next) => {
       { $set: update },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
     res.json({ success: true, settings });
   } catch (err) {
     next(err);

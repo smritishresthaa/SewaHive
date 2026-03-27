@@ -119,11 +119,11 @@ export default function ClientProfile() {
 
   return (
     <ClientLayout>
-      <div className="max-w-5xl mx-auto mt-6">
+      <div className="w-full max-w-5xl mx-auto mt-6 px-4 sm:px-6 lg:px-8">
 
         {/* ================= HEADER CARD ================= */}
-        <div className="bg-brand-700 text-white p-8 rounded-3xl shadow flex items-center gap-6 mb-8">
-          <div className="relative">
+        <div className="bg-brand-700 text-white p-5 sm:p-8 rounded-3xl shadow flex flex-col sm:flex-row items-center gap-4 sm:gap-6 mb-8">
+          <div className="relative mb-4 sm:mb-0">
             {/* Avatar Container with proper fallback */}
             <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 flex items-center justify-center bg-emerald-600">
               {preview || user?.profile?.avatarUrl ? (
@@ -143,7 +143,6 @@ export default function ClientProfile() {
                 </span>
               )}
             </div>
-            
             {/* Camera Icon Overlay */}
             <label className="absolute bottom-0 right-0 bg-white p-2 rounded-full cursor-pointer hover:bg-gray-100 transition shadow-lg">
               {uploadingAvatar ? (
@@ -155,17 +154,17 @@ export default function ClientProfile() {
             </label>
           </div>
 
-          <div>
-            <h1 className="text-3xl font-bold">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold truncate">
               Hello, {user?.profile?.name} 👋
             </h1>
-            <p className="text-white/80">{user?.email}</p>
+            <p className="text-white/80 truncate">{user?.email}</p>
           </div>
         </div>
 
         {/* ================= PERSONAL INFO ================= */}
-        <div className="bg-white p-6 rounded-2xl shadow mb-6">
-          <div className="flex justify-between mb-4">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl shadow mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-2 mb-4">
             <h2 className="font-semibold">Personal Information</h2>
             {!editPersonal && (
               <button
@@ -179,13 +178,13 @@ export default function ClientProfile() {
           </div>
 
           {!editPersonal ? (
-            <div className="grid md:grid-cols-2 gap-6 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 text-sm">
               <div><p className="text-gray-400">Name</p>{user?.profile?.name}</div>
               <div><p className="text-gray-400">Email</p>{user?.email}</div>
               <div><p className="text-gray-400">Phone</p>{user?.phone || "—"}</div>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input
                 className="input"
                 value={personal.name}
@@ -202,18 +201,18 @@ export default function ClientProfile() {
                 onChange={e => setPersonal({ ...personal, phone: e.target.value })}
               />
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-2 md:mt-0">
                 <button
                   type="button"
                   onClick={savePersonal}
-                  className="bg-brand-700 text-white px-4 py-2 rounded cursor-pointer"
+                  className="bg-brand-700 text-white px-4 py-2 rounded cursor-pointer w-full md:w-auto"
                 >
                   Save
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditPersonal(false)}
-                  className="bg-gray-200 px-4 py-2 rounded cursor-pointer"
+                  className="bg-gray-200 px-4 py-2 rounded cursor-pointer w-full md:w-auto"
                 >
                   Cancel
                 </button>
@@ -223,8 +222,8 @@ export default function ClientProfile() {
         </div>
 
         {/* ================= ADDRESS INFO ================= */}
-        <div className="bg-white p-6 rounded-2xl shadow">
-          <div className="flex justify-between mb-4">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl shadow">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-2 mb-4">
             <h2 className="font-semibold">Address Information</h2>
             {!editAddress && (
               <button
@@ -238,14 +237,14 @@ export default function ClientProfile() {
           </div>
 
           {!editAddress ? (
-            <div className="grid md:grid-cols-2 gap-6 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 text-sm">
               <div><p className="text-gray-400">Country</p>{address.country || "—"}</div>
               <div><p className="text-gray-400">City</p>{address.city || "—"}</div>
               <div><p className="text-gray-400">Postal Code</p>{address.postalCode || "—"}</div>
               <div><p className="text-gray-400">Area</p>{address.area || "—"}</div>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input
                 className="input"
                 value={address.country}
@@ -268,18 +267,18 @@ export default function ClientProfile() {
                 placeholder="Local area (e.g. Lubhu)"
               />
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-2 md:mt-0">
                 <button
                   type="button"
                   onClick={saveAddress}
-                  className="bg-brand-700 text-white px-4 py-2 rounded cursor-pointer"
+                  className="bg-brand-700 text-white px-4 py-2 rounded cursor-pointer w-full md:w-auto"
                 >
                   Save
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditAddress(false)}
-                  className="bg-gray-200 px-4 py-2 rounded cursor-pointer"
+                  className="bg-gray-200 px-4 py-2 rounded cursor-pointer w-full md:w-auto"
                 >
                   Cancel
                 </button>

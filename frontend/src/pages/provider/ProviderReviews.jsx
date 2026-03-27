@@ -10,7 +10,7 @@ export default function ProviderReviews() {
   const [reviews, setReviews] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all"); // all, 5, 4, 3, 2, 1
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     fetchReviews();
@@ -26,14 +26,16 @@ export default function ProviderReviews() {
       console.log("Reviews endpoint not available yet:", err.message);
       setReviews([]);
       setStats({ total: 0, average: 0, breakdown: {} });
+      toast.error("Failed to load reviews");
     } finally {
       setLoading(false);
     }
   }
 
-  const filteredReviews = filter === "all" 
-    ? reviews 
-    : reviews.filter(r => r.rating === parseInt(filter));
+  const filteredReviews =
+    filter === "all"
+      ? reviews
+      : reviews.filter((r) => r.rating === parseInt(filter));
 
   const renderStars = (rating) => {
     return (
@@ -41,8 +43,8 @@ export default function ProviderReviews() {
         {[1, 2, 3, 4, 5].map((star) => (
           <HiStar
             key={star}
-            className={`w-5 h-5 ${
-              star <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+            className={`h-5 w-5 ${
+              star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
             }`}
           />
         ))}
@@ -56,71 +58,71 @@ export default function ProviderReviews() {
       4: "Very Good",
       3: "Good",
       2: "Fair",
-      1: "Poor"
+      1: "Poor",
     };
     return labels[rating] || "";
   };
 
   return (
     <ProviderLayout>
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
+      <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">My Reviews</h1>
-          <p className="text-gray-600 mt-1">See what clients are saying about your services</p>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">My Reviews</h1>
+          <p className="mt-1 text-sm text-gray-600 sm:text-base">
+            See what clients are saying about your services
+          </p>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="h-10 w-10 rounded-full border-4 border-brand-700 border-t-transparent animate-spin" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-700 border-t-transparent" />
           </div>
         ) : (
           <>
-            {/* Stats Overview */}
             {stats && (
-              <div className="bg-white rounded-2xl shadow-sm border p-6 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Average Rating */}
+              <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm sm:p-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                   <div className="text-center">
-                    <div className="text-5xl font-bold text-gray-900 mb-2">
+                    <div className="mb-2 text-4xl font-bold text-gray-900 sm:text-5xl">
                       {stats.averageRating}
                     </div>
-                    <div className="flex justify-center mb-2">
+                    <div className="mb-2 flex justify-center">
                       {renderStars(Math.round(stats.averageRating))}
                     </div>
                     <p className="text-sm text-gray-600">
-                      Based on {stats.totalReviews} review{stats.totalReviews !== 1 ? 's' : ''}
+                      Based on {stats.totalReviews} review
+                      {stats.totalReviews !== 1 ? "s" : ""}
                     </p>
                   </div>
 
-                  {/* Rating Distribution */}
                   <div className="md:col-span-2">
-                    <h3 className="font-semibold text-gray-900 mb-3">Rating Distribution</h3>
+                    <h3 className="mb-3 font-semibold text-gray-900">Rating Distribution</h3>
                     <div className="space-y-2">
                       {[5, 4, 3, 2, 1].map((rating) => {
                         const count = stats.ratingDistribution[rating] || 0;
-                        const percentage = stats.totalReviews > 0 
-                          ? (count / stats.totalReviews) * 100 
-                          : 0;
-                        
+                        const percentage =
+                          stats.totalReviews > 0 ? (count / stats.totalReviews) * 100 : 0;
+
                         return (
-                          <div key={rating} className="flex items-center gap-3">
+                          <div key={rating} className="flex items-center gap-2 sm:gap-3">
                             <button
                               onClick={() => setFilter(rating.toString())}
-                              className={`flex items-center gap-1 text-sm font-medium min-w-[60px] hover:text-emerald-600 transition ${
-                                filter === rating.toString() ? 'text-emerald-600' : 'text-gray-700'
+                              className={`flex min-w-[60px] items-center gap-1 text-sm font-medium transition hover:text-emerald-600 ${
+                                filter === rating.toString() ? "text-emerald-600" : "text-gray-700"
                               }`}
                             >
                               <span>{rating}</span>
-                              <HiStar className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                              <HiStar className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                             </button>
-                            <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+
+                            <div className="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-200">
                               <div
                                 className="h-full bg-yellow-400 transition-all"
                                 style={{ width: `${percentage}%` }}
                               />
                             </div>
-                            <span className="text-sm text-gray-600 min-w-[40px] text-right">
+
+                            <span className="min-w-[40px] flex-shrink-0 text-right text-sm text-gray-600">
                               {count}
                             </span>
                           </div>
@@ -132,41 +134,41 @@ export default function ProviderReviews() {
               </div>
             )}
 
-            {/* Filter Buttons */}
-            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <div className="-mx-1 mb-6 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-2 sm:flex-wrap sm:overflow-visible">
               <button
                 onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                className={`inline-flex flex-shrink-0 items-center rounded-lg px-4 py-2 font-medium whitespace-nowrap transition-colors ${
                   filter === "all"
                     ? "bg-brand-700 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-100 border"
+                    : "border bg-white text-gray-700 hover:bg-gray-100"
                 }`}
               >
                 All Reviews
                 {filter === "all" && reviews.length > 0 && (
-                  <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                  <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">
                     {reviews.length}
                   </span>
                 )}
               </button>
+
               {[5, 4, 3, 2, 1].map((rating) => {
-                const count = stats?.ratingDistribution[rating] || 0;
+                const count = stats?.ratingDistribution?.[rating] || 0;
                 if (count === 0) return null;
-                
+
                 return (
                   <button
                     key={rating}
                     onClick={() => setFilter(rating.toString())}
-                    className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
+                    className={`inline-flex flex-shrink-0 items-center gap-1 rounded-lg px-4 py-2 font-medium whitespace-nowrap transition-colors ${
                       filter === rating.toString()
                         ? "bg-brand-700 text-white"
-                        : "bg-white text-gray-700 hover:bg-gray-100 border"
+                        : "border bg-white text-gray-700 hover:bg-gray-100"
                     }`}
                   >
                     <span>{rating}</span>
-                    <HiStar className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                    <HiStar className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                     {filter === rating.toString() && (
-                      <span className="ml-1 bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                      <span className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">
                         {count}
                       </span>
                     )}
@@ -175,15 +177,13 @@ export default function ProviderReviews() {
               })}
             </div>
 
-            {/* Reviews List */}
             {filteredReviews.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-2xl border">
-                <p className="text-gray-500 text-lg">No reviews yet</p>
-                <p className="text-gray-400 text-sm mt-2">
-                  {filter === "all" 
+              <div className="rounded-2xl border bg-white py-16 text-center sm:py-20">
+                <p className="text-lg text-gray-500">No reviews yet</p>
+                <p className="mt-2 text-sm text-gray-400">
+                  {filter === "all"
                     ? "Complete bookings to start receiving reviews from clients"
-                    : `No ${filter}-star reviews found`
-                  }
+                    : `No ${filter}-star reviews found`}
                 </p>
               </div>
             ) : (
@@ -191,59 +191,57 @@ export default function ProviderReviews() {
                 {filteredReviews.map((review) => (
                   <div
                     key={review._id}
-                    className="bg-white rounded-2xl shadow-sm border p-6 hover:shadow-md transition"
+                    className="rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md sm:p-6"
                   >
-                    {/* Review Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <span className="text-emerald-700 font-semibold text-sm">
+                    <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                            <span className="text-sm font-semibold text-emerald-700">
                               {review.clientId?.profile?.name?.charAt(0).toUpperCase() || "?"}
                             </span>
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900">
+
+                          <div className="min-w-0">
+                            <h3 className="break-words font-semibold text-gray-900">
                               {review.clientId?.profile?.name || "Anonymous"}
                             </h3>
                             <p className="text-sm text-gray-500">
-                              {new Date(review.createdAt).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
+                              {new Date(review.createdAt).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
                               })}
                             </p>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="text-right">
+
+                      <div className="sm:text-right">
                         {renderStars(review.rating)}
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="mt-1 text-sm text-gray-600">
                           {getRatingLabel(review.rating)}
                         </p>
                       </div>
                     </div>
 
-                    {/* Service Info */}
-                    <div className="mb-3 pb-3 border-b">
+                    <div className="mb-3 border-b pb-3">
                       <p className="text-sm text-gray-600">
                         <span className="font-medium">Service:</span>{" "}
-                        {review.bookingId?.serviceId?.title || "Service"}
+                        <span className="break-words">
+                          {review.bookingId?.serviceId?.title || "Service"}
+                        </span>
                       </p>
                     </div>
 
-                    {/* Review Comment */}
-                    {review.comment && (
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-gray-700 leading-relaxed">
+                    {review.comment ? (
+                      <div className="rounded-lg bg-gray-50 p-4">
+                        <p className="break-words leading-relaxed text-gray-700">
                           "{review.comment}"
                         </p>
                       </div>
-                    )}
-
-                    {!review.comment && (
-                      <p className="text-gray-400 italic text-sm">
+                    ) : (
+                      <p className="text-sm italic text-gray-400">
                         No written feedback provided
                       </p>
                     )}

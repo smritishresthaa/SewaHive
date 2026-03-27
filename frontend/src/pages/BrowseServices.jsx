@@ -1,17 +1,65 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import TopNavbar from "../components/Navbar/TopNavbar";
-import { HiMagnifyingGlass, HiAdjustmentsHorizontal, HiMapPin, HiStar, HiArrowRight } from "react-icons/hi2";
+import {
+  HiMagnifyingGlass,
+  HiAdjustmentsHorizontal,
+  HiStar,
+  HiArrowRight,
+} from "react-icons/hi2";
+import {
+  FiHome,
+  FiDroplet,
+  FiZap,
+  FiTool,
+  FiPenTool,
+  FiSun,
+  FiWind,
+  FiPackage,
+  FiSettings,
+} from "react-icons/fi";
+import { HiBugAnt } from "react-icons/hi2";
 import api from "../utils/axios";
-import toast from "react-hot-toast";
 import ServiceCard from "../components/Service/ServiceCard";
+
+function CategoryIcon({ iconKey, categoryName, className = "w-5 h-5" }) {
+  const normalized = (iconKey || categoryName || "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/\s+/g, "-");
+
+  const iconMap = {
+    cleaning: FiHome,
+    plumbing: FiDroplet,
+    "painting-and-decor": FiPenTool,
+    painting: FiPenTool,
+    decor: FiPenTool,
+    electrical: FiZap,
+    electrician: FiZap,
+    handyman: FiTool,
+    carpentry: FiTool,
+    ac: FiWind,
+    appliance: FiSettings,
+    shifting: FiPackage,
+    pest: HiBugAnt,
+    gardening: FiSun,
+  };
+
+  const Icon = iconMap[normalized] || FiSettings;
+  return <Icon className={className} />;
+}
 
 export default function BrowseServices() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [searchParams] = useSearchParams();
-  
+
+  const categoryParam = searchParams.get("category") || "";
+  const subcategoryParam = searchParams.get("subcategory") || "";
+  const initialQueryParam = searchParams.get("q") || "";
+
   const [categories, setCategories] = useState([]);
   const [allServices, setAllServices] = useState([]);
   const [services, setServices] = useState([]);
@@ -19,11 +67,10 @@ export default function BrowseServices() {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "All");
+  const [searchQuery, setSearchQuery] = useState(initialQueryParam);
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [showFilters, setShowFilters] = useState(false);
-  
-  // Filter states
+
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [sortBy, setSortBy] = useState("relevance");
 
@@ -32,29 +79,58 @@ export default function BrowseServices() {
   }, []);
 
   useEffect(() => {
-    fetchServices();
-  }, [selectedCategory, sortBy]);
+    fetchLeaderboard();
+  }, []);
 
-  // Re-apply text filter whenever searchQuery or allServices change
+  useEffect(() => {
+    if (!categories.length) return;
+
+    if (!categoryParam) {
+      setSelectedCategory("All");
+      return;
+    }
+
+    const normalizedParam = categoryParam.trim().toLowerCase();
+
+    const matchedCategory = categories.find((cat) => {
+      const byId = String(cat._id) === categoryParam;
+      const byName = String(cat.name || "").trim().toLowerCase() === normalizedParam;
+      return byId || byName;
+    });
+
+    if (matchedCategory) {
+      setSelectedCategory(matchedCategory._id);
+    } else {
+      setSelectedCategory("All");
+    }
+  }, [categories, categoryParam]);
+
+  useEffect(() => {
+    fetchServices();
+  }, [selectedCategory, sortBy, subcategoryParam]);
+
   useEffect(() => {
     const q = (searchQuery || "").trim().toLowerCase();
     if (!q) {
       setServices(allServices);
       return;
     }
+
     setServices(
       allServices.filter(
         (s) =>
           s.title?.toLowerCase().includes(q) ||
           s.description?.toLowerCase().includes(q) ||
-          s.categoryId?.name?.toLowerCase().includes(q)
+          s.categoryId?.name?.toLowerCase().includes(q) ||
+          s.subcategoryId?.name?.toLowerCase().includes(q)
       )
     );
   }, [searchQuery, allServices]);
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+  const selectedCategoryObject = useMemo(() => {
+    if (selectedCategory === "All") return null;
+    return categories.find((cat) => cat._id === selectedCategory) || null;
+  }, [categories, selectedCategory]);
 
   async function fetchCategories() {
     try {
@@ -73,38 +149,30 @@ export default function BrowseServices() {
   async function fetchServices() {
     try {
       setLoading(true);
+
       const params = new URLSearchParams();
-      
+
       if (selectedCategory !== "All" && selectedCategory) {
         params.append("categoryId", selectedCategory);
       }
 
-      const res = await api.get(`/services/list?${params}`);
+      const res = await api.get(`/services/list?${params.toString()}`);
       let servicesData = res.data.services || [];
 
-      // PHASE 5: Filter by provider's approved categories
-      // (the API should already do this, but filter on frontend as safeguard)
-      const selectedCategoryId = selectedCategory !== "All" ? selectedCategory : null;
-      
-      // Temporarily Relax Frontend Filter to match Backend
-      /*
-      if (selectedCategoryId) {
-        servicesData = servicesData.filter(service => {
-          if (!service.providerId?.providerDetails?.approvedCategories) return false;
-          return service.providerId.providerDetails.approvedCategories.some(
-            id => id.toString() === selectedCategoryId
-          );
-        });
+      if (subcategoryParam) {
+        const normalizedSub = subcategoryParam.trim().toLowerCase();
+        servicesData = servicesData.filter(
+          (service) =>
+            service.subcategoryId?.name?.trim().toLowerCase() === normalizedSub
+        );
       }
-      */
 
-      // Apply sorting
       if (sortBy === "price-low") {
-        servicesData.sort((a, b) => a.basePrice - b.basePrice);
+        servicesData.sort((a, b) => Number(a.basePrice || 0) - Number(b.basePrice || 0));
       } else if (sortBy === "price-high") {
-        servicesData.sort((a, b) => b.basePrice - a.basePrice);
+        servicesData.sort((a, b) => Number(b.basePrice || 0) - Number(a.basePrice || 0));
       } else if (sortBy === "rating") {
-        servicesData.sort((a, b) => b.ratingAvg - a.ratingAvg);
+        servicesData.sort((a, b) => Number(b.ratingAvg || 0) - Number(a.ratingAvg || 0));
       }
 
       setAllServices(servicesData);
@@ -124,6 +192,7 @@ export default function BrowseServices() {
         setLeaderboard([]);
         return;
       }
+
       setLoadingLeaderboard(true);
       const res = await api.get("/leaderboard/current?range=30d");
       setLeaderboard(res.data?.data || []);
@@ -148,27 +217,35 @@ export default function BrowseServices() {
       setServices(allServices);
       return;
     }
-    
+
     const filtered = allServices.filter(
       (s) =>
         s.title?.toLowerCase().includes(q) ||
         s.description?.toLowerCase().includes(q) ||
-        s.categoryId?.name?.toLowerCase().includes(q)
+        s.categoryId?.name?.toLowerCase().includes(q) ||
+        s.subcategoryId?.name?.toLowerCase().includes(q)
     );
     setServices(filtered);
   }
 
   function applyPriceFilter() {
-    fetchServices().then(() => {
-      if (priceRange.min || priceRange.max) {
-        const filtered = services.filter((s) => {
-          const min = priceRange.min ? Number(priceRange.min) : 0;
-          const max = priceRange.max ? Number(priceRange.max) : Infinity;
-          return s.basePrice >= min && s.basePrice <= max;
-        });
-        setServices(filtered);
-      }
-    });
+    let filtered = [...allServices];
+
+    if (priceRange.min || priceRange.max) {
+      const min = priceRange.min ? Number(priceRange.min) : 0;
+      const max = priceRange.max ? Number(priceRange.max) : Infinity;
+
+      filtered = filtered.filter((s) => {
+        const servicePrice =
+          s.priceMode === "range"
+            ? Number(s.priceRange?.min || s.basePrice || 0)
+            : Number(s.basePrice || 0);
+
+        return servicePrice >= min && servicePrice <= max;
+      });
+    }
+
+    setServices(filtered);
     setShowFilters(false);
   }
 
@@ -179,13 +256,14 @@ export default function BrowseServices() {
   function getServiceCategoryMeta(service) {
     const categoryId = service.categoryId?._id || service.categoryId;
     const categoryName = service.category?.name || service.categoryName || service.category;
-    const match = categories.find((cat) =>
-      cat._id === categoryId || (!categoryId && cat.name === categoryName)
+
+    const match = categories.find(
+      (cat) => cat._id === categoryId || (!categoryId && cat.name === categoryName)
     );
 
     return {
       name: match?.name || categoryName || "Service",
-      icon: match?.icon || "🔧",
+      iconKey: match?.iconKey || match?.name || categoryName || "service",
     };
   }
 
@@ -193,24 +271,21 @@ export default function BrowseServices() {
     <div className="min-h-screen bg-gray-50">
       <TopNavbar />
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Header */}
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="mb-2 text-2xl font-bold text-gray-900 sm:text-3xl">
             Browse Services
           </h1>
-          <p className="text-gray-600">
+          <p className="text-sm text-gray-600 sm:text-base">
             Find the perfect service provider for your needs
           </p>
         </div>
 
-        {/* Search & Filter Bar */}
-        <div className="bg-white rounded-2xl shadow-sm border p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search Input */}
-            <div className="flex-1 relative flex items-center">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <HiMagnifyingGlass className="text-gray-400 text-xl" />
+        <div className="mb-6 rounded-2xl border bg-white p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+            <div className="relative flex items-center min-w-0">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <HiMagnifyingGlass className="text-xl text-gray-400" />
               </div>
               <input
                 type="text"
@@ -218,24 +293,22 @@ export default function BrowseServices() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="Search for services..."
-                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                className="w-full rounded-xl border border-gray-300 py-3 pl-12 pr-4 focus:border-transparent focus:ring-2 focus:ring-brand-500"
               />
             </div>
 
-            {/* Filter Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="px-6 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-2 justify-center"
+              className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-3 transition-colors hover:bg-gray-50 sm:px-6"
             >
               <HiAdjustmentsHorizontal className="text-xl" />
               Filters
             </button>
 
-            {/* Sort Dropdown */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-6 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="rounded-xl border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-brand-500 sm:px-6"
             >
               <option value="relevance">Sort by: Relevance</option>
               <option value="price-low">Price: Low to High</option>
@@ -245,52 +318,56 @@ export default function BrowseServices() {
 
             <button
               onClick={handleSearch}
-              className="px-8 py-3 bg-brand-700 text-white rounded-xl hover:bg-brand-800 transition-colors font-medium"
+              className="rounded-xl bg-brand-700 px-6 py-3 font-medium text-white transition-colors hover:bg-brand-800 sm:px-8"
             >
               Search
             </button>
           </div>
 
-          {/* Filter Panel */}
           {showFilters && (
-            <div className="mt-4 pt-4 border-t grid md:grid-cols-2 gap-4">
+            <div className="mt-4 grid gap-4 border-t pt-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
                   Min Price (NPR)
                 </label>
                 <input
                   type="number"
                   value={priceRange.min}
-                  onChange={(e) => setPriceRange({ ...priceRange, min: e.target.value })}
+                  onChange={(e) =>
+                    setPriceRange({ ...priceRange, min: e.target.value })
+                  }
                   placeholder="0"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-brand-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
                   Max Price (NPR)
                 </label>
                 <input
                   type="number"
                   value={priceRange.max}
-                  onChange={(e) => setPriceRange({ ...priceRange, max: e.target.value })}
+                  onChange={(e) =>
+                    setPriceRange({ ...priceRange, max: e.target.value })
+                  }
                   placeholder="10000"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-brand-500"
                 />
               </div>
-              <div className="md:col-span-2 flex justify-end gap-3">
+              <div className="flex flex-col gap-3 md:col-span-2 sm:flex-row sm:justify-end">
                 <button
                   onClick={() => {
                     setPriceRange({ min: "", max: "" });
                     setShowFilters(false);
+                    setServices(allServices);
                   }}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="rounded-lg px-4 py-2 text-gray-700 transition-colors hover:bg-gray-100"
                 >
                   Clear
                 </button>
                 <button
                   onClick={applyPriceFilter}
-                  className="px-6 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors"
+                  className="rounded-lg bg-brand-700 px-6 py-2 text-white transition-colors hover:bg-brand-800"
                 >
                   Apply Filters
                 </button>
@@ -299,38 +376,39 @@ export default function BrowseServices() {
           )}
         </div>
 
-        {/* Category Tabs */}
         <div className="mb-6">
           {loadingCategories ? (
-            <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div className="h-12 animate-pulse rounded-lg bg-gray-200" />
           ) : (
-            <div className="overflow-x-auto scrollbar-hide pb-2">
-              <div className="flex gap-3 min-w-max">
-                {/* All Services Button */}
+            <div className="overflow-x-auto pb-2">
+              <div className="flex min-w-max gap-3">
                 <button
                   onClick={() => setSelectedCategory("All")}
-                  className={`px-6 py-3 rounded-full font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-full px-5 py-3 font-medium transition-all sm:px-6 ${
                     selectedCategory === "All"
                       ? "bg-green-600 text-white shadow-lg"
-                      : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                      : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  <span className="text-lg">🏠</span>
+                  <FiHome className="h-5 w-5" />
                   All Services
                 </button>
 
-                {/* Dynamic Category Buttons */}
                 {categories.map((cat) => (
                   <button
                     key={cat._id}
                     onClick={() => setSelectedCategory(cat._id)}
-                    className={`px-6 py-3 rounded-full font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-full px-5 py-3 font-medium transition-all sm:px-6 ${
                       selectedCategory === cat._id
                         ? "bg-green-600 text-white shadow-lg"
-                        : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
                     }`}
                   >
-                    <span className="text-lg">{cat.icon || '📦'}</span>
+                    <CategoryIcon
+                      iconKey={cat.iconKey}
+                      categoryName={cat.name}
+                      className="h-5 w-5"
+                    />
                     <span>{cat.name}</span>
                   </button>
                 ))}
@@ -339,18 +417,20 @@ export default function BrowseServices() {
           )}
         </div>
 
-        {/* Results Count */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-gray-600">
-            {loading ? "Loading..." : `${services.length} services found`}
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-gray-600 sm:text-base">
+            {loading
+              ? "Loading..."
+              : `${services.length} service${services.length === 1 ? "" : "s"} found${
+                  selectedCategoryObject ? ` in ${selectedCategoryObject.name}` : ""
+                }`}
           </p>
         </div>
 
-        {/* Leaderboard Section */}
-        <div className="bg-white rounded-2xl shadow-sm border p-6 mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+        <div className="mb-8 rounded-2xl border bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
                 Top Providers (Last 30 Days)
               </h2>
               <p className="text-sm text-gray-600">
@@ -359,7 +439,7 @@ export default function BrowseServices() {
             </div>
             <button
               onClick={() => navigate("/client/leaderboard")}
-              className="text-brand-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all"
+              className="flex items-center gap-1 text-sm font-medium text-brand-700 transition-all hover:gap-2"
             >
               View full leaderboard
               <HiArrowRight />
@@ -367,41 +447,46 @@ export default function BrowseServices() {
           </div>
 
           {loadingLeaderboard ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-32 bg-gray-100 rounded-xl animate-pulse" />
+                <div key={index} className="h-32 animate-pulse rounded-xl bg-gray-100" />
               ))}
             </div>
           ) : leaderboard.length === 0 ? (
-            <div className="text-center py-10 text-gray-500">
+            <div className="py-10 text-center text-gray-500">
               Leaderboard data will appear here once rankings are generated.
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {leaderboard.slice(0, 6).map((entry) => (
                 <div
                   key={entry._id}
-                  className="border rounded-xl p-4 hover:shadow-md transition-all"
+                  className="rounded-xl border p-4 transition-all hover:shadow-md"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-semibold">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-700">
                         {entry.providerId?.profile?.name
                           ? entry.providerId.profile.name.charAt(0).toUpperCase()
                           : "P"}
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 flex items-center gap-1">
-                          {entry.providerId?.profile?.name || "Provider"}
-                          {(entry.badges?.includes('Verified Provider') || entry.badges?.includes('verified')) && (
-                            <span className="text-emerald-500" title="Verified Provider">✓</span>
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1 truncate font-semibold text-gray-900">
+                          <span className="truncate">
+                            {entry.providerId?.profile?.name || "Provider"}
+                          </span>
+                          {(entry.badges?.includes("Verified Provider") ||
+                            entry.badges?.includes("verified")) && (
+                            <span className="text-emerald-500" title="Verified Provider">
+                              ✓
+                            </span>
                           )}
                         </p>
                         <p className="text-xs text-gray-500">Rank #{entry.rank || "-"}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full">
+                    <div className="flex flex-col items-end gap-1 text-right">
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
                         Score {Math.round(entry.scores?.totalScore || entry.points || 0)}
                       </span>
                       {entry.trustScore > 0 && (
@@ -412,20 +497,16 @@ export default function BrowseServices() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 text-sm text-gray-600 mb-2">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
                       <HiStar className="text-yellow-500" />
-                      <span>
-                        {(entry.metrics?.avgRating || 0).toFixed(1)}
-                      </span>
+                      <span>{(entry.metrics?.avgRating || 0).toFixed(1)}</span>
                       <span className="text-gray-400">
                         ({entry.metrics?.reviewCount || 0})
                       </span>
                     </div>
-                    <span className="text-gray-300">•</span>
-                    <span>
-                      {entry.metrics?.completedBookings || 0} jobs
-                    </span>
+                    <span className="hidden text-gray-300 sm:inline">•</span>
+                    <span>{entry.metrics?.completedBookings || 0} jobs</span>
                   </div>
 
                   <div className="text-xs text-gray-500">
@@ -437,15 +518,14 @@ export default function BrowseServices() {
           )}
         </div>
 
-        {/* Services Grid */}
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="h-10 w-10 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
           </div>
         ) : services.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-            <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+          <div className="rounded-2xl bg-white p-10 text-center shadow-sm sm:p-12">
+            <div className="mb-4 text-6xl">🔍</div>
+            <h2 className="mb-2 text-xl font-semibold text-gray-900">
               No services found
             </h2>
             <p className="text-gray-600">
@@ -453,36 +533,45 @@ export default function BrowseServices() {
             </p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service) => (
-              <ServiceCard 
-                key={service._id}
-                service={{
-                  _id: service._id,
-                  title: service.title,
-                  description: service.description,
-                  categoryName: getServiceCategoryMeta(service).name,
-                  categoryIcon: getServiceCategoryMeta(service).icon,
-                  category: service.categoryId,
-                  subcategoryName: service.subcategoryId?.name,
-                  images: service.images,
-                  basePrice: service.basePrice,
-                  priceRange: service.priceRange,
-                  priceMode: service.priceMode,
-                }}
-                provider={{
-                  _id: service.providerId._id,
-                  name: service.providerId.profile?.name || "Provider",
-                  avatar: service.providerId.profile?.avatarUrl,
-                  kycStatus: service.providerId.kycStatus,
-                  badges: service.providerId.providerDetails?.badges || [],
-                  rating: service.providerId.providerDetails?.rating || { average: 0, count: 0 },
-                  completionRate: service.providerId.providerDetails?.metrics?.completionRate || 0,
-                  responseTimeMinutes: service.providerId.providerDetails?.metrics?.responseSpeed || 0,
-                }}
-                onBook={handleBookService}
-              />
-            ))}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {services.map((service) => {
+              const categoryMeta = getServiceCategoryMeta(service);
+
+              return (
+                <ServiceCard
+                  key={service._id}
+                  service={{
+                    _id: service._id,
+                    title: service.title,
+                    description: service.description,
+                    categoryName: categoryMeta.name,
+                    categoryIcon: categoryMeta.iconKey,
+                    category: service.categoryId,
+                    subcategoryName: service.subcategoryId?.name,
+                    images: service.images,
+                    basePrice: service.basePrice,
+                    priceRange: service.priceRange,
+                    priceMode: service.priceMode,
+                  }}
+                  provider={{
+                    _id: service.providerId._id,
+                    name: service.providerId.profile?.name || "Provider",
+                    avatar: service.providerId.profile?.avatarUrl,
+                    kycStatus: service.providerId.kycStatus,
+                    badges: service.providerId.providerDetails?.badges || [],
+                    rating: service.providerId.providerDetails?.rating || {
+                      average: 0,
+                      count: 0,
+                    },
+                    completionRate:
+                      service.providerId.providerDetails?.metrics?.completionRate || 0,
+                    responseTimeMinutes:
+                      service.providerId.providerDetails?.metrics?.responseSpeed || 0,
+                  }}
+                  onBook={handleBookService}
+                />
+              );
+            })}
           </div>
         )}
       </div>
