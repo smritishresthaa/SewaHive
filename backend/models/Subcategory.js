@@ -18,6 +18,16 @@ const SubcategorySchema = new Schema(
       type: String,
       default: '',
     },
+    image: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    iconKey: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     status: {
       type: String,
       enum: ['active', 'inactive'],

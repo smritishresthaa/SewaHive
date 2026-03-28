@@ -2,7 +2,25 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
-import { HiPlus, HiPencil, HiTrash, HiEye, HiEyeSlash, HiChevronDown, HiChevronRight, HiDocumentText, HiExclamationTriangle, HiArrowRight, HiSquares2X2, HiCheckCircle, HiXCircle, HiNoSymbol, HiClipboardDocumentList, HiBoltSlash, HiMagnifyingGlass, HiXMark } from "react-icons/hi2";
+import {
+  HiPlus,
+  HiPencil,
+  HiTrash,
+  HiEye,
+  HiEyeSlash,
+  HiChevronDown,
+  HiChevronRight,
+  HiDocumentText,
+  HiExclamationTriangle,
+  HiArrowRight,
+  HiSquares2X2,
+  HiCheckCircle,
+  HiXCircle,
+  HiNoSymbol,
+  HiClipboardDocumentList,
+  HiMagnifyingGlass,
+  HiXMark,
+} from "react-icons/hi2";
 
 export default function Categories() {
   const navigate = useNavigate();
@@ -19,21 +37,29 @@ export default function Categories() {
   const [showDisableConfirm, setShowDisableConfirm] = useState(null);
   const [loadingServices, setLoadingServices] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
   const [subcategoryModal, setSubcategoryModal] = useState({
     open: false,
     mode: "add",
     category: null,
     subcategory: null,
   });
+
   const [subcategoryForm, setSubcategoryForm] = useState({
     name: "",
     description: "",
+    image: "",
+    iconKey: "",
     status: "active",
     sortOrder: 0,
     suggestedPriceMode: "",
   });
+
   const [subcategorySaving, setSubcategorySaving] = useState(false);
-  
+  const [subcategoryImageFile, setSubcategoryImageFile] = useState(null);
+  const [subcategoryImagePreview, setSubcategoryImagePreview] = useState(null);
+  const [uploadingSubcategoryImage, setUploadingSubcategoryImage] = useState(false);
+
   const [stats, setStats] = useState({
     totalCategories: 0,
     activeCategories: 0,
@@ -54,6 +80,7 @@ export default function Categories() {
     emergencyServiceAllowed: false,
     kycVerificationRequired: false,
   });
+
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -62,7 +89,6 @@ export default function Categories() {
     fetchCategories();
   }, [search, statusFilter]);
 
-  // Auto-refresh categories every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       if (!document.hidden) {
@@ -75,54 +101,54 @@ export default function Categories() {
         fetchCategories();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
   useEffect(() => {
     const fetchStats = async () => {
       if (document.hidden) return;
-      
+
       try {
-        const res = await api.get('/admin/dashboard/stats');
+        const res = await api.get("/admin/dashboard/stats");
         if (res.data.success) {
           setStats(res.data.data.categories);
           setStatsError(null);
         }
       } catch (err) {
-        console.error('Failed to fetch stats:', err);
-        setStatsError('Failed to load stats');
+        console.error("Failed to fetch stats:", err);
+        setStatsError("Failed to load stats");
       }
     };
 
     fetchStats();
-    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         fetchStats();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
-  // Fetch pending category requests count
   useEffect(() => {
     const fetchPendingRequests = async () => {
       try {
-        const res = await api.get('/admin/category-requests?status=pending');
-        setPendingRequestsCount(res.data.requests?.length || 0);
+        const res = await api.get("/admin/category-requests?status=pending");
+        setPendingRequestsCount(res.data.data?.length || 0);
       } catch (err) {
-        console.error('Failed to fetch pending requests:', err);
+        console.error("Failed to fetch pending requests:", err);
       }
     };
 
@@ -134,11 +160,11 @@ export default function Categories() {
         fetchPendingRequests();
       }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -162,6 +188,7 @@ export default function Categories() {
   function handleOpenForm(category = null) {
     setImageFile(null);
     setImagePreview(null);
+
     if (category) {
       setEditingId(category._id);
       setImagePreview(category.image || null);
@@ -197,6 +224,7 @@ export default function Categories() {
         kycVerificationRequired: false,
       });
     }
+
     setShowForm(true);
   }
 
@@ -219,16 +247,16 @@ export default function Categories() {
   }
 
   function toggleExpandRow(categoryId) {
-    setExpandedRows(prev => ({
+    setExpandedRows((prev) => ({
       ...prev,
-      [categoryId]: !prev[categoryId]
+      [categoryId]: !prev[categoryId],
     }));
   }
 
   async function handleDeleteCategory(categoryId) {
     try {
       await api.delete(`/admin/categories/${categoryId}`);
-      setCategories(categories.filter(c => c._id !== categoryId));
+      setCategories(categories.filter((c) => c._id !== categoryId));
       toast.success("Category deleted successfully");
       setShowDeleteConfirm(null);
     } catch (err) {
@@ -247,16 +275,13 @@ export default function Categories() {
       let savedCategory;
 
       if (editingId) {
-        // Update
         const res = await api.put(`/admin/categories/${editingId}`, formData);
         savedCategory = res.data.data;
       } else {
-        // Create
         const res = await api.post("/admin/categories", formData);
         savedCategory = res.data.data;
       }
 
-      // Upload image if a new file was selected
       if (imageFile && savedCategory?._id) {
         setUploadingImage(true);
         try {
@@ -284,6 +309,7 @@ export default function Categories() {
         setCategories([savedCategory, ...categories]);
         toast.success("Category created successfully");
       }
+
       setShowForm(false);
     } catch (err) {
       console.error(err);
@@ -294,13 +320,12 @@ export default function Categories() {
   async function handleToggleStatus(categoryId, currentStatus) {
     try {
       const newStatus = currentStatus === "active" ? "inactive" : "active";
-      const res = await api.patch(`/admin/categories/${categoryId}/status`, {
+      await api.patch(`/admin/categories/${categoryId}/status`, {
         status: newStatus,
       });
-      
-      // Refresh categories to get updated data
+
       await fetchCategories();
-      toast.success(`Category ${newStatus === 'active' ? 'enabled' : 'disabled'} successfully`);
+      toast.success(`Category ${newStatus === "active" ? "enabled" : "disabled"} successfully`);
       setShowDisableConfirm(null);
     } catch (err) {
       console.error(err);
@@ -315,18 +340,36 @@ export default function Categories() {
       category,
       subcategory,
     });
+
+    setSubcategoryImageFile(null);
+    setSubcategoryImagePreview(subcategory?.image || null);
+
     setSubcategoryForm({
       name: subcategory?.name || "",
       description: subcategory?.description || "",
+      image: subcategory?.image || "",
+      iconKey: subcategory?.iconKey || "",
       status: subcategory?.status || "active",
-      sortOrder: Number.isFinite(Number(subcategory?.sortOrder)) ? Number(subcategory.sortOrder) : 0,
+      sortOrder: Number.isFinite(Number(subcategory?.sortOrder))
+        ? Number(subcategory.sortOrder)
+        : 0,
       suggestedPriceMode: subcategory?.suggestedPriceMode || "",
     });
   }
 
   function closeSubcategoryModal() {
     setSubcategoryModal({ open: false, mode: "add", category: null, subcategory: null });
-    setSubcategoryForm({ name: "", description: "", status: "active", sortOrder: 0, suggestedPriceMode: "" });
+    setSubcategoryForm({
+      name: "",
+      description: "",
+      image: "",
+      iconKey: "",
+      status: "active",
+      sortOrder: 0,
+      suggestedPriceMode: "",
+    });
+    setSubcategoryImageFile(null);
+    setSubcategoryImagePreview(null);
   }
 
   async function handleSubcategorySave() {
@@ -336,26 +379,56 @@ export default function Categories() {
     }
 
     setSubcategorySaving(true);
+
     try {
+      let savedSubcategory;
+
       if (subcategoryModal.mode === "edit" && subcategoryModal.subcategory?._id) {
-        await api.put(`/admin/subcategories/${subcategoryModal.subcategory._id}`, {
+        const res = await api.put(`/admin/subcategories/${subcategoryModal.subcategory._id}`, {
           name: subcategoryForm.name,
           description: subcategoryForm.description,
+          image: subcategoryForm.image,
+          iconKey: subcategoryForm.iconKey,
           status: subcategoryForm.status,
           sortOrder: Number(subcategoryForm.sortOrder) || 0,
           suggestedPriceMode: subcategoryForm.suggestedPriceMode || "",
         });
+        savedSubcategory = res.data.data;
         toast.success("Subcategory updated");
       } else {
-        await api.post('/admin/subcategories', {
+        const res = await api.post("/admin/subcategories", {
           categoryId: subcategoryModal.category?._id,
           name: subcategoryForm.name,
           description: subcategoryForm.description,
+          image: subcategoryForm.image,
+          iconKey: subcategoryForm.iconKey,
           status: subcategoryForm.status,
           sortOrder: Number(subcategoryForm.sortOrder) || 0,
           suggestedPriceMode: subcategoryForm.suggestedPriceMode || "",
         });
+        savedSubcategory = res.data.data;
         toast.success("Subcategory created");
+      }
+
+      if (subcategoryImageFile && savedSubcategory?._id) {
+        setUploadingSubcategoryImage(true);
+        try {
+          const fd = new FormData();
+          fd.append("image", subcategoryImageFile);
+
+          const imgRes = await api.post(
+            `/admin/subcategories/${savedSubcategory._id}/image`,
+            fd,
+            { headers: { "Content-Type": "multipart/form-data" } }
+          );
+
+          savedSubcategory = imgRes.data.data?.subcategory || savedSubcategory;
+        } catch (imgErr) {
+          console.error("Subcategory image upload failed:", imgErr);
+          toast.error("Subcategory saved but image upload failed");
+        } finally {
+          setUploadingSubcategoryImage(false);
+        }
       }
 
       await fetchCategories();
@@ -372,7 +445,7 @@ export default function Categories() {
     try {
       await api.patch(`/admin/subcategories/${subcategory._id}/status`, { status: nextStatus });
       await fetchCategories();
-      toast.success(`Subcategory ${nextStatus === 'active' ? 'enabled' : 'disabled'}`);
+      toast.success(`Subcategory ${nextStatus === "active" ? "enabled" : "disabled"}`);
     } catch (err) {
       console.error(err);
       toast.error("Failed to update subcategory status");
@@ -381,26 +454,25 @@ export default function Categories() {
 
   function formatDate(dateString) {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   }
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
           <p className="text-gray-600 mt-1">Manage service categories (Auto-updates every 30s)</p>
         </div>
+
         <div className="flex gap-3">
-          {/* Category Requests Button */}
           {pendingRequestsCount > 0 && (
             <button
-              onClick={() => navigate('/category-requests')}
+              onClick={() => navigate("/category-requests")}
               className="relative flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition"
             >
               <HiDocumentText className="w-5 h-5" />
@@ -410,6 +482,7 @@ export default function Categories() {
               </span>
             </button>
           )}
+
           <button
             onClick={() => handleOpenForm()}
             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition"
@@ -420,33 +493,69 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* Stats Cards */}
       {statsError && (
         <div className="mb-4 p-2.5 bg-red-50 text-red-700 rounded-lg text-xs flex items-center gap-2">
           <HiExclamationTriangle className="w-4 h-4" /> {statsError}
         </div>
       )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {[
-          { label: 'Total Categories', value: stats.totalCategories, Icon: HiSquares2X2, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-500' },
-          { label: 'Active', value: stats.activeCategories, Icon: HiCheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-500' },
-          { label: 'Inactive', value: stats.inactiveCategories, Icon: HiNoSymbol, color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-400' },
-          { label: 'Pending Requests', value: pendingRequestsCount, Icon: HiClipboardDocumentList, color: pendingRequestsCount > 0 ? 'text-blue-600' : 'text-gray-400', bg: pendingRequestsCount > 0 ? 'bg-blue-50' : 'bg-gray-50', border: pendingRequestsCount > 0 ? 'border-blue-500' : 'border-gray-400', onClick: () => navigate('/category-requests') },
-        ].map(kpi => (
-          <div key={kpi.label} onClick={kpi.onClick} className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${kpi.border} p-3 flex items-center gap-3 hover:shadow-md transition-shadow ${kpi.onClick ? 'cursor-pointer' : ''}`}>
-            <div className={`${kpi.bg} rounded-full p-2`}><kpi.Icon className={`w-5 h-5 ${kpi.color}`} /></div>
+          {
+            label: "Total Categories",
+            value: stats.totalCategories,
+            Icon: HiSquares2X2,
+            color: "text-blue-600",
+            bg: "bg-blue-50",
+            border: "border-blue-500",
+          },
+          {
+            label: "Active",
+            value: stats.activeCategories,
+            Icon: HiCheckCircle,
+            color: "text-green-600",
+            bg: "bg-green-50",
+            border: "border-green-500",
+          },
+          {
+            label: "Inactive",
+            value: stats.inactiveCategories,
+            Icon: HiNoSymbol,
+            color: "text-gray-500",
+            bg: "bg-gray-50",
+            border: "border-gray-400",
+          },
+          {
+            label: "Pending Requests",
+            value: pendingRequestsCount,
+            Icon: HiClipboardDocumentList,
+            color: pendingRequestsCount > 0 ? "text-blue-600" : "text-gray-400",
+            bg: pendingRequestsCount > 0 ? "bg-blue-50" : "bg-gray-50",
+            border: pendingRequestsCount > 0 ? "border-blue-500" : "border-gray-400",
+            onClick: () => navigate("/category-requests"),
+          },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            onClick={kpi.onClick}
+            className={`bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 ${kpi.border} p-3 flex items-center gap-3 hover:shadow-md transition-shadow ${kpi.onClick ? "cursor-pointer" : ""}`}
+          >
+            <div className={`${kpi.bg} rounded-full p-2`}>
+              <kpi.Icon className={`w-5 h-5 ${kpi.color}`} />
+            </div>
             <div>
               <p className="text-[10px] text-gray-500">{kpi.label}</p>
               <p className="text-xl font-bold text-gray-900 leading-tight">{kpi.value}</p>
               {kpi.onClick && pendingRequestsCount > 0 && (
-                <p className="text-[10px] text-blue-600 font-semibold mt-0.5 flex items-center gap-0.5">Review <HiArrowRight className="w-2.5 h-2.5" /></p>
+                <p className="text-[10px] text-blue-600 font-semibold mt-0.5 flex items-center gap-0.5">
+                  Review <HiArrowRight className="w-2.5 h-2.5" />
+                </p>
               )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3 mb-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[180px]">
@@ -455,12 +564,22 @@ export default function Categories() {
               <span className="absolute left-2.5 inset-y-0 flex items-center pointer-events-none">
                 <HiMagnifyingGlass className="w-3.5 h-3.5 text-gray-400" />
               </span>
-              <input type="text" placeholder="Search categories..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+              />
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+            >
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -469,7 +588,6 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* Categories Table */}
       {loading ? (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
@@ -491,10 +609,10 @@ export default function Categories() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Category
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider" title="Click to view services">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Services
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider" title="Auto-calculated from actual services">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Price Range
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -508,10 +626,15 @@ export default function Categories() {
                   </th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-gray-200">
                 {categories.map((category) => (
                   <React.Fragment key={category._id}>
-                    <tr className={`hover:bg-green-50 transition ${category.status === 'inactive' ? 'opacity-60' : ''}`}>
+                    <tr
+                      className={`hover:bg-green-50 transition ${
+                        category.status === "inactive" ? "opacity-60" : ""
+                      }`}
+                    >
                       <td className="px-2">
                         {(category.subcategories?.length > 0 || category.analytics) && (
                           <button
@@ -527,37 +650,53 @@ export default function Categories() {
                           </button>
                         )}
                       </td>
+
                       <td className="px-4 py-4">
                         {category.icon ? (
                           <span className="text-3xl">{category.icon}</span>
                         ) : category.image ? (
-                          <img src={category.image} alt={category.name} className="w-10 h-10 rounded-lg object-cover" />
+                          <img
+                            src={category.image}
+                            alt={category.name}
+                            className="w-10 h-10 rounded-lg object-cover"
+                          />
                         ) : (
                           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center">
-                            <span className="text-green-700 text-lg font-bold">{category.name.charAt(0).toUpperCase()}</span>
+                            <span className="text-green-700 text-lg font-bold">
+                              {category.name.charAt(0).toUpperCase()}
+                            </span>
                           </div>
                         )}
                       </td>
+
                       <td className="px-4 py-4">
                         <div>
                           <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
                             {category.name}
                             {category.emergencyServiceAllowed && (
-                              <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded" title="Emergency services allowed">
+                              <span
+                                className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded"
+                                title="Emergency services allowed"
+                              >
                                 Emergency
                               </span>
                             )}
                             {category.kycVerificationRequired && (
-                              <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded" title="KYC verification required">
+                              <span
+                                className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded"
+                                title="KYC verification required"
+                              >
                                 <HiCheckCircle className="w-3 h-3" /> KYC Req
                               </span>
                             )}
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {category.description.substring(0, 50)}{category.description.length > 50 ? '...' : ''}
+                            {category.description.substring(0, 50)}
+                            {category.description.length > 50 ? "..." : ""}
                           </div>
                         </div>
                       </td>
+
                       <td className="px-4 py-4">
                         <button
                           onClick={() => handleViewServices(category)}
@@ -572,21 +711,31 @@ export default function Categories() {
                           </span>
                         </button>
                       </td>
+
                       <td className="px-4 py-4">
                         <div className="text-sm text-gray-600">
                           {category.dynamicPriceRange ? (
                             <>
-                              <div className="font-medium text-green-700">₹{category.dynamicPriceRange.min.toLocaleString()}</div>
-                              <div className="text-xs text-gray-500">to ₹{category.dynamicPriceRange.max.toLocaleString()}</div>
+                              <div className="font-medium text-green-700">
+                                ₹{category.dynamicPriceRange.min.toLocaleString()}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                to ₹{category.dynamicPriceRange.max.toLocaleString()}
+                              </div>
                             </>
                           ) : (
                             <>
-                              <div className="font-medium">₹{category.recommendedPriceRange?.min || 0}</div>
-                              <div className="text-xs text-gray-500">to ₹{category.recommendedPriceRange?.max || 10000}</div>
+                              <div className="font-medium">
+                                ₹{category.recommendedPriceRange?.min || 0}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                to ₹{category.recommendedPriceRange?.max || 10000}
+                              </div>
                             </>
                           )}
                         </div>
                       </td>
+
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ring-inset ${
@@ -595,180 +744,224 @@ export default function Categories() {
                               : "bg-gray-100 text-gray-600 ring-gray-200"
                           }`}
                         >
-                          {category.status === "active"
-                            ? <HiCheckCircle className="w-3.5 h-3.5" />
-                            : <HiXCircle className="w-3.5 h-3.5" />}
+                          {category.status === "active" ? (
+                            <HiCheckCircle className="w-3.5 h-3.5" />
+                          ) : (
+                            <HiXCircle className="w-3.5 h-3.5" />
+                          )}
                           {category.status === "active" ? "Active" : "Inactive"}
                         </span>
                       </td>
+
                       <td className="px-4 py-4">
                         <div className="text-xs text-gray-600">
                           <div className="font-medium">{formatDate(category.createdAt)}</div>
                           <div className="text-gray-500 mt-1">
-                            {category.createdBy?.profile?.name || category.createdBy?.email?.split('@')[0] || "Admin"}
+                            {category.createdBy?.profile?.name ||
+                              category.createdBy?.email?.split("@")[0] ||
+                              "Admin"}
                           </div>
                         </div>
                       </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-1 flex-wrap">
-                        <button
-                          onClick={() => handleOpenForm(category)}
-                          className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition"
-                          title="Edit category"
-                        >
-                          <HiPencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openSubcategoryModal(category)}
-                          className="p-2 hover:bg-indigo-100 text-indigo-600 rounded-lg transition"
-                          title="Add subcategory"
-                        >
-                          <HiPlus className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleViewServices(category)}
-                          className="p-2 hover:bg-purple-100 text-purple-600 rounded-lg transition"
-                          title="View services"
-                        >
-                          <HiDocumentText className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setShowDisableConfirm(category)}
-                          className={`p-2 rounded-lg transition ${
-                            category.status === "active"
-                              ? "hover:bg-orange-100 text-orange-600"
-                              : "hover:bg-green-100 text-green-600"
-                          }`}
-                          title={category.status === "active" ? "Disable category" : "Enable category"}
-                        >
-                          {category.status === "active" ? (
-                            <HiEyeSlash className="w-4 h-4" />
-                          ) : (
-                            <HiEye className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(category)}
-                          className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition"
-                          title="Delete category"
-                        >
-                          <HiTrash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  {/* Expandable Row for Subcategories and Analytics */}
-                  {expandedRows[category._id] && (
-                    <tr className="bg-gray-50">
-                      <td colSpan="8" className="px-12 py-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Subcategories */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-semibold text-sm text-gray-700">Subcategories</h4>
-                              <button
-                                onClick={() => openSubcategoryModal(category)}
-                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-                              >
-                                Add Subcategory
-                              </button>
-                            </div>
-                            {(category.subcategoriesDetailed || []).length === 0 ? (
-                              <div className="text-xs text-gray-500">No subcategories yet.</div>
+
+                      <td className="px-4 py-4">
+                        <div className="flex gap-1 flex-wrap">
+                          <button
+                            onClick={() => handleOpenForm(category)}
+                            className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition"
+                            title="Edit category"
+                          >
+                            <HiPencil className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => openSubcategoryModal(category)}
+                            className="p-2 hover:bg-indigo-100 text-indigo-600 rounded-lg transition"
+                            title="Add subcategory"
+                          >
+                            <HiPlus className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleViewServices(category)}
+                            className="p-2 hover:bg-purple-100 text-purple-600 rounded-lg transition"
+                            title="View services"
+                          >
+                            <HiDocumentText className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => setShowDisableConfirm(category)}
+                            className={`p-2 rounded-lg transition ${
+                              category.status === "active"
+                                ? "hover:bg-orange-100 text-orange-600"
+                                : "hover:bg-green-100 text-green-600"
+                            }`}
+                            title={category.status === "active" ? "Disable category" : "Enable category"}
+                          >
+                            {category.status === "active" ? (
+                              <HiEyeSlash className="w-4 h-4" />
                             ) : (
-                              <div className="space-y-2">
-                                {(category.subcategoriesDetailed || []).map((sub) => (
-                                  <div key={sub._id} className="flex items-center justify-between bg-white border rounded-lg px-3 py-2">
-                                    <div>
-                                      <div className="text-sm font-medium text-gray-800">{sub.name}</div>
-                                      {sub.description && (
-                                        <div className="text-xs text-gray-500">{sub.description}</div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                          sub.status === 'active'
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-gray-200 text-gray-600'
-                                        }`}
-                                      >
-                                        {sub.status}
-                                      </span>
-                                      <button
-                                        onClick={() => openSubcategoryModal(category, sub)}
-                                        className="p-1 hover:bg-blue-100 text-blue-600 rounded"
-                                        title="Edit subcategory"
-                                      >
-                                        <HiPencil className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          handleSubcategoryStatus(
-                                            sub,
-                                            sub.status === 'active' ? 'inactive' : 'active'
-                                          )
-                                        }
-                                        className={`p-1 rounded ${
-                                          sub.status === 'active'
-                                            ? 'hover:bg-orange-100 text-orange-600'
-                                            : 'hover:bg-green-100 text-green-600'
-                                        }`}
-                                        title={sub.status === 'active' ? 'Disable subcategory' : 'Enable subcategory'}
-                                      >
-                                        {sub.status === 'active' ? (
-                                          <HiEyeSlash className="w-4 h-4" />
-                                        ) : (
-                                          <HiEye className="w-4 h-4" />
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                              <HiEye className="w-4 h-4" />
                             )}
-                          </div>
-                          
-                          {/* Analytics */}
-                          {category.analytics && (
-                            <div>
-                              <h4 className="font-semibold text-sm text-gray-700 mb-2">Category Analytics</h4>
-                              <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-white p-3 rounded border">
-                                  <div className="text-xs text-gray-500">Providers</div>
-                                  <div className="text-lg font-bold text-gray-900">{category.analytics.providerCount}</div>
-                                </div>
-                                <div className="bg-white p-3 rounded border">
-                                  <div className="text-xs text-gray-500">Bookings</div>
-                                  <div className="text-lg font-bold text-gray-900">{category.analytics.totalBookings}</div>
-                                </div>
-                                <div className="bg-white p-3 rounded border">
-                                  <div className="text-xs text-gray-500">Revenue</div>
-                                  <div className="text-lg font-bold text-green-600">₹{category.analytics.revenue.toLocaleString()}</div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          </button>
+
+                          <button
+                            onClick={() => setShowDeleteConfirm(category)}
+                            className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition"
+                            title="Delete category"
+                          >
+                            <HiTrash className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
+
+                    {expandedRows[category._id] && (
+                      <tr className="bg-gray-50">
+                        <td colSpan="8" className="px-12 py-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-semibold text-sm text-gray-700">Subcategories</h4>
+                                <button
+                                  onClick={() => openSubcategoryModal(category)}
+                                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                                >
+                                  Add Subcategory
+                                </button>
+                              </div>
+
+                              {(category.subcategoriesDetailed || []).length === 0 ? (
+                                <div className="text-xs text-gray-500">No subcategories yet.</div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {(category.subcategoriesDetailed || []).map((sub) => (
+                                    <div
+                                      key={sub._id}
+                                      className="flex items-center justify-between bg-white border rounded-lg px-3 py-2 gap-3"
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        {sub.image ? (
+                                          <img
+                                            src={sub.image}
+                                            alt={sub.name}
+                                            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                                          />
+                                        ) : (
+                                          <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                                            No Img
+                                          </div>
+                                        )}
+
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-medium text-gray-800">{sub.name}</div>
+                                          {sub.description && (
+                                            <div className="text-xs text-gray-500 truncate">
+                                              {sub.description}
+                                            </div>
+                                          )}
+                                          {sub.iconKey && (
+                                            <div className="text-[11px] text-indigo-600 mt-0.5">
+                                              iconKey: {sub.iconKey}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                            sub.status === "active"
+                                              ? "bg-green-100 text-green-700"
+                                              : "bg-gray-200 text-gray-600"
+                                          }`}
+                                        >
+                                          {sub.status}
+                                        </span>
+
+                                        <button
+                                          onClick={() => openSubcategoryModal(category, sub)}
+                                          className="p-1 hover:bg-blue-100 text-blue-600 rounded"
+                                          title="Edit subcategory"
+                                        >
+                                          <HiPencil className="w-4 h-4" />
+                                        </button>
+
+                                        <button
+                                          onClick={() =>
+                                            handleSubcategoryStatus(
+                                              sub,
+                                              sub.status === "active" ? "inactive" : "active"
+                                            )
+                                          }
+                                          className={`p-1 rounded ${
+                                            sub.status === "active"
+                                              ? "hover:bg-orange-100 text-orange-600"
+                                              : "hover:bg-green-100 text-green-600"
+                                          }`}
+                                          title={
+                                            sub.status === "active"
+                                              ? "Disable subcategory"
+                                              : "Enable subcategory"
+                                          }
+                                        >
+                                          {sub.status === "active" ? (
+                                            <HiEyeSlash className="w-4 h-4" />
+                                          ) : (
+                                            <HiEye className="w-4 h-4" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {category.analytics && (
+                              <div>
+                                <h4 className="font-semibold text-sm text-gray-700 mb-2">
+                                  Category Analytics
+                                </h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="bg-white p-3 rounded border">
+                                    <div className="text-xs text-gray-500">Providers</div>
+                                    <div className="text-lg font-bold text-gray-900">
+                                      {category.analytics.providerCount}
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded border">
+                                    <div className="text-xs text-gray-500">Bookings</div>
+                                    <div className="text-lg font-bold text-gray-900">
+                                      {category.analytics.totalBookings}
+                                    </div>
+                                  </div>
+                                  <div className="bg-white p-3 rounded border">
+                                    <div className="text-xs text-gray-500">Revenue</div>
+                                    <div className="text-lg font-bold text-green-600">
+                                      ₹{category.analytics.revenue.toLocaleString()}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Category Form Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold mb-6">
-              {editingId ? "Edit Category" : "New Category"}
-            </h2>
+            <h2 className="text-2xl font-bold mb-6">{editingId ? "Edit Category" : "New Category"}</h2>
 
             <div className="space-y-4">
               <div>
@@ -778,9 +971,7 @@ export default function Categories() {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="e.g., Plumbing"
                 />
@@ -792,20 +983,15 @@ export default function Categories() {
                 </label>
                 <textarea
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows="3"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Describe this service category"
                 />
               </div>
 
-              {/* Cover Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cover Image
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cover Image</label>
                 {(imagePreview || formData.image) && (
                   <div className="mb-2 relative inline-block">
                     <img
@@ -826,6 +1012,7 @@ export default function Categories() {
                     </button>
                   </div>
                 )}
+
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -842,28 +1029,25 @@ export default function Categories() {
                   }}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                 />
-                <p className="mt-1 text-xs text-gray-400">JPG, PNG, or WebP. Max 5MB. Recommended: 1200x800px.</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  JPG, PNG, or WebP. Max 5MB. Recommended: 1200x800px.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Icon Key
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Icon Key</label>
                   <input
                     type="text"
                     value={formData.iconKey}
-                    onChange={(e) =>
-                      setFormData({ ...formData, iconKey: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, iconKey: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="e.g., cleaning, plumbing"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sort Order
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
                   <input
                     type="number"
                     value={formData.sortOrder}
@@ -911,6 +1095,7 @@ export default function Categories() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Max Price (Rs.)
@@ -933,27 +1118,24 @@ export default function Categories() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Admin Notes
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Admin Notes</label>
                 <textarea
                   value={formData.adminNotes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, adminNotes: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, adminNotes: e.target.value })}
                   rows="2"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Internal notes for this category"
                 />
               </div>
 
-
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.emergencyServiceAllowed}
-                    onChange={(e) => setFormData({ ...formData, emergencyServiceAllowed: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, emergencyServiceAllowed: e.target.checked })
+                    }
                     className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                   />
                   <span className="text-sm text-gray-700">Emergency Services</span>
@@ -963,10 +1145,14 @@ export default function Categories() {
                   <input
                     type="checkbox"
                     checked={formData.kycVerificationRequired}
-                    onChange={(e) => setFormData({ ...formData, kycVerificationRequired: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, kycVerificationRequired: e.target.checked })
+                    }
                     className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                   />
-                  <span className="inline-flex items-center gap-1 text-sm text-gray-700"><HiCheckCircle className="w-4 h-4 text-emerald-600" /> KYC Required</span>
+                  <span className="inline-flex items-center gap-1 text-sm text-gray-700">
+                    <HiCheckCircle className="w-4 h-4 text-emerald-600" /> KYC Required
+                  </span>
                 </label>
               </div>
             </div>
@@ -992,23 +1178,21 @@ export default function Categories() {
 
       {subcategoryModal.open && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-2">
-              {subcategoryModal.mode === 'edit' ? 'Edit Subcategory' : 'New Subcategory'}
+              {subcategoryModal.mode === "edit" ? "Edit Subcategory" : "New Subcategory"}
             </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              {subcategoryModal.category?.name}
-            </p>
+            <p className="text-sm text-gray-600 mb-6">{subcategoryModal.category?.name}</p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
                 <input
                   type="text"
                   value={subcategoryForm.name}
-                  onChange={(e) => setSubcategoryForm({ ...subcategoryForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setSubcategoryForm({ ...subcategoryForm, name: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="e.g., Deep Cleaning"
                 />
@@ -1020,27 +1204,92 @@ export default function Categories() {
                 </label>
                 <textarea
                   value={subcategoryForm.description}
-                  onChange={(e) => setSubcategoryForm({ ...subcategoryForm, description: e.target.value })}
+                  onChange={(e) =>
+                    setSubcategoryForm({ ...subcategoryForm, description: e.target.value })
+                  }
                   rows="3"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="Optional details"
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Subcategory Image
+                </label>
+
+                {(subcategoryImagePreview || subcategoryForm.image) && (
+                  <div className="mb-2 relative inline-block">
+                    <img
+                      src={subcategoryImagePreview || subcategoryForm.image}
+                      alt="Subcategory preview"
+                      className="h-32 w-48 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubcategoryImageFile(null);
+                        setSubcategoryImagePreview(null);
+                        setSubcategoryForm({ ...subcategoryForm, image: "" });
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      X
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error("Image must be under 5MB");
+                        return;
+                      }
+                      setSubcategoryImageFile(file);
+                      setSubcategoryImagePreview(URL.createObjectURL(file));
+                    }
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Upload from your device. JPG, PNG, or WebP. Max 5MB.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Icon Key
+                </label>
+                <input
+                  type="text"
+                  value={subcategoryForm.iconKey}
+                  onChange={(e) =>
+                    setSubcategoryForm({ ...subcategoryForm, iconKey: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="e.g., sofa-cleaning"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
                     value={subcategoryForm.status}
-                    onChange={(e) => setSubcategoryForm({ ...subcategoryForm, status: e.target.value })}
+                    onChange={(e) =>
+                      setSubcategoryForm({ ...subcategoryForm, status: e.target.value })
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Sort Order
@@ -1065,7 +1314,12 @@ export default function Categories() {
                 </label>
                 <select
                   value={subcategoryForm.suggestedPriceMode}
-                  onChange={(e) => setSubcategoryForm({ ...subcategoryForm, suggestedPriceMode: e.target.value })}
+                  onChange={(e) =>
+                    setSubcategoryForm({
+                      ...subcategoryForm,
+                      suggestedPriceMode: e.target.value,
+                    })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">-- No suggestion --</option>
@@ -1073,7 +1327,9 @@ export default function Categories() {
                   <option value="range">Price Range</option>
                   <option value="quote_required">Quote Required</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Guidance only - providers can choose any pricing mode</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Guidance only - providers can choose any pricing mode
+                </p>
               </div>
             </div>
 
@@ -1086,17 +1342,16 @@ export default function Categories() {
               </button>
               <button
                 onClick={handleSubcategorySave}
-                disabled={subcategorySaving}
+                disabled={subcategorySaving || uploadingSubcategoryImage}
                 className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition disabled:opacity-60"
               >
-                {subcategorySaving ? 'Saving...' : 'Save Subcategory'}
+                {subcategorySaving || uploadingSubcategoryImage ? "Saving..." : "Save Subcategory"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Services Modal */}
       {showServicesModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-auto">
@@ -1109,7 +1364,7 @@ export default function Categories() {
                 <HiXMark className="w-5 h-5" />
               </button>
             </div>
-            
+
             {loadingServices ? (
               <div className="text-center py-8">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
@@ -1132,22 +1387,26 @@ export default function Categories() {
                       <tr key={service._id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
                           <div className="font-medium">{service.title}</div>
-                          <div className="text-xs text-gray-500">{service.subcategory || '-'}</div>
+                          <div className="text-xs text-gray-500">
+                            {service.subcategory || "-"}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div>{service.providerId?.profile?.name || 'Unknown'}</div>
+                          <div>{service.providerId?.profile?.name || "Unknown"}</div>
                           <div className="text-xs text-gray-500">{service.providerId?.email}</div>
                         </td>
                         <td className="px-4 py-3 font-medium">
                           ₹{service.pricing?.basePrice || 0}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            service.isActive && !service.adminDisabled
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {service.isActive && !service.adminDisabled ? 'Active' : 'Inactive'}
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              service.isActive && !service.adminDisabled
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {service.isActive && !service.adminDisabled ? "Active" : "Inactive"}
                           </span>
                         </td>
                       </tr>
@@ -1160,7 +1419,6 @@ export default function Categories() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -1173,16 +1431,17 @@ export default function Categories() {
                 <p className="text-sm text-gray-600">This action cannot be undone</p>
               </div>
             </div>
-            
+
             <p className="text-gray-700 mb-2">
               Are you sure you want to delete <strong>{showDeleteConfirm.name}</strong>?
             </p>
-            
+
             {showDeleteConfirm.serviceCount > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-yellow-800">
-                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" /> This category has <strong>{showDeleteConfirm.serviceCount} services</strong>. 
-                  You must reassign or delete them first.
+                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" /> This
+                  category has <strong>{showDeleteConfirm.serviceCount} services</strong>. You must
+                  reassign or delete them first.
                 </p>
               </div>
             )}
@@ -1199,8 +1458,8 @@ export default function Categories() {
                 disabled={showDeleteConfirm.serviceCount > 0}
                 className={`flex-1 px-4 py-2 rounded-lg text-white ${
                   showDeleteConfirm.serviceCount > 0
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700'
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
                 }`}
               >
                 Delete Category
@@ -1210,38 +1469,50 @@ export default function Categories() {
         </div>
       )}
 
-      {/* Disable Confirmation Modal */}
       {showDisableConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <div className="flex items-center gap-3 mb-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                showDisableConfirm.status === 'active' ? 'bg-orange-100' : 'bg-green-100'
-              }`}>
-                <HiExclamationTriangle className={`w-6 h-6 ${
-                  showDisableConfirm.status === 'active' ? 'text-orange-600' : 'text-green-600'
-                }`} />
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  showDisableConfirm.status === "active" ? "bg-orange-100" : "bg-green-100"
+                }`}
+              >
+                <HiExclamationTriangle
+                  className={`w-6 h-6 ${
+                    showDisableConfirm.status === "active"
+                      ? "text-orange-600"
+                      : "text-green-600"
+                  }`}
+                />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  {showDisableConfirm.status === 'active' ? 'Disable' : 'Enable'} Category
+                  {showDisableConfirm.status === "active" ? "Disable" : "Enable"} Category
                 </h3>
                 <p className="text-sm text-gray-600">Confirm this action</p>
               </div>
             </div>
-            
+
             <p className="text-gray-700 mb-2">
-              {showDisableConfirm.status === 'active' ? (
-                <>Disabling <strong>{showDisableConfirm.name}</strong> will hide all related services from providers.</>
+              {showDisableConfirm.status === "active" ? (
+                <>
+                  Disabling <strong>{showDisableConfirm.name}</strong> will hide all related
+                  services from providers.
+                </>
               ) : (
-                <>Enable <strong>{showDisableConfirm.name}</strong> and make it visible again?</>
+                <>
+                  Enable <strong>{showDisableConfirm.name}</strong> and make it visible again?
+                </>
               )}
             </p>
-            
-            {showDisableConfirm.status === 'active' && (
+
+            {showDisableConfirm.status === "active" && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-orange-800">
-                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" /> <strong>{showDisableConfirm.activeServiceCount || 0} active services</strong> will be automatically disabled.
+                  <HiExclamationTriangle className="w-4 h-4 text-amber-500 inline mr-1" />{" "}
+                  <strong>{showDisableConfirm.activeServiceCount || 0} active services</strong>{" "}
+                  will be automatically disabled.
                 </p>
               </div>
             )}
@@ -1254,14 +1525,16 @@ export default function Categories() {
                 Cancel
               </button>
               <button
-                onClick={() => handleToggleStatus(showDisableConfirm._id, showDisableConfirm.status)}
+                onClick={() =>
+                  handleToggleStatus(showDisableConfirm._id, showDisableConfirm.status)
+                }
                 className={`flex-1 px-4 py-2 rounded-lg text-white ${
-                  showDisableConfirm.status === 'active'
-                    ? 'bg-orange-600 hover:bg-orange-700'
-                    : 'bg-green-600 hover:bg-green-700'
+                  showDisableConfirm.status === "active"
+                    ? "bg-orange-600 hover:bg-orange-700"
+                    : "bg-green-600 hover:bg-green-700"
                 }`}
               >
-                {showDisableConfirm.status === 'active' ? 'Disable' : 'Enable'} Category
+                {showDisableConfirm.status === "active" ? "Disable" : "Enable"} Category
               </button>
             </div>
           </div>

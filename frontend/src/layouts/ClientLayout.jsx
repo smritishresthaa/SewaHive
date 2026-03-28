@@ -3,24 +3,24 @@ import ClientSidebar from "../components/Navbar/ClientSidebar";
 
 export default function ClientLayout({ children }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-
+    <div className="min-h-screen bg-gray-50">
       {/* Top Navbar */}
       <ClientTopNavbar />
 
       {/* Main Layout */}
-      <div className="flex">
-
-        {/* Sidebar */}
-        <aside className="w-60 bg-white border-r min-h-screen">
-          <ClientSidebar />
-        </aside>
+      <div className="flex w-full">
+        {/* Sidebar
+           ClientSidebar already handles:
+           - desktop sidebar
+           - mobile drawer
+           - its own responsive visibility
+        */}
+        <ClientSidebar />
 
         {/* Main Content */}
-        <main className="flex-1 p-8">
+        <main className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6 lg:ml-60 lg:px-8 lg:py-8 xl:ml-64">
           {children}
         </main>
-
       </div>
     </div>
   );

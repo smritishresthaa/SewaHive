@@ -26,6 +26,12 @@ const UserSchema = new Schema(
       default: null,
       index: true,
     },
+    smsEnabled: { type: Boolean, default: true },
+    isPhoneVerified: { type: Boolean, default: false },
+
+    // Terms & Conditions acceptance
+    termsAcceptedVersion: { type: String, default: null }, // Version string
+    termsAcceptedAt: { type: Date },
 
     passwordHash: {
       type: String,
@@ -127,7 +133,7 @@ const UserSchema = new Schema(
       basePrice: Number,
       experienceYears: Number,
       emergencyAvailable: { type: Boolean, default: false },
-      notificationsEnabled: { type: Boolean, default: false },
+      notificationsEnabled: { type: Boolean, default: true },
       featured: { type: Boolean, default: false },
 
       // --- Phase 3: Performance Trust Metrics ---

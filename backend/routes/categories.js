@@ -27,7 +27,7 @@ router.get("/subcategories", async (req, res, next) => {
 
     const subcategories = await Subcategory.find(filter)
       .sort({ sortOrder: 1, name: 1 })
-      .select("name description status sortOrder categoryId suggestedPriceMode");
+      .select("name description image iconKey status sortOrder categoryId suggestedPriceMode");
 
     res.json({ data: subcategories });
   } catch (err) {

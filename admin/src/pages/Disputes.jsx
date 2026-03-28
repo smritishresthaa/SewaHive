@@ -152,7 +152,7 @@ export default function Disputes() {
                     </td>
                     <td className="px-5 py-2.5 text-gray-500">{new Date(dispute.createdAt).toLocaleDateString()}</td>
                     <td className="px-5 py-2.5 text-center">
-                      <button onClick={() => navigate(`/admin/disputes/${dispute._id}`)} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition">
+                      <button onClick={() => navigate(`/disputes/${dispute._id}`)} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition">
                         Review <HiArrowRight className="w-3 h-3" />
                       </button>
                     </td>
@@ -166,4 +166,3 @@ export default function Disputes() {
     </div>
   );
 }
-

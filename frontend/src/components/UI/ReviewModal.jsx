@@ -36,39 +36,40 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-0 max-h-[90vh] overflow-y-auto flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
-          <h2 className="text-xl font-bold text-gray-900">Leave a Review</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b sticky top-0 bg-white z-10">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Leave a Review</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full transition"
+            aria-label="Close review modal"
           >
             <HiXMark className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 flex flex-col gap-6">
           {/* Service Info */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">Service</p>
-            <p className="font-semibold text-gray-900">
+          <div className="p-3 sm:p-4 bg-gray-50 rounded-lg mb-4">
+            <p className="text-xs sm:text-sm text-gray-600 mb-1">Service</p>
+            <p className="font-semibold text-gray-900 break-words">
               {booking.serviceId?.title || "Service"}
             </p>
-            <p className="text-sm text-gray-600 mt-2">Provider</p>
-            <p className="font-medium text-gray-900">
+            <p className="text-xs sm:text-sm text-gray-600 mt-2">Provider</p>
+            <p className="font-medium text-gray-900 break-words">
               {booking.providerId?.profile?.name || "Provider"}
             </p>
           </div>
 
           {/* Star Rating */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-900 mb-3">
               Rate your experience <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2 justify-center py-4">
+            <div className="flex gap-2 justify-center py-2 sm:py-4">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
@@ -79,7 +80,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
                   className="transition-transform hover:scale-110 active:scale-95"
                 >
                   <HiStar
-                    className={`w-12 h-12 transition-colors ${
+                    className={`w-10 h-10 sm:w-12 sm:h-12 transition-colors ${
                       star <= (hoveredRating || rating)
                         ? "text-yellow-400 fill-yellow-400"
                         : "text-gray-300"
@@ -89,7 +90,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
               ))}
             </div>
             {rating > 0 && (
-              <p className="text-center text-sm text-gray-600">
+              <p className="text-center text-xs sm:text-sm text-gray-600">
                 {rating === 1 && "Poor"}
                 {rating === 2 && "Fair"}
                 {rating === 3 && "Good"}
@@ -100,7 +101,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
           </div>
 
           {/* Comment */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-900 mb-2">
               Your feedback <span className="text-gray-500 font-normal">(Optional)</span>
             </label>
@@ -110,7 +111,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
               placeholder="Share details about your experience with this provider..."
               rows={4}
               maxLength={500}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none text-sm"
             />
             <p className="text-xs text-gray-500 mt-1 text-right">
               {comment.length}/500 characters
@@ -118,7 +119,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="button"
               onClick={onClose}

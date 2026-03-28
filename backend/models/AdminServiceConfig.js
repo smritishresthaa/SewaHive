@@ -10,9 +10,10 @@ const AdminServiceConfigSchema = new Schema(
     promoDiscountEnabled: { type: Boolean, default: true },
     emailNotificationsEnabled: { type: Boolean, default: true },
     smsAlertsEnabled: { type: Boolean, default: true },
-    maintenanceMode: { type: Boolean, default: false },
     registrationOpen: { type: Boolean, default: true },
     termsAndConditions: { type: String, default: '' },
+    termsVersion: { type: String, default: '1.0' }, // Version string
+    termsUpdatedAt: { type: Date, default: Date.now },
     categoryOverrides: [
       {
         categoryId: { type: Schema.Types.ObjectId, ref: 'Category' },

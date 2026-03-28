@@ -6,13 +6,12 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <AdminTopNavbar />
-      <div className="flex pt-16">
+      <div className="flex pt-6">
         <AdminSidebar />
-        <main className="flex-1 ml-60 p-6">
+        <main className="flex-1 ml-60 px-6 pb-6">
           <Outlet />
         </main>
       </div>
     </div>
   )
 }
-

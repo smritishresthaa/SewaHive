@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ToastProvider from "./ToastProvider";
 import { AuthProvider } from "./context/AuthContext";
 import AdminLayout from "./layouts/AdminLayout";
 
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        {/* ToastProvider for global toast notifications */}
         <Routes>
           {/* Login - No Layout */}
           <Route path="/login" element={<Login />} />
@@ -54,6 +56,8 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
+        {/* Add ToastProvider here */}
+        <ToastProvider />
       </AuthProvider>
     </BrowserRouter>
   );

@@ -1,13 +1,24 @@
-// routes/payment.js
 const express = require("express");
 const { authGuard, roleGuard } = require("../middleware/auth");
-const { buildInitiationPayload, verifyPayment, decodeEsewaResponse, verifyCallbackSignature } = require("../utils/esewa");
+const {
+  buildInitiationPayload,
+  verifyPayment,
+  decodeEsewaResponse,
+  verifyCallbackSignature,
+} = require("../utils/esewa");
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
 const ProviderWallet = require("../models/ProviderWallet");
 const Dispute = require("../models/Dispute");
-const { createNotificationForUser, notifyAllAdmins } = require("../utils/createNotification");
-const { isQuotePricing, resolvePostInitialEscrowStatus, normalizeStatusForTab } = require("../utils/bookingWorkflow");
+const {
+  createNotificationForUser,
+  notifyAllAdmins,
+} = require("../utils/createNotification");
+const {
+  isQuotePricing,
+  resolvePostInitialEscrowStatus,
+  normalizeStatusForTab,
+} = require("../utils/bookingWorkflow");
 
 const router = express.Router();
 
@@ -15,6 +26,32 @@ const toUpperStatus = (value) => {
   if (!value) return null;
   return String(value).trim().toUpperCase();
 };
+
+function isBookingInProgressStatus(status) {
+  const raw = String(status || "").trim().toLowerCase();
+  const normalized = String(normalizeStatusForTab(status) || "")
+    .trim()
+    .toLowerCase();
+
+  return raw === "in-progress" || raw === "in_progress" || normalized === "in-progress" || normalized === "in_progress";
+}
+
+function isCompletionPendingStatus(status) {
+  const raw = String(status || "").trim().toLowerCase();
+  const normalized = String(normalizeStatusForTab(status) || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    raw === "pending-completion" ||
+    raw === "pending_completion" ||
+    raw === "provider_completed" ||
+    raw === "awaiting_client_confirmation" ||
+    normalized === "pending-completion" ||
+    normalized === "pending_completion" ||
+    normalized === "completion_pending"
+  );
+}
 
 /**
  * POST /api/payments/esewa/initiate
@@ -29,11 +66,13 @@ router.post(
       const { bookingId } = req.body;
 
       const booking = await Booking.findById(bookingId);
-      if (!booking)
+      if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
+      }
 
-      if (String(booking.clientId) !== req.user.id)
+      if (String(booking.clientId) !== req.user.id) {
         return res.status(403).json({ message: "Not your booking" });
+      }
 
       if (booking.status === "cancelled") {
         return res.status(400).json({ message: "Cancelled bookings cannot be paid" });
@@ -68,37 +107,27 @@ router.post(
         }
       }
 
-      /**
-       * STEP 4 - INITIATE ESEWA PAYMENT
-       * 1. Generate transaction UUID
-       * 2. Create payment record with status = INITIATED
-       * 3. Generate eSewa signature
-       * 4. Return payment form data for frontend to auto-submit
-       */
       const transaction_uuid = `SEWAHIVE-${bookingId}-${Date.now()}`;
 
-      // Ensure URLs have proper http/https scheme
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      const backendUrl = process.env.BACKEND_URL || "http://localhost:5000";
       const successUrl = `${backendUrl}/api/payment/esewa/success`;
       const failureUrl = `${backendUrl}/api/payment/esewa/failure`;
 
-      console.log('🔗 eSewa Callback URLs:');
-      console.log('   Success:', successUrl);
-      console.log('   Failure:', failureUrl);
+      console.log("🔗 eSewa Callback URLs:");
+      console.log("   Success:", successUrl);
+      console.log("   Failure:", failureUrl);
 
-      // Build eSewa payment form payload with signature
       const payload = buildInitiationPayload({
         amount: expectedAmount,
         total_amount: expectedAmount,
         transaction_uuid,
         tax_amount: 0,
-        product_code: process.env.ESEWA_MERCHANT_CODE || 'EPAYTEST',
+        product_code: process.env.ESEWA_MERCHANT_CODE || "EPAYTEST",
         success_url: successUrl,
         failure_url: failureUrl,
-        secretKey: process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q',
+        secretKey: process.env.ESEWA_SECRET_KEY || "8gBm/:&EnhH.1/q",
       });
 
-      // Create payment record with INITIATED status
       await Payment.create({
         bookingId,
         clientId: booking.clientId,
@@ -106,15 +135,14 @@ router.post(
         transaction_uuid,
         amount: expectedAmount,
         purpose: isAdditionalEscrow ? "additional_escrow" : "initial_escrow",
-        gateway: 'eSewa',
-        status: "INITIATED", // Payment initiated, not yet complete
+        gateway: "eSewa",
+        status: "INITIATED",
       });
 
-      // Update booking payment status
       booking.paymentStatus = "initiated";
       await booking.save();
 
-      res.json({ 
+      res.json({
         success: true,
         form: payload,
         transaction_uuid,
@@ -130,80 +158,70 @@ router.post(
 /**
  * GET /api/payments/esewa/success
  * Handle eSewa success redirect
- * 
- * STEP 5 - AFTER PAYMENT SUCCESS:
- * 1. Verify payment via eSewa status API
- * 2. Update payment.status = FUNDS_HELD (escrow)
- * 3. Update booking.status = requested (from pending_payment)
- * 4. Update provider wallet with pending balance
- * 5. Send notifications to client and provider
  */
 router.get("/esewa/success", async (req, res) => {
   try {
-    console.log('\n🔵 ===== eSewa Success Callback Received =====');
-    console.log('Query params:', req.query);
-    
+    console.log("\n🔵 ===== eSewa Success Callback Received =====");
+    console.log("Query params:", req.query);
+
     const { data } = req.query;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
     if (!data) {
-      console.error('❌ No data in query params');
+      console.error("❌ No data in query params");
       return res.redirect(`${frontendUrl}/payment/failure?error=no_data`);
     }
 
-    console.log('📦 Attempting to decode Base64 data...');
-    console.log('   Raw data length:', data.length);
-    
-    // Decode Base64 response from eSewa
+    console.log("📦 Attempting to decode Base64 data...");
+    console.log("   Raw data length:", data.length);
+
     const decodedData = decodeEsewaResponse(data);
-    
-    console.log('📦 Decoded eSewa Response:', decodedData ? JSON.stringify(decodedData, null, 2) : 'NULL');
-    
+
+    console.log(
+      "📦 Decoded eSewa Response:",
+      decodedData ? JSON.stringify(decodedData, null, 2) : "NULL"
+    );
+
     if (!decodedData) {
-      console.error('❌ Failed to decode eSewa response or response is null');
+      console.error("❌ Failed to decode eSewa response or response is null");
       return res.redirect(`${frontendUrl}/payment/failure?error=invalid_data`);
     }
 
     if (!decodedData.transaction_uuid) {
-      console.error('❌ No transaction_uuid in decoded data');
+      console.error("❌ No transaction_uuid in decoded data");
       return res.redirect(`${frontendUrl}/payment/failure?error=invalid_data`);
     }
 
     const { transaction_uuid, transaction_code, total_amount, status } = decodedData;
-    console.log('📋 Extracted values:');
-    console.log('   UUID:', transaction_uuid);
-    console.log('   Status:', status);
-    console.log('   Amount:', total_amount);
-    console.log('   Ref Code:', transaction_code);
+    console.log("📋 Extracted values:");
+    console.log("   UUID:", transaction_uuid);
+    console.log("   Status:", status);
+    console.log("   Amount:", total_amount);
+    console.log("   Ref Code:", transaction_code);
 
-    // Find payment record
-    console.log('🔎 Looking for payment record...');
+    console.log("🔎 Looking for payment record...");
     const payment = await Payment.findOne({ transaction_uuid });
-    
+
     if (!payment) {
-      console.error('❌ Payment not found for UUID:', transaction_uuid);
+      console.error("❌ Payment not found for UUID:", transaction_uuid);
       return res.redirect(`${frontendUrl}/payment/failure?error=payment_not_found`);
     }
 
-    console.log('✅ Found payment record:', payment._id);
-    console.log('   Current status:', payment.status);
-    console.log('   Current bookingId:', payment.bookingId);
+    console.log("✅ Found payment record:", payment._id);
+    console.log("   Current status:", payment.status);
+    console.log("   Current bookingId:", payment.bookingId);
 
-    /**
-     * ⭐ ESCROW FLOW - Trust eSewa Redirect
-     */
-    if (decodedData.status === 'COMPLETE') {
-      console.log('✅ Payment COMPLETE - Marking as FUNDS_HELD (escrow)');
-      
-      payment.status = 'FUNDS_HELD';
+    if (decodedData.status === "COMPLETE") {
+      console.log("✅ Payment COMPLETE - Marking as FUNDS_HELD (escrow)");
+
+      payment.status = "FUNDS_HELD";
       payment.referenceId = transaction_code || transaction_uuid;
       payment.verifiedAt = new Date();
       payment.receipt = decodedData;
       await payment.save();
-      console.log('✅ Payment record saved');
+      console.log("✅ Payment record saved");
 
-      // Update booking pricing/payment state
-      console.log('🔄 Updating booking...');
+      console.log("🔄 Updating booking...");
       const booking = await Booking.findById(payment.bookingId);
 
       if (booking) {
@@ -212,116 +230,145 @@ router.get("/esewa/success", async (req, res) => {
         const finalPrice = Number(booking.totalAmount || 0);
         const additionalRequired = Math.max(0, finalPrice - updatedHeld);
 
-        booking.paymentStatus = 'funds_held';
+        booking.paymentStatus = "funds_held";
         booking.pricing.escrowHeldAmount = updatedHeld;
         booking.pricing.additionalEscrowRequired = additionalRequired;
 
-        if (payment.purpose === 'initial_escrow' && booking.status === 'pending_payment') {
+        if (payment.purpose === "initial_escrow" && booking.status === "pending_payment") {
           booking.status = resolvePostInitialEscrowStatus(booking);
-          if (booking.status === 'confirmed') {
+          if (booking.status === "confirmed") {
             booking.confirmedAt = booking.confirmedAt || new Date();
           }
-          if (booking.status === 'requested') {
+          if (booking.status === "requested") {
             booking.requestedAt = booking.requestedAt || new Date();
           }
         }
 
         await booking.save();
 
-        console.log('[PAYMENT SUCCESS] Booking linkage check:', {
+        console.log("[PAYMENT SUCCESS] Booking linkage check:", {
           bookingId: String(booking._id),
           clientId: String(booking.clientId),
           providerId: String(booking.providerId),
           bookingStatus: booking.status,
           paymentStatus: booking.paymentStatus,
         });
-      }
 
-      console.log('✅ Booking updated:', booking ? booking.status : 'NOT FOUND');
+        console.log("✅ Booking updated:", booking ? booking.status : "NOT FOUND");
 
-      // Create or update provider wallet with pending balance (escrow)
-      if (booking) {
-        console.log('💰 Updating wallet...');
+        console.log("💰 Updating wallet...");
         let wallet = await ProviderWallet.findOne({ providerId: booking.providerId });
         if (!wallet) {
           wallet = new ProviderWallet({ providerId: booking.providerId });
         }
-        
+
         wallet.pendingBalance += payment.amount;
         await wallet.save();
-        console.log('✅ Wallet updated - Pending balance:', wallet.pendingBalance);
+        console.log("✅ Wallet updated - Pending balance:", wallet.pendingBalance);
 
-        // Notify client
-        console.log('📬 Sending notifications...');
+        console.log("📬 Sending notifications...");
         try {
-          await createNotificationForUser({
+          const clientNotification = {
             userId: String(booking.clientId),
-            type: 'payment_held',
-            title: 'Payment Secured',
-            message: payment.purpose === 'additional_escrow'
-              ? `Additional escrow payment of NPR ${payment.amount} secured.`
-              : `Payment of NPR ${payment.amount} is securely held. Funds will be released after service completion and your confirmation.`,
-            category: 'payment',
+            type: "payment_held",
+            title:
+              payment.purpose === "additional_escrow"
+                ? "Additional Payment Secured"
+                : booking.type === "emergency"
+                ? "Emergency Payment Secured"
+                : "Payment Secured",
+            message:
+              payment.purpose === "additional_escrow"
+                ? `Additional escrow payment of NPR ${payment.amount} secured.`
+                : booking.type === "emergency"
+                ? `Your emergency payment of NPR ${payment.amount} is secured and your request has been sent to the provider.`
+                : `Payment of NPR ${payment.amount} is securely held. Funds will be released after service completion and your confirmation.`,
+            category: "payment",
             bookingId: booking._id,
-            metadata: { paymentId: payment._id }
-          });
-          console.log('✅ Client notification sent');
+            metadata: { paymentId: payment._id, isEmergency: booking.type === "emergency" },
+            sendSMS: payment.purpose === "initial_escrow" && booking.type === "emergency",
+          };
+
+          await createNotificationForUser(clientNotification);
+          console.log("✅ Client notification sent");
         } catch (notifError) {
-          console.error('⚠️ Failed to send client notification:', notifError.message);
+          console.error("⚠️ Failed to send client notification:", notifError.message);
         }
 
-        // Notify provider
         try {
-          const providerNotification = payment.purpose === 'additional_escrow'
-            ? {
-                userId: String(booking.providerId),
-                type: 'booking_confirmed',
-                title: 'Additional Escrow Secured',
-                message: `Client added NPR ${payment.amount} escrow. Completion can proceed once work is done.`,
-                category: 'booking',
-                bookingId: booking._id,
-                metadata: {},
-              }
-            : {
-                userId: String(booking.providerId),
-                type: 'booking_request',
-                title: 'New Booking Request',
-                message: `Client payment of NPR ${payment.amount} is secured. Please review and accept the booking request.`,
-                category: 'booking',
-                bookingId: booking._id,
-                metadata: {},
-              };
+          const providerNotification =
+            payment.purpose === "additional_escrow"
+              ? {
+                  userId: String(booking.providerId),
+                  type: "booking_confirmed",
+                  title: "Additional Escrow Secured",
+                  message: `Client added NPR ${payment.amount} escrow. Completion can proceed once work is done.`,
+                  category: "booking",
+                  bookingId: booking._id,
+                  metadata: { isEmergency: booking.type === "emergency" },
+                  sendSMS: false,
+                }
+              : booking.type === "emergency"
+              ? {
+                  userId: String(booking.providerId),
+                  type: "booking_request",
+                  title: "EMERGENCY Booking Request",
+                  message: `URGENT: Client payment of NPR ${payment.amount} is secured. Please review and accept the emergency booking request immediately.`,
+                  category: "booking",
+                  bookingId: booking._id,
+                  metadata: { isEmergency: true },
+                  sendEmail: true,
+                  sendSMS: true,
+                }
+              : {
+                  userId: String(booking.providerId),
+                  type: "booking_request",
+                  title: "New Booking Request",
+                  message: `Client payment of NPR ${payment.amount} is secured. Please review and accept the booking request.`,
+                  category: "booking",
+                  bookingId: booking._id,
+                  metadata: { isEmergency: false },
+                  sendEmail: true,
+                  sendSMS: false,
+                };
 
           await createNotificationForUser(providerNotification);
-          console.log('✅ Provider notification sent');
+          console.log("✅ Provider notification sent");
         } catch (notifError) {
-          console.error('⚠️ Failed to send provider notification:', notifError.message);
+          console.error("⚠️ Failed to send provider notification:", notifError.message);
         }
-        
-        console.log('✅ Notifications sent');
+
+        console.log("✅ Notifications sent");
       }
 
-      console.log('✅ PAYMENT SUCCESS - Redirecting to success page');
-      console.log('🔗 Redirect URL:', `${frontendUrl}/payment/success?booking_id=${payment.bookingId}&transaction_uuid=${transaction_uuid}`);
-      return res.redirect(`${frontendUrl}/payment/success?booking_id=${payment.bookingId}&transaction_uuid=${transaction_uuid}`);
+      console.log("✅ PAYMENT SUCCESS - Redirecting to success page");
+      console.log(
+        "🔗 Redirect URL:",
+        `${frontendUrl}/payment/success?booking_id=${payment.bookingId}&transaction_uuid=${transaction_uuid}`
+      );
+      return res.redirect(
+        `${frontendUrl}/payment/success?booking_id=${payment.bookingId}&transaction_uuid=${transaction_uuid}`
+      );
     } else {
-      console.error('❌ Payment status is not COMPLETE:', status);
-      payment.status = 'FAILED';
+      console.error("❌ Payment status is not COMPLETE:", status);
+      payment.status = "FAILED";
       payment.receipt = decodedData;
       await payment.save();
 
       await Booking.findByIdAndUpdate(payment.bookingId, {
-        paymentStatus: 'failed',
+        paymentStatus: "failed",
       });
 
-      return res.redirect(`${frontendUrl}/payment/failure?error=payment_incomplete&transaction_uuid=${transaction_uuid}`);
+      return res.redirect(
+        `${frontendUrl}/payment/failure?error=payment_incomplete&transaction_uuid=${transaction_uuid}`
+      );
     }
   } catch (error) {
-    console.error('\n❌ ===== EXCEPTION IN SUCCESS HANDLER =====');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    console.error('Full error:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    console.error("\n❌ ===== EXCEPTION IN SUCCESS HANDLER =====");
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("Full error:", error);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     return res.redirect(`${frontendUrl}/payment/failure?error=verification_failed`);
   }
 });
@@ -412,7 +459,7 @@ router.get(
 
 /**
  * GET /api/payment/transactions/admin
- * Admin payment history — enhanced with commission/payout fields
+ * Admin payment history
  */
 router.get(
   "/transactions/admin",
@@ -440,16 +487,17 @@ router.get(
         Payment.countDocuments(filter),
       ]);
 
-      // Attach derived commission / payout fields to each record
       const payments = rawPayments.map((p) => {
         const obj = p.toObject ? p.toObject() : { ...p };
         const amt = Number(obj.amount || 0);
-        obj.platformCommission = obj.platformFee != null
-          ? Number(obj.platformFee)
-          : Number((amt * 0.15).toFixed(2));
-        obj.providerPayout = obj.providerEarnings != null
-          ? Number(obj.providerEarnings)
-          : Number((amt * 0.85).toFixed(2));
+        obj.platformCommission =
+          obj.platformFee != null
+            ? Number(obj.platformFee)
+            : Number((amt * 0.15).toFixed(2));
+        obj.providerPayout =
+          obj.providerEarnings != null
+            ? Number(obj.providerEarnings)
+            : Number((amt * 0.85).toFixed(2));
         return obj;
       });
 
@@ -468,7 +516,7 @@ router.get(
 
 /**
  * POST /api/payment/refund/:paymentId
- * Admin-only — refund a FUNDS_HELD payment
+ * Admin-only refund
  */
 router.post(
   "/refund/:paymentId",
@@ -488,7 +536,6 @@ router.post(
         });
       }
 
-      // Reverse provider wallet pending balance
       const wallet = await ProviderWallet.findOne({ providerId: payment.providerId });
       if (wallet && typeof wallet.refundPending === "function") {
         await wallet.refundPending(payment.amount);
@@ -507,7 +554,6 @@ router.post(
       if (reason) payment.disputeReason = reason;
       await payment.save();
 
-      // Notify client
       try {
         await createNotificationForUser({
           userId: String(payment.clientId),
@@ -518,7 +564,7 @@ router.post(
           bookingId: payment.bookingId,
           metadata: { paymentId: payment._id },
         });
-      } catch (_) { /* non-fatal */ }
+      } catch (_) {}
 
       res.json({ success: true, payment });
     } catch (e) {
@@ -529,7 +575,7 @@ router.post(
 
 /**
  * POST /api/payment/client/refund-request/:paymentId
- * Client-only — request a refund for a FUNDS_HELD payment
+ * Client refund request
  */
 router.post(
   "/client/refund-request/:paymentId",
@@ -557,7 +603,6 @@ router.post(
       payment.refundRequested = true;
       await payment.save();
 
-      // Notify admins
       try {
         await notifyAllAdmins({
           type: "refund_request",
@@ -567,7 +612,7 @@ router.post(
           bookingId: payment.bookingId,
           metadata: { paymentId: payment._id },
         });
-      } catch (_) { /* non-fatal */ }
+      } catch (_) {}
 
       res.json({ success: true });
     } catch (e) {
@@ -582,45 +627,48 @@ router.post(
  */
 router.get("/esewa/failure", async (req, res) => {
   try {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     const { transaction_uuid } = req.query;
 
     if (transaction_uuid) {
-      // Update payment status
       const payment = await Payment.findOne({ transaction_uuid });
-      if (payment && payment.status !== 'COMPLETE') {
-        payment.status = 'FAILED';
+      if (payment && payment.status !== "COMPLETE") {
+        payment.status = "FAILED";
         await payment.save();
 
         await Booking.findByIdAndUpdate(payment.bookingId, {
-          paymentStatus: 'failed',
+          paymentStatus: "failed",
         });
       }
     }
 
-    return res.redirect(`${frontendUrl}/payment/failure?transaction_uuid=${transaction_uuid || 'unknown'}`);
+    return res.redirect(
+      `${frontendUrl}/payment/failure?transaction_uuid=${transaction_uuid || "unknown"}`
+    );
   } catch (error) {
-    console.error('eSewa failure handler error:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    console.error("eSewa failure handler error:", error);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     return res.redirect(`${frontendUrl}/payment/failure?error=unknown`);
   }
 });
 
 /**
- * POST /api/payments/verify (Legacy/Manual verification)
+ * POST /api/payments/verify
+ * Manual verification
  */
 router.post("/verify", async (req, res, next) => {
   try {
     const { transaction_uuid } = req.body;
 
     const payment = await Payment.findOne({ transaction_uuid });
-    if (!payment)
+    if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
+    }
 
     const result = await verifyPayment({
       transaction_uuid,
       total_amount: payment.amount,
-      product_code: process.env.ESEWA_MERCHANT_CODE || 'EPAYTEST',
+      product_code: process.env.ESEWA_MERCHANT_CODE || "EPAYTEST",
     });
 
     if (result.status === "COMPLETE") {
@@ -631,7 +679,14 @@ router.post("/verify", async (req, res, next) => {
 
       const booking = await Booking.findById(payment.bookingId);
       if (booking) {
+        const currentHeld = Number(booking.pricing?.escrowHeldAmount || 0);
+        const updatedHeld = currentHeld + Number(payment.amount || 0);
+        const finalPrice = Number(booking.totalAmount || 0);
+        const additionalRequired = Math.max(0, finalPrice - updatedHeld);
+
         booking.paymentStatus = "funds_held";
+        booking.pricing.escrowHeldAmount = updatedHeld;
+        booking.pricing.additionalEscrowRequired = additionalRequired;
 
         if (payment.purpose === "initial_escrow" && booking.status === "pending_payment") {
           booking.status = resolvePostInitialEscrowStatus(booking);
@@ -644,6 +699,73 @@ router.post("/verify", async (req, res, next) => {
         }
 
         await booking.save();
+
+        try {
+          await createNotificationForUser({
+            userId: String(booking.clientId),
+            type: "payment_held",
+            title:
+              payment.purpose === "additional_escrow"
+                ? "Additional Payment Secured"
+                : booking.type === "emergency"
+                ? "Emergency Payment Secured"
+                : "Payment Secured",
+            message:
+              payment.purpose === "additional_escrow"
+                ? `Additional escrow payment of NPR ${payment.amount} secured.`
+                : booking.type === "emergency"
+                ? `Your emergency payment of NPR ${payment.amount} is secured and your request has been sent to the provider.`
+                : `Payment of NPR ${payment.amount} is securely held. Funds will be released after service completion and your confirmation.`,
+            category: "payment",
+            bookingId: booking._id,
+            metadata: { paymentId: payment._id, isEmergency: booking.type === "emergency" },
+            sendSMS: payment.purpose === "initial_escrow" && booking.type === "emergency",
+          });
+        } catch (notifError) {
+          console.error("Failed to send client payment notification:", notifError.message);
+        }
+
+        try {
+          const providerNotification =
+            payment.purpose === "additional_escrow"
+              ? {
+                  userId: String(booking.providerId),
+                  type: "booking_confirmed",
+                  title: "Additional Escrow Secured",
+                  message: `Client added NPR ${payment.amount} escrow. Completion can proceed once work is done.`,
+                  category: "booking",
+                  bookingId: booking._id,
+                  metadata: { isEmergency: booking.type === "emergency" },
+                  sendSMS: false,
+                }
+              : booking.type === "emergency"
+              ? {
+                  userId: String(booking.providerId),
+                  type: "booking_request",
+                  title: "EMERGENCY Booking Request",
+                  message: `URGENT: Client payment of NPR ${payment.amount} is secured. Please review and accept the emergency booking request immediately.`,
+                  category: "booking",
+                  bookingId: booking._id,
+                  metadata: { isEmergency: true },
+                  sendEmail: true,
+                  sendSMS: true,
+                }
+              : {
+                  userId: String(booking.providerId),
+                  type: "booking_request",
+                  title: "New Booking Request",
+                  message: `Client payment of NPR ${payment.amount} is secured. Please review and accept the booking request.`,
+                  category: "booking",
+                  bookingId: booking._id,
+                  metadata: { isEmergency: false },
+                  sendEmail: true,
+                  sendSMS: false,
+                };
+
+          await createNotificationForUser(providerNotification);
+        } catch (notifError) {
+          console.error("Failed to send provider payment notification:", notifError.message);
+        }
       }
 
       return res.json({ success: true, payment });
@@ -652,9 +774,7 @@ router.post("/verify", async (req, res, next) => {
     payment.status = "FAILED";
     await payment.save();
 
-    return res
-      .status(400)
-      .json({ message: "Payment failed", result });
+    return res.status(400).json({ message: "Payment failed", result });
   } catch (e) {
     next(e);
   }
@@ -662,7 +782,7 @@ router.post("/verify", async (req, res, next) => {
 
 /**
  * POST /api/payments/escrow/confirm-completion
- * Client confirms service is complete → Release payment to provider
+ * Client confirms service is complete
  */
 router.post(
   "/escrow/confirm-completion",
@@ -681,7 +801,7 @@ router.post(
 
       const normalizedStatus = normalizeStatusForTab(booking.status);
       const hasProviderCompletion = Boolean(booking.providerCompletedAt);
-      if (normalizedStatus !== "completion_pending" && !hasProviderCompletion) {
+      if (!isCompletionPendingStatus(booking.status) && !hasProviderCompletion) {
         return res.status(400).json({
           message: "Booking is not awaiting confirmation",
           currentStatus: booking.status,
@@ -690,66 +810,66 @@ router.post(
         });
       }
 
-      if (booking.pricing?.adjustment?.status === 'pending_client_approval') {
-        return res.status(400).json({ message: 'Adjusted quote approval is pending' });
+      if (booking.pricing?.adjustment?.status === "pending_client_approval") {
+        return res.status(400).json({ message: "Adjusted quote approval is pending" });
       }
 
       if (Number(booking.pricing?.additionalEscrowRequired || 0) > 0) {
         return res.status(400).json({
-          message: 'Additional escrow payment is required before completion',
+          message: "Additional escrow payment is required before completion",
         });
       }
 
-      if (booking.status === 'disputed' || booking.disputeId) {
-        return res.status(400).json({ message: 'Booking is under dispute and cannot be completed' });
+      if (booking.status === "disputed" || booking.disputeId) {
+        return res.status(400).json({ message: "Booking is under dispute and cannot be completed" });
       }
 
-      const heldPayments = await Payment.find({ bookingId, status: 'FUNDS_HELD' });
+      const heldPayments = await Payment.find({ bookingId, status: "FUNDS_HELD" });
       if (!heldPayments.length) {
         return res.status(404).json({ message: "Payment not found" });
       }
 
-      const totalHeldAmount = heldPayments.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+      const totalHeldAmount = heldPayments.reduce(
+        (sum, entry) => sum + Number(entry.amount || 0),
+        0
+      );
       const finalPayment = Number(
         booking.pricing?.finalApprovedPrice ||
-        booking.pricing?.finalPrice ||
-        booking.totalAmount ||
-        0
+          booking.pricing?.finalPrice ||
+          booking.totalAmount ||
+          0
       );
 
       if (totalHeldAmount < finalPayment) {
         return res.status(400).json({
-          message: 'Escrow held is less than agreed final amount',
+          message: "Escrow held is less than agreed final amount",
           additionalEscrowRequired: Number((finalPayment - totalHeldAmount).toFixed(2)),
         });
       }
 
-      // RELEASE ESCROW: Move funds from pending to available
       const wallet = await ProviderWallet.findOne({ providerId: booking.providerId });
       if (wallet) {
         await wallet.releaseEscrow(totalHeldAmount);
-        
-        // Add transaction record
+
         await wallet.addTransaction({
-          type: 'DEPOSIT',
+          type: "DEPOSIT",
           amount: totalHeldAmount,
           description: `Payment released for booking "${booking._id}"`,
           bookingId: booking._id,
           paymentId: heldPayments[0]._id,
-          status: 'COMPLETED',
+          status: "COMPLETED",
         });
       }
 
       for (const payment of heldPayments) {
-        payment.status = 'RELEASED';
+        payment.status = "RELEASED";
         payment.escrowReleasedAt = new Date();
         payment.clientConfirmedAt = new Date();
         await payment.save();
       }
 
-      // Update booking
-      booking.status = 'completed';
-      booking.paymentStatus = 'released';
+      booking.status = "completed";
+      booking.paymentStatus = "released";
       booking.clientConfirmedAt = new Date();
       booking.pricing.escrowHeldAmount = Math.max(
         0,
@@ -759,18 +879,17 @@ router.post(
       booking.pricing.finalApprovedPrice = finalPayment;
       booking.pricing.paymentAuditTrail = booking.pricing.paymentAuditTrail || [];
       booking.pricing.paymentAuditTrail.push({
-        event: 'escrow_released',
+        event: "escrow_released",
         amount: totalHeldAmount,
         finalPayment,
         approvedAdjustmentsTotal: Number(booking.pricing?.approvedAdjustmentsTotal || 0),
         approvedExtraTimeCost: Number(booking.pricing?.approvedExtraTimeCost || 0),
         actorId: req.user.id,
         at: new Date(),
-        note: 'Client confirmed completion and escrow was released',
+        note: "Client confirmed completion and escrow was released",
       });
       await booking.save();
 
-      // Notifications
       await createNotificationForUser({
         userId: booking.providerId,
         type: "payment_released",
@@ -792,7 +911,7 @@ router.post(
 
       res.json({
         success: true,
-        message: 'Service confirmed, payment released!',
+        message: "Service confirmed, payment released!",
         bookingId: booking._id,
       });
     } catch (e) {
@@ -803,7 +922,7 @@ router.post(
 
 /**
  * POST /api/payments/escrow/raise-dispute
- * Client raises dispute, payment stays locked
+ * Client raises dispute
  */
 router.post(
   "/escrow/raise-dispute",
@@ -821,9 +940,9 @@ router.post(
       }
 
       if (
-        booking.status !== 'provider_completed' &&
-        booking.status !== 'awaiting_client_confirmation' &&
-        booking.status !== 'pending-completion'
+        booking.status !== "provider_completed" &&
+        booking.status !== "awaiting_client_confirmation" &&
+        booking.status !== "pending-completion"
       ) {
         return res.status(400).json({ message: "Cannot raise dispute at this stage" });
       }
@@ -833,7 +952,7 @@ router.post(
 
       const timerSnapshot = {
         totalSeconds: Number(booking.timeTracking?.totalSeconds || 0),
-        totalHours: Number(((Number(booking.timeTracking?.totalSeconds || 0) / 3600).toFixed(2))),
+        totalHours: Number((Number(booking.timeTracking?.totalSeconds || 0) / 3600).toFixed(2)),
         includedHours: Number(booking.pricing?.includedHours || 0),
         hourlyRate: Number(booking.pricing?.hourlyRate || 0),
         estimatedExtraCost: Number(booking.pricing?.extraTimeCost || 0),
@@ -843,7 +962,6 @@ router.post(
         capturedAt: new Date(),
       };
 
-      // Create dispute
       const dispute = new Dispute({
         bookingId,
         paymentId: payment._id,
@@ -856,44 +974,40 @@ router.post(
         evidence: evidenceUrls,
         amount: payment.amount,
         timerSnapshot,
-        status: 'client_provided',
+        status: "client_provided",
         clientProvidedAt: new Date(),
       });
 
       await dispute.save();
 
-      // Freeze all held escrow payments for this booking
-      const heldPayments = await Payment.find({ bookingId, status: 'FUNDS_HELD' });
+      const heldPayments = await Payment.find({ bookingId, status: "FUNDS_HELD" });
       for (const heldPayment of heldPayments) {
-        heldPayment.status = 'DISPUTED';
+        heldPayment.status = "DISPUTED";
         heldPayment.disputeId = dispute._id;
         heldPayment.disputeReason = reason;
         await heldPayment.save();
       }
 
-      // Keep compatibility for older single-payment flow
-      payment.status = 'DISPUTED';
+      payment.status = "DISPUTED";
       payment.disputeId = dispute._id;
       payment.disputeReason = reason;
       await payment.save();
 
-      // Update booking
-      booking.status = 'disputed';
+      booking.status = "disputed";
       booking.pricing = booking.pricing || {};
       booking.pricing.paymentAuditTrail = booking.pricing.paymentAuditTrail || [];
       booking.pricing.paymentAuditTrail.push({
-        event: 'escrow_frozen_on_dispute',
+        event: "escrow_frozen_on_dispute",
         amount: Number(booking.pricing?.escrowHeldAmount || 0),
         finalPayment: Number(booking.pricing?.finalApprovedPrice || booking.totalAmount || 0),
         approvedAdjustmentsTotal: Number(booking.pricing?.approvedAdjustmentsTotal || 0),
         approvedExtraTimeCost: Number(booking.pricing?.approvedExtraTimeCost || 0),
         actorId: req.user.id,
         at: new Date(),
-        note: 'Dispute raised before completion confirmation; escrow frozen',
+        note: "Dispute raised before completion confirmation; escrow frozen",
       });
       await booking.save();
 
-      // Notify provider
       await createNotificationForUser({
         userId: booking.providerId,
         type: "dispute_raised",
@@ -904,7 +1018,6 @@ router.post(
         disputeId: dispute._id,
       });
 
-      // Notify admin
       await notifyAllAdmins({
         type: "new_dispute",
         title: "New Dispute",
@@ -916,7 +1029,7 @@ router.post(
 
       res.json({
         success: true,
-        message: 'Dispute raised, admin will review',
+        message: "Dispute raised, admin will review",
         disputeId: dispute._id,
       });
     } catch (e) {
@@ -945,7 +1058,7 @@ router.post(
       }
 
       const normalizedStatus = normalizeStatusForTab(booking.status);
-      if (normalizedStatus !== "in_progress") {
+      if (!isBookingInProgressStatus(booking.status)) {
         return res.status(400).json({
           message: "Job must be in-progress to mark as complete",
           currentStatus: booking.status,
@@ -953,42 +1066,40 @@ router.post(
         });
       }
 
-      if (booking.status === 'disputed' || booking.disputeId) {
-        return res.status(400).json({ message: 'Booking is under dispute and cannot be completed' });
+      if (booking.status === "disputed" || booking.disputeId) {
+        return res.status(400).json({ message: "Booking is under dispute and cannot be completed" });
       }
 
-      if (booking.pricing?.adjustment?.status === 'pending_client_approval') {
+      if (booking.pricing?.adjustment?.status === "pending_client_approval") {
         return res.status(400).json({
-          message: 'Cannot complete: waiting for client approval for additional charges.',
+          message: "Cannot complete: waiting for client approval for additional charges.",
         });
       }
 
       if (Number(booking.pricing?.additionalEscrowRequired || 0) > 0) {
         return res.status(400).json({
-          message: 'Additional escrow payment is required before completion',
+          message: "Additional escrow payment is required before completion",
         });
       }
 
       const agreedAmount = Number(
         booking.pricing?.finalApprovedPrice ||
-        booking.pricing?.finalPrice ||
-        booking.totalAmount ||
-        0
+          booking.pricing?.finalPrice ||
+          booking.totalAmount ||
+          0
       );
       const escrowHeld = Number(booking.pricing?.escrowHeldAmount || 0);
       if (escrowHeld < agreedAmount) {
         return res.status(400).json({
-          message: 'Escrow is insufficient for agreed amount',
+          message: "Escrow is insufficient for agreed amount",
           additionalEscrowRequired: Number((agreedAmount - escrowHeld).toFixed(2)),
         });
       }
 
-      // Update booking
-      booking.status = 'pending-completion';
+      booking.status = "pending-completion";
       booking.providerCompletedAt = new Date();
       await booking.save();
 
-      // Notify client
       await createNotificationForUser({
         userId: booking.clientId,
         type: "provider_completed_service",
@@ -1000,8 +1111,8 @@ router.post(
 
       res.json({
         success: true,
-        message: 'Marked as complete, waiting for client confirmation',
-        bookingId:booking._id,
+        message: "Marked as complete, waiting for client confirmation",
+        bookingId: booking._id,
       });
     } catch (e) {
       next(e);
@@ -1019,29 +1130,25 @@ router.post("/callback", async (req, res) => {
  * ========================
  */
 
-/**
- * GET /api/payments/admin/disputes
- * List all disputes for admin review
- */
 router.get(
   "/admin/disputes",
   authGuard,
   roleGuard(["admin"]),
   async (req, res, next) => {
     try {
-      const { status = 'open', page = 1, limit = 10 } = req.query;
+      const { status = "open", page = 1, limit = 10 } = req.query;
 
-      const query = status !== 'all' ? { status } : {};
+      const query = status !== "all" ? { status } : {};
       const skip = (page - 1) * limit;
 
       const disputes = await Dispute.find(query)
-        .populate('clientId', 'profile email phone')
-        .populate('providerId', 'profile email phone')
-        .populate('bookingId', 'status totalAmount')
-        .populate('paymentId', 'amount status')
+        .populate("clientId", "profile email phone")
+        .populate("providerId", "profile email phone")
+        .populate("bookingId", "status totalAmount")
+        .populate("paymentId", "amount status")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit));
+        .limit(parseInt(limit, 10));
 
       const total = await Dispute.countDocuments(query);
 
@@ -1050,8 +1157,8 @@ router.get(
         disputes,
         pagination: {
           total,
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: parseInt(page, 10),
+          limit: parseInt(limit, 10),
           pages: Math.ceil(total / limit),
         },
       });
@@ -1061,10 +1168,6 @@ router.get(
   }
 );
 
-/**
- * GET /api/payments/admin/disputes/:disputeId
- * Get dispute details
- */
 router.get(
   "/admin/disputes/:disputeId",
   authGuard,
@@ -1072,10 +1175,10 @@ router.get(
   async (req, res, next) => {
     try {
       const dispute = await Dispute.findById(req.params.disputeId)
-        .populate('clientId', 'profile email phone')
-        .populate('providerId', 'profile email phone')
-        .populate('bookingId')
-        .populate('paymentId');
+        .populate("clientId", "profile email phone")
+        .populate("providerId", "profile email phone")
+        .populate("bookingId")
+        .populate("paymentId");
 
       if (!dispute) {
         return res.status(404).json({ message: "Dispute not found" });
@@ -1088,18 +1191,13 @@ router.get(
   }
 );
 
-/**
- * POST /api/payments/admin/disputes/:disputeId/resolve
- * Admin resolves dispute with decision
- */
 router.post(
   "/admin/disputes/:disputeId/resolve",
   authGuard,
   roleGuard(["admin"]),
   async (req, res, next) => {
     try {
-      const { decisionType, refundAmount = 0, notes = '' } = req.body;
-      // decisionType: 'RELEASE_FULL' | 'REFUND_FULL' | 'REFUND_PARTIAL'
+      const { decisionType, refundAmount = 0, notes = "" } = req.body;
 
       const dispute = await Dispute.findById(req.params.disputeId);
       if (!dispute) {
@@ -1113,28 +1211,25 @@ router.post(
         return res.status(404).json({ message: "Related payment/booking not found" });
       }
 
-      // Apply admin decision
-      if (decisionType === 'RELEASE_FULL') {
-        // Release full payment to provider
+      if (decisionType === "RELEASE_FULL") {
         const wallet = await ProviderWallet.findOne({ providerId: booking.providerId });
         if (wallet) {
           await wallet.releaseEscrow(payment.amount);
           await wallet.addTransaction({
-            type: 'DEPOSIT',
+            type: "DEPOSIT",
             amount: payment.amount,
-            description: `Dispute resolved - full payment released`,
+            description: "Dispute resolved - full payment released",
             bookingId: booking._id,
             paymentId: payment._id,
-            status: 'COMPLETED',
+            status: "COMPLETED",
           });
         }
 
-        payment.status = 'RELEASED';
-        dispute.adminDecision.type = 'RELEASE_FULL';
-        booking.status = 'completed';
-        booking.paymentStatus = 'released';
+        payment.status = "RELEASED";
+        dispute.adminDecision.type = "RELEASE_FULL";
+        booking.status = "completed";
+        booking.paymentStatus = "released";
 
-        // Notify both parties
         await createNotificationForUser({
           userId: booking.providerId,
           type: "dispute_resolved_for_provider",
@@ -1154,26 +1249,25 @@ router.post(
           bookingId: booking._id,
           disputeId: dispute._id,
         });
-      } else if (decisionType === 'REFUND_FULL') {
-        // Refund full amount to client (will be simulated as wallet deduction)
+      } else if (decisionType === "REFUND_FULL") {
         const wallet = await ProviderWallet.findOne({ providerId: booking.providerId });
         if (wallet) {
           await wallet.refundPending(payment.amount);
           await wallet.addTransaction({
-            type: 'REFUND',
+            type: "REFUND",
             amount: payment.amount,
-            description: `Dispute resolved - full refund to client`,
+            description: "Dispute resolved - full refund to client",
             bookingId: booking._id,
             paymentId: payment._id,
-            status: 'COMPLETED',
+            status: "COMPLETED",
           });
         }
 
-        payment.status = 'REFUNDED';
-        dispute.adminDecision.type = 'REFUND_FULL';
+        payment.status = "REFUNDED";
+        dispute.adminDecision.type = "REFUND_FULL";
         dispute.adminDecision.refundAmount = payment.amount;
-        booking.status = 'completed';
-        booking.paymentStatus = 'refunded';
+        booking.status = "completed";
+        booking.paymentStatus = "refunded";
 
         await createNotificationForUser({
           userId: booking.clientId,
@@ -1194,45 +1288,42 @@ router.post(
           bookingId: booking._id,
           disputeId: dispute._id,
         });
-      } else if (decisionType === 'REFUND_PARTIAL') {
-        // Partial refund to client, partial to provider
-        const refundToClient = refundAmount;
-        const releaseToProvider = payment.amount - refundAmount;
+      } else if (decisionType === "REFUND_PARTIAL") {
+        const refundToClient = Number(refundAmount || 0);
+        const releaseToProvider = Number(payment.amount || 0) - refundToClient;
 
         const wallet = await ProviderWallet.findOne({ providerId: booking.providerId });
         if (wallet) {
           if (releaseToProvider > 0) {
-            // Release partial to provider
             await wallet.releaseEscrow(releaseToProvider);
             await wallet.addTransaction({
-              type: 'DEPOSIT',
+              type: "DEPOSIT",
               amount: releaseToProvider,
-              description: `Dispute resolved - partial payment released`,
+              description: "Dispute resolved - partial payment released",
               bookingId: booking._id,
               paymentId: payment._id,
-              status: 'COMPLETED',
+              status: "COMPLETED",
             });
           }
 
           if (refundToClient > 0) {
-            // Refund partial to client
             await wallet.refundPending(refundToClient);
             await wallet.addTransaction({
-              type: 'REFUND',
+              type: "REFUND",
               amount: refundToClient,
-              description: `Dispute resolved - partial refund to client`,
+              description: "Dispute resolved - partial refund to client",
               bookingId: booking._id,
               paymentId: payment._id,
-              status: 'COMPLETED',
+              status: "COMPLETED",
             });
           }
         }
 
-        payment.status = 'PARTIALLY_REFUNDED';
-        dispute.adminDecision.type = 'REFUND_PARTIAL';
+        payment.status = "PARTIALLY_REFUNDED";
+        dispute.adminDecision.type = "REFUND_PARTIAL";
         dispute.adminDecision.refundAmount = refundToClient;
-        booking.status = 'completed';
-        booking.paymentStatus = 'partially_refunded';
+        booking.status = "completed";
+        booking.paymentStatus = "partially_refunded";
 
         await createNotificationForUser({
           userId: booking.clientId,
@@ -1255,11 +1346,10 @@ router.post(
         });
       }
 
-      // Save updates
       payment.disputeId = dispute._id;
       await payment.save();
 
-      dispute.status = 'resolved';
+      dispute.status = "resolved";
       dispute.adminDecision.decidedBy = req.user.id;
       dispute.adminDecision.decidedAt = new Date();
       dispute.adminDecision.notes = notes;
@@ -1271,7 +1361,7 @@ router.post(
 
       res.json({
         success: true,
-        message: 'Dispute resolved successfully',
+        message: "Dispute resolved successfully",
         dispute,
       });
     } catch (e) {
@@ -1280,10 +1370,6 @@ router.post(
   }
 );
 
-/**
- * POST /api/payments/admin/disputes/:disputeId/provide-response
- * Admin adds internal response/notes
- */
 router.post(
   "/admin/disputes/:disputeId/response",
   authGuard,
@@ -1294,7 +1380,7 @@ router.post(
 
       const dispute = await Dispute.findByIdAndUpdate(
         req.params.disputeId,
-        { adminNotes, status: 'open' },
+        { adminNotes, status: "open" },
         { new: true }
       );
 

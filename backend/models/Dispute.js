@@ -16,6 +16,9 @@ const DisputeSchema = new Schema(
     raisedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     raisedByRole: { type: String, enum: ['client', 'provider'] },
 
+    // ADMIN ASSIGNEE
+    assignedTo: { type: Schema.Types.ObjectId, ref: 'User' },
+
     // DISPUTE CATEGORY (new)
     category: {
       type: String,

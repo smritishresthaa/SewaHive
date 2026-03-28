@@ -5,7 +5,7 @@ export default function ProviderNavbar() {
   return (
     <>
       <TopNavbar />
-      <div className="flex">
+      <div className="flex w-full">
         <ProviderSidebar />
       </div>
     </>

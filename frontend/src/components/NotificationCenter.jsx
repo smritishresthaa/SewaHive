@@ -121,6 +121,7 @@ export default function NotificationCenter() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+        aria-label="Open notifications"
       >
         <HiBell className="w-6 h-6" />
         {unreadCount > 0 && (
@@ -132,20 +133,23 @@ export default function NotificationCenter() {
 
       {/* Notification Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 top-12 w-96 bg-white rounded-lg shadow-2xl z-50 border border-gray-200 max-h-96 flex flex-col">
+        <div
+          className="absolute right-0 top-12 w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg bg-white rounded-2xl shadow-2xl z-50 border border-gray-200 max-h-[80vh] flex flex-col mx-2 sm:mx-0"
+        >
           {/* Header */}
-          <div className="flex justify-between items-center p-4 border-b">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
+          <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
+            <h3 className="font-semibold text-gray-900 text-base">Notifications</h3>
             <button
               onClick={() => setIsOpen(false)}
               className="p-1 hover:bg-gray-100 rounded transition"
+              aria-label="Close notifications"
             >
               <HiXMark className="w-5 h-5" />
             </button>
           </div>
 
           {/* Notifications List */}
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <HiBell className="w-12 h-12 mx-auto mb-2 opacity-20" />
@@ -156,7 +160,7 @@ export default function NotificationCenter() {
                 <button
                   key={notification._id}
                   onClick={() => handleNotificationClick(notification)}
-                  className={`w-full text-left p-4 border-b hover:bg-gray-50 transition ${
+                  className={`w-full text-left p-4 sm:p-4 border-0 hover:bg-gray-50 transition flex flex-col gap-2 ${
                     !notification.isRead ? "bg-blue-50" : ""
                   } ${getNotificationColor(notification.type)}`}
                 >
@@ -168,10 +172,10 @@ export default function NotificationCenter() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm">
+                      <p className="font-medium text-gray-900 text-sm break-words">
                         {notification.title}
                       </p>
-                      <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+                      <p className="text-sm text-gray-600 line-clamp-2 mt-1 break-words">
                         {notification.message}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
@@ -188,6 +192,7 @@ export default function NotificationCenter() {
                     <button
                       onClick={(e) => handleClearNotification(notification._id, e)}
                       className="flex-shrink-0 p-1 hover:bg-gray-200 rounded transition"
+                      aria-label="Clear notification"
                     >
                       <HiXMark className="w-4 h-4 text-gray-500" />
                     </button>
@@ -199,7 +204,7 @@ export default function NotificationCenter() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="p-3 border-t bg-gray-50 flex gap-2">
+            <div className="p-3 border-t bg-gray-50 flex flex-col sm:flex-row gap-2">
               <button
                 onClick={handleMarkAllRead}
                 className="flex-1 text-sm py-2 text-center text-blue-600 hover:bg-white rounded transition font-medium"

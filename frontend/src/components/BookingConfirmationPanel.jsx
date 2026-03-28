@@ -65,11 +65,11 @@ export default function BookingConfirmationPanel({ booking, onConfirm, onDispute
   }
 
   return (
-    <div className="bg-white rounded-2xl border-2 border-emerald-200 p-6 shadow-lg">
-      <div className="flex items-start gap-4 mb-6">
+    <div className="bg-white rounded-2xl border-2 border-emerald-200 p-4 sm:p-6 shadow-lg w-full max-w-md mx-auto">
+      <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
         <HiCheckCircle className="w-8 h-8 text-emerald-600 flex-shrink-0 mt-1" />
         <div>
-          <h3 className="text-xl font-bold text-gray-900 mb-1">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
             Service Completed
           </h3>
           <p className="text-gray-600 text-sm">
@@ -83,14 +83,14 @@ export default function BookingConfirmationPanel({ booking, onConfirm, onDispute
           <button
             onClick={handleConfirm}
             disabled={confirming}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition disabled:opacity-50"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition disabled:opacity-50"
           >
             {confirming ? 'Confirming...' : '✓ Confirm Completion & Release Payment'}
           </button>
 
           <button
             onClick={() => setShowDisputeForm(true)}
-            className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-3 rounded-xl transition border border-red-200"
+            className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-2.5 sm:py-3 rounded-xl transition border border-red-200"
           >
             <HiExclamationTriangle className="w-5 h-5 inline mr-2" />
             I Have an Issue / Dispute
@@ -101,7 +101,7 @@ export default function BookingConfirmationPanel({ booking, onConfirm, onDispute
           </p>
         </div>
       ) : (
-        <div className="space-y-4 bg-red-50 p-4 rounded-lg border border-red-200">
+        <div className="space-y-4 bg-red-50 p-3 sm:p-4 rounded-lg border border-red-200">
           <h4 className="font-semibold text-gray-900">Raise a Dispute</h4>
 
           <div>
@@ -113,7 +113,7 @@ export default function BookingConfirmationPanel({ booking, onConfirm, onDispute
               onChange={(e) =>
                 setDisputeForm({ ...disputeForm, reason: e.target.value })
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
+              className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
             >
               <option value="SERVICE_NOT_COMPLETED">Service not completed</option>
               <option value="POOR_QUALITY">Poor quality work</option>
@@ -135,11 +135,11 @@ export default function BookingConfirmationPanel({ booking, onConfirm, onDispute
               }
               rows={4}
               placeholder="Please be as specific as possible..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
+              className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={handleDispute}
               disabled={disputing}

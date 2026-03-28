@@ -11,29 +11,80 @@ const router = express.Router();
 // ─── Shared populate helper ───────────────────────────────────────────────────
 async function populateReviews(query) {
   return query
-    .populate("clientId", "profile.name profile.avatar")
-    .populate("providerId", "profile.name profile.avatar")
+    .populate(
+      "clientId",
+      [
+        "profile.name",
+        "profile.avatarUrl",
+        "email",
+        "kycStatus",
+        "providerDetails.badges",
+      ].join(" ")
+    )
+    .populate(
+      "providerId",
+      [
+        "profile.name",
+        "profile.avatarUrl",
+        "email",
+        "kycStatus",
+        "providerDetails.badges",
+      ].join(" ")
+    )
     .populate({
       path: "bookingId",
-      select: "serviceId",
+      select: "serviceId status completedAt",
       populate: { path: "serviceId", select: "title" },
     });
 }
 
+function normalizeBadges(badges) {
+  if (!Array.isArray(badges)) return [];
+  return badges.filter(Boolean);
+}
+
+function getProviderLevel(providerDoc) {
+  const badges = normalizeBadges(providerDoc?.providerDetails?.badges);
+
+  if (badges.includes("top-rated") || badges.includes("Top Rated")) {
+    return "Top Rated";
+  }
+
+  if (badges.includes("pro") || badges.includes("Pro")) {
+    return "Pro";
+  }
+
+  if (
+    badges.includes("verified") ||
+    badges.includes("Verified") ||
+    providerDoc?.kycStatus === "approved"
+  ) {
+    return "Verified";
+  }
+
+  return null;
+}
+
 function formatReview(r) {
+  const providerBadges = normalizeBadges(r.providerId?.providerDetails?.badges);
+
   return {
     id: r._id,
     rating: r.rating,
     comment: r.comment,
     createdAt: r.createdAt,
     client: {
+      id: r.clientId?._id || null,
       name: r.clientId?.profile?.name || "Verified User",
-      avatar: r.clientId?.profile?.avatar || null,
+      avatar: r.clientId?.profile?.avatarUrl || null,
     },
     provider: {
       id: r.providerId?._id || null,
       name: r.providerId?.profile?.name || "Service Provider",
-      avatar: r.providerId?.profile?.avatar || null,
+      avatar: r.providerId?.profile?.avatarUrl || null,
+      badges: providerBadges,
+      level: getProviderLevel(r.providerId),
+      isVerified: r.providerId?.kycStatus === "approved" || providerBadges.includes("verified"),
     },
     serviceTitle: r.bookingId?.serviceId?.title || "Home Service",
   };
@@ -50,7 +101,8 @@ router.get("/public/top", async (req, res, next) => {
       .limit(8);
 
     const reviews = await populateReviews(base);
-    res.json(reviews.filter((r) => r.clientId).map(formatReview));
+
+    res.json(reviews.filter((r) => r.clientId && r.providerId).map(formatReview));
   } catch (err) {
     next(err);
   }
@@ -62,7 +114,10 @@ router.get("/public/all", async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(24, parseInt(req.query.limit) || 12);
     const ratingFilter = parseInt(req.query.rating);
-    const sort = req.query.sort === "highest" ? { rating: -1, createdAt: -1 } : { createdAt: -1 };
+    const sort =
+      req.query.sort === "highest"
+        ? { rating: -1, createdAt: -1 }
+        : { createdAt: -1 };
 
     const filter = { comment: { $exists: true, $ne: "" } };
     if (ratingFilter >= 1 && ratingFilter <= 5) filter.rating = ratingFilter;
@@ -75,13 +130,17 @@ router.get("/public/all", async (req, res, next) => {
     ]);
 
     const avgResult = await Review.aggregate([
+      { $match: { comment: { $exists: true, $ne: "" } } },
       { $group: { _id: null, avg: { $avg: "$rating" }, total: { $sum: 1 } } },
     ]);
-    const avgRating = avgResult[0]?.avg ? parseFloat(avgResult[0].avg.toFixed(1)) : 0;
+
+    const avgRating = avgResult[0]?.avg
+      ? parseFloat(avgResult[0].avg.toFixed(1))
+      : 0;
     const totalReviews = avgResult[0]?.total || 0;
 
     res.json({
-      reviews: reviews.filter((r) => r.clientId).map(formatReview),
+      reviews: reviews.filter((r) => r.clientId && r.providerId).map(formatReview),
       pagination: {
         page,
         limit,
@@ -103,30 +162,38 @@ router.post("/", authGuard, async (req, res, next) => {
 
     // Validate rating
     if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ message: "Rating must be between 1 and 5 stars" });
+      return res
+        .status(400)
+        .json({ message: "Rating must be between 1 and 5 stars" });
     }
 
     // Find the booking
-    const booking = await Booking.findById(bookingId).populate('providerId');
-    
+    const booking = await Booking.findById(bookingId).populate("providerId");
+
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
     // Verify client owns this booking
     if (booking.clientId.toString() !== clientId.toString()) {
-      return res.status(403).json({ message: "You can only review your own bookings" });
+      return res
+        .status(403)
+        .json({ message: "You can only review your own bookings" });
     }
 
     // Verify booking is completed
     if (booking.status !== "completed") {
-      return res.status(400).json({ message: "You can only review completed bookings" });
+      return res
+        .status(400)
+        .json({ message: "You can only review completed bookings" });
     }
 
     // Check if review already exists
     const existingReview = await Review.findOne({ bookingId, clientId });
     if (existingReview) {
-      return res.status(400).json({ message: "You have already reviewed this booking" });
+      return res
+        .status(400)
+        .json({ message: "You have already reviewed this booking" });
     }
 
     // Create the review
@@ -139,7 +206,7 @@ router.post("/", authGuard, async (req, res, next) => {
     });
 
     // Populate client details for the notification
-    await review.populate('clientId', 'profile.name email');
+    await review.populate("clientId", "profile.name email");
 
     // Create notification for provider
     const ratingStars = "⭐".repeat(rating);
@@ -147,7 +214,15 @@ router.post("/", authGuard, async (req, res, next) => {
       userId: booking.providerId._id,
       type: "review_received",
       title: "New Review Received!",
-      message: `${review.clientId.profile?.name || "A client"} rated you ${ratingStars} (${rating}/5)${comment ? ': "' + comment.substring(0, 50) + (comment.length > 50 ? '..."' : '"') : ''}`,
+      message: `${
+        review.clientId.profile?.name || "A client"
+      } rated you ${ratingStars} (${rating}/5)${
+        comment
+          ? ': "' +
+            comment.substring(0, 50) +
+            (comment.length > 50 ? '..."' : '"')
+          : ""
+      }`,
       category: "review",
       bookingId: booking._id,
       fromUserId: clientId,
@@ -172,30 +247,31 @@ router.get("/provider/:providerId", authGuard, async (req, res, next) => {
   try {
     const { providerId } = req.params;
 
-    // Only allow providers to view their own reviews or anyone can view (for transparency)
     const reviews = await Review.find({ providerId })
-      .populate('clientId', 'profile.name email')
-      .populate('bookingId', 'serviceId status completedAt')
+      .populate("clientId", "profile.name profile.avatarUrl email")
+      .populate("providerId", "profile.name profile.avatarUrl kycStatus providerDetails.badges")
+      .populate("bookingId", "serviceId status completedAt")
       .populate({
-        path: 'bookingId',
+        path: "bookingId",
         populate: {
-          path: 'serviceId',
-          select: 'title'
-        }
+          path: "serviceId",
+          select: "title",
+        },
       })
       .sort({ createdAt: -1 });
 
     // Calculate average rating
     const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-    const averageRating = reviews.length > 0 ? (totalRating / reviews.length).toFixed(1) : 0;
+    const averageRating =
+      reviews.length > 0 ? (totalRating / reviews.length).toFixed(1) : 0;
 
     // Rating distribution
     const ratingDistribution = {
-      5: reviews.filter(r => r.rating === 5).length,
-      4: reviews.filter(r => r.rating === 4).length,
-      3: reviews.filter(r => r.rating === 3).length,
-      2: reviews.filter(r => r.rating === 2).length,
-      1: reviews.filter(r => r.rating === 1).length,
+      5: reviews.filter((r) => r.rating === 5).length,
+      4: reviews.filter((r) => r.rating === 4).length,
+      3: reviews.filter((r) => r.rating === 3).length,
+      2: reviews.filter((r) => r.rating === 2).length,
+      1: reviews.filter((r) => r.rating === 1).length,
     };
 
     res.json({
@@ -217,8 +293,10 @@ router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
     const { bookingId } = req.params;
     const clientId = req.user.id;
 
-    const review = await Review.findOne({ bookingId, clientId })
-      .populate('providerId', 'profile.name email');
+    const review = await Review.findOne({ bookingId, clientId }).populate(
+      "providerId",
+      "profile.name profile.avatarUrl email"
+    );
 
     res.json({
       hasReviewed: !!review,
@@ -237,20 +315,22 @@ router.patch("/:reviewId", authGuard, async (req, res, next) => {
     const clientId = req.user.id;
 
     const review = await Review.findById(reviewId);
-    
+
     if (!review) {
       return res.status(404).json({ message: "Review not found" });
     }
 
     // Verify client owns this review
     if (review.clientId.toString() !== clientId.toString()) {
-      return res.status(403).json({ message: "You can only update your own reviews" });
+      return res
+        .status(403)
+        .json({ message: "You can only update your own reviews" });
     }
 
     // Update review
     if (rating) review.rating = rating;
     if (comment !== undefined) review.comment = comment;
-    
+
     await review.save();
 
     res.json({
@@ -269,14 +349,16 @@ router.delete("/:reviewId", authGuard, async (req, res, next) => {
     const clientId = req.user.id;
 
     const review = await Review.findById(reviewId);
-    
+
     if (!review) {
       return res.status(404).json({ message: "Review not found" });
     }
 
     // Verify client owns this review
     if (review.clientId.toString() !== clientId.toString()) {
-      return res.status(403).json({ message: "You can only delete your own reviews" });
+      return res
+        .status(403)
+        .json({ message: "You can only delete your own reviews" });
     }
 
     await review.deleteOne();

@@ -1,4 +1,3 @@
-// routes/index.js
 const express = require("express");
 
 const authRoutes = require("./auth");
@@ -14,6 +13,7 @@ const adminRoutes = require("./admin");
 const categoryRoutes = require("./categories");
 const chatRoutes = require("./chat");
 const supportRoutes = require("./support");
+const publicSettingsRoutes = require("./publicSettings");
 
 const router = express.Router();
 
@@ -30,5 +30,6 @@ router.use("/admin", adminRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/chat", chatRoutes);
 router.use("/support", supportRoutes);
+router.use("/", publicSettingsRoutes);
 
 module.exports = { router };
