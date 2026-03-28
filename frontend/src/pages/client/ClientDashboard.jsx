@@ -17,16 +17,6 @@ import {
   FiPenTool,
   FiSun,
 } from "react-icons/fi";
-import api from "../../utils/axios";
-
-const QUICK_SERVICES = [
-  { name: "Cleaning", icon: FiHome, category: "Cleaning", subtitle: "Home & office care" },
-  { name: "Plumbing", icon: FiDroplet, category: "Plumbing", subtitle: "Repairs & fittings" },
-  { name: "Electrical", icon: FiZap, category: "Electrical", subtitle: "Wiring & maintenance" },
-  { name: "Carpentry", icon: FiTool, category: "Carpentry", subtitle: "Woodwork solutions" },
-  { name: "Painting", icon: FiPenTool, category: "Painting", subtitle: "Interior & exterior" },
-  { name: "Gardening", icon: FiSun, category: "Gardening", subtitle: "Outdoor upkeep" },
-=======
 import { MdEmojiEvents } from "react-icons/md";
 import api from "../../utils/axios";
 
@@ -67,17 +57,6 @@ const QUICK_SERVICES = [
     category: "Gardening",
     subtitle: "Outdoor upkeep",
   },
->>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
-import api from "../../utils/axios";
-
-const QUICK_SERVICES = [
-  { name: "Cleaning", icon: FiHome, category: "Cleaning", subtitle: "Home & office care" },
-  { name: "Plumbing", icon: FiDroplet, category: "Plumbing", subtitle: "Repairs & fittings" },
-  { name: "Electrical", icon: FiZap, category: "Electrical", subtitle: "Wiring & maintenance" },
-  { name: "Carpentry", icon: FiTool, category: "Carpentry", subtitle: "Woodwork solutions" },
-  { name: "Painting", icon: FiPenTool, category: "Painting", subtitle: "Interior & exterior" },
-  { name: "Gardening", icon: FiSun, category: "Gardening", subtitle: "Outdoor upkeep" },
-];
 ];
 
 function getRankBadgeClass(idx) {
@@ -97,11 +76,13 @@ function getRankBadgeClass(idx) {
 export default function ClientDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
   const [stats, setStats] = useState({
     upcomingBookings: 0,
     completedBookings: 0,
     pendingBookings: 0,
   });
+
   const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userRankData, setUserRankData] = useState(null);
@@ -122,8 +103,8 @@ export default function ClientDashboard() {
         api.get("/bookings/past?limit=5"),
       ]);
 
-      const upcoming = upcomingRes.data.bookings || [];
-      const past = pastRes.data.bookings || [];
+      const upcoming = upcomingRes.data?.bookings || [];
+      const past = pastRes.data?.bookings || [];
 
       setStats({
         upcomingBookings: upcoming.length,
@@ -175,7 +156,6 @@ export default function ClientDashboard() {
           </p>
         </div>
 
-        {/* Dashboard Stat Cards */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
             <div className="mb-2 flex items-center justify-between">
@@ -208,33 +188,19 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* Browse Services */}
         <div className="mb-8">
           <h2 className="mb-4 text-lg font-bold text-gray-900 sm:text-xl">
             Browse Services
           </h2>
-<<<<<<< HEAD
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-=======
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
->>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
             {QUICK_SERVICES.map((service) => {
               const Icon = service.icon;
+
               return (
                 <button
                   key={service.name}
                   onClick={() => navigate(`/services?category=${service.category}`)}
-<<<<<<< HEAD
-                  className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md hover:border-brand-500 transition-all group text-left"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 mb-3 group-hover:bg-brand-100 group-hover:scale-105 transition-all">
-                    <Icon className="text-xl" />
-                  </div>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {service.name}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1 leading-5">
-=======
                   className="group rounded-xl border bg-white p-4 text-left shadow-sm transition-all hover:border-brand-500 hover:shadow-md"
                 >
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 transition-all group-hover:scale-105 group-hover:bg-brand-100">
@@ -242,7 +208,6 @@ export default function ClientDashboard() {
                   </div>
                   <p className="text-sm font-semibold text-gray-800">{service.name}</p>
                   <p className="mt-1 text-xs leading-5 text-gray-500">
->>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
                     {service.subtitle}
                   </p>
                 </button>
@@ -251,7 +216,6 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* Top Providers Leaderboard */}
         <div className="mb-8 rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -319,53 +283,26 @@ export default function ClientDashboard() {
           )}
         </div>
 
-<<<<<<< HEAD
-        {/* Search Services */}
-        <div className="brand-gradient rounded-2xl shadow-lg p-8 mb-8 text-white relative overflow-hidden">
-          <div className="relative z-10">
-            <h2 className="text-2xl font-bold mb-2">
-              Need a service?
-            </h2>
-            <p className="text-white/90 mb-6">
-=======
-        {/* Need a Service Banner */}
         <div className="brand-gradient relative mb-8 overflow-hidden rounded-2xl p-4 text-white shadow-lg sm:p-6 lg:p-8">
           <div className="relative z-10">
             <h2 className="mb-2 text-xl font-bold sm:text-2xl">Need a service?</h2>
             <p className="mb-6 text-white/90">
->>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
               Search from hundreds of verified providers in your area
             </p>
             <button
               onClick={() => navigate("/services")}
-<<<<<<< HEAD
-              className="bg-white text-brand-700 px-8 py-3 rounded-xl font-medium hover:shadow-lg transition-all flex items-center gap-2"
-=======
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-medium text-brand-700 transition-all hover:shadow-lg sm:w-auto"
->>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
             >
               <HiMagnifyingGlass className="text-xl" />
               Browse All Services
             </button>
           </div>
-<<<<<<< HEAD
-          {/* Decorative background circle */}
-          <div className="absolute -right-10 -top-10 w-64 h-64 bg-brand-500 rounded-full opacity-50 blur-3xl"></div>
-        </div>
-
-        {/* Recent Bookings */}
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">
-=======
           <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-brand-500 opacity-50 blur-3xl" />
         </div>
 
-        {/* Upcoming Bookings */}
         <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
->>>>>>> b7cfe5e (Cleanup: remove extra folder, update all modules, and finalize correct repo structure)
               Your Upcoming Bookings
             </h2>
             <button
