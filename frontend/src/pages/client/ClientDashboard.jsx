@@ -26,36 +26,66 @@ const QUICK_SERVICES = [
     icon: FiHome,
     category: "Cleaning",
     subtitle: "Home & office care",
+    theme: {
+      hoverBg: "group-hover:bg-emerald-50",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      border: "group-hover:border-emerald-200",
+    },
   },
   {
     name: "Plumbing",
     icon: FiDroplet,
     category: "Plumbing",
     subtitle: "Repairs & fittings",
+    theme: {
+      hoverBg: "group-hover:bg-emerald-50",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      border: "group-hover:border-emerald-200",
+    },
   },
   {
     name: "Electrical",
     icon: FiZap,
     category: "Electrical",
     subtitle: "Wiring & maintenance",
+    theme: {
+      hoverBg: "group-hover:bg-emerald-50",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      border: "group-hover:border-emerald-200",
+    },
   },
   {
     name: "Carpentry",
     icon: FiTool,
     category: "Carpentry",
     subtitle: "Woodwork solutions",
+    theme: {
+      hoverBg: "group-hover:bg-emerald-50",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      border: "group-hover:border-emerald-200",
+    },
   },
   {
     name: "Painting",
     icon: FiPenTool,
     category: "Painting",
     subtitle: "Interior & exterior",
+    theme: {
+      hoverBg: "group-hover:bg-emerald-50",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      border: "group-hover:border-emerald-200",
+    },
   },
   {
     name: "Gardening",
     icon: FiSun,
     category: "Gardening",
     subtitle: "Outdoor upkeep",
+    theme: {
+      hoverBg: "group-hover:bg-emerald-50",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      border: "group-hover:border-emerald-200",
+    },
   },
 ];
 
@@ -201,15 +231,24 @@ export default function ClientDashboard() {
                 <button
                   key={service.name}
                   onClick={() => navigate(`/services?category=${service.category}`)}
-                  className="group rounded-xl border bg-white p-4 text-left shadow-sm transition-all hover:border-brand-500 hover:shadow-md"
+                  className={`group relative rounded-xl border bg-white p-4 text-left shadow-sm transition-all duration-300 hover:shadow-md ${service.theme.border}`}
                 >
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 transition-all group-hover:scale-105 group-hover:bg-brand-100">
-                    <Icon className="text-xl" />
+                  <div
+                    className={`absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 ${service.theme.hoverBg} group-hover:opacity-100`}
+                  />
+
+                  <div className="relative z-10">
+                    <div
+                      className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 ${service.theme.iconWrap}`}
+                    >
+                      <Icon className="text-xl" />
+                    </div>
+
+                    <p className="text-sm font-semibold text-gray-800">{service.name}</p>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      {service.subtitle}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold text-gray-800">{service.name}</p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    {service.subtitle}
-                  </p>
                 </button>
               );
             })}

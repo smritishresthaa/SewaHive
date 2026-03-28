@@ -12,6 +12,7 @@ import {
   HiAcademicCap,
   HiClipboardDocumentList,
   HiExclamationTriangle,
+  HiChatBubbleLeftRight,
   HiCog6Tooth,
 } from 'react-icons/hi2'
 
@@ -29,6 +30,7 @@ const nav = [
     { to: '/bookings', label: 'Bookings', icon: HiCalendarDays },
     { to: '/payments', label: 'Payments', icon: HiCreditCard },
     { to: '/reviews', label: 'Reviews', icon: HiStar },
+    { to: '/support', label: 'Support', icon: HiChatBubbleLeftRight },
   ]},
   { heading: 'Compliance', items: [
     { to: '/verification', label: 'Verifications', icon: HiShieldCheck },
@@ -80,7 +82,6 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-      {/* Bottom branding */}
       <div className="px-4 py-3 border-t border-gray-100">
         <p className="text-[10px] text-gray-400 text-center">SewaHive Admin v2.0</p>
       </div>

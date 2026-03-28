@@ -18,6 +18,7 @@ import CategoryRequests from "./pages/CategoryRequests";
 import Disputes from "./pages/Disputes";
 import DisputeDetail from "./pages/DisputeDetail";
 import SkillReviews from "./pages/SkillReviews";
+import Support from "./pages/Support";
 
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 
@@ -25,12 +26,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        {/* ToastProvider for global toast notifications */}
         <Routes>
-          {/* Login - No Layout */}
           <Route path="/login" element={<Login />} />
 
-          {/* All other routes with Admin Layout */}
           <Route
             element={
               <AdminProtectedRoute>
@@ -51,12 +49,13 @@ export default function App() {
             <Route path="/disputes/:id" element={<DisputeDetail />} />
             <Route path="/reviews" element={<Reviews />} />
             <Route path="/payments" element={<Payments />} />
+            <Route path="/support" element={<Support />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
-        {/* Add ToastProvider here */}
+
         <ToastProvider />
       </AuthProvider>
     </BrowserRouter>
