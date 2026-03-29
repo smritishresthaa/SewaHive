@@ -1,3 +1,14 @@
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Search,
+  MessageSquare,
+  ChevronRight,
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import api from "../../utils/axios";
+import { useAuth } from "../../context/AuthContext";
+
 // PeerAvatar utility
 function getPeerAvatarUrl(conversation) {
   return (
@@ -33,30 +44,24 @@ function PeerAvatar({ conversation, className = "h-11 w-11" }) {
       />
     );
   }
+
   return (
     <div className={`${className} rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 text-white text-sm font-semibold flex items-center justify-center`}>
       {getInitials(name)}
     </div>
   );
 }
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Search,
-  MessageSquare,
-  CircleAlert,
-  Clock3,
-  CheckCheck,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
-import api from "../../utils/axios";
-import { useAuth } from "../../context/AuthContext";
 
 function normalizeStatus(status = "") {
   const value = String(status || "").trim();
   return value.toUpperCase();
+}
+
+function valueToLabel(value = "") {
+  return String(value || "Unknown")
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function getStatusMeta(status) {
@@ -106,13 +111,6 @@ function getStatusMeta(status) {
   };
 }
 
-function valueToLabel(value = "") {
-  return String(value || "Unknown")
-    .replace(/[_-]+/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 function formatTime(timestamp) {
   if (!timestamp) return "—";
 
@@ -132,11 +130,16 @@ function formatTime(timestamp) {
   return date.toLocaleDateString();
 }
 
-function ConversationItem({ conversation, active, onSelect, onOpen }) {
+function notifyUnreadSidebarRefresh() {
+  window.dispatchEvent(new Event("chat-unread-updated"));
+}
+
+function ConversationItem({ conversation, active }) {
   const statusMeta = getStatusMeta(conversation.bookingStatus);
   const unreadCount = conversation.unreadCount || 0;
   const navigate = useNavigate();
   const { user } = useAuth();
+
   function handleOpenChat() {
     const bookingId = conversation.bookingId || conversation._id;
     const route = user?.role === "client"
@@ -144,6 +147,7 @@ function ConversationItem({ conversation, active, onSelect, onOpen }) {
       : `/provider/bookings/${bookingId}/chat`;
     navigate(route);
   }
+
   return (
     <motion.button
       layout
@@ -223,42 +227,35 @@ function EmptyState({ hasSearch }) {
   );
 }
 
-function ConversationDetail({ conversation, onOpen }) {
-  if (!conversation) {
-    return (
-      <div className="hidden md:flex rounded-2xl border border-gray-200 bg-white p-8 min-h-[520px] items-center justify-center">
-        <div className="text-center">
-          <MessageSquare className="mx-auto h-12 w-12 text-gray-300" />
-          <p className="mt-4 text-base font-semibold text-gray-800">Select a conversation</p>
-          <p className="mt-1 text-sm text-gray-500">Pick a user from the left panel to preview details.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const statusMeta = getStatusMeta(conversation.bookingStatus);
-
-  // ...existing code...
-}
-
 export default function ConversationsList() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // all, unread, ongoing, completed
+  const [filterStatus, setFilterStatus] = useState("all");
   const [selectedConversationId, setSelectedConversationId] = useState(null);
 
-  // Fetch conversations list
   async function fetchConversations() {
     try {
       setLoading(true);
       const res = await api.get("/chat/conversations");
-      setConversations(res.data.conversations || []);
+      const nextConversations = res.data.conversations || [];
+      setConversations(nextConversations);
+
+      const totalUnread = nextConversations.reduce(
+        (sum, conv) => sum + Number(conv?.unreadCount || 0),
+        0
+      );
+      notifyUnreadSidebarRefresh();
+      window.dispatchEvent(
+        new CustomEvent("chat-unread-updated-total", {
+          detail: { totalUnread },
+        })
+      );
     } catch (err) {
       console.error("Failed to fetch conversations:", err);
       setConversations([]);
+      notifyUnreadSidebarRefresh();
     } finally {
       setLoading(false);
     }
@@ -266,9 +263,21 @@ export default function ConversationsList() {
 
   useEffect(() => {
     fetchConversations();
-    // Refresh every 30 seconds
+
     const interval = setInterval(fetchConversations, 30000);
-    return () => clearInterval(interval);
+
+    function handleRefresh() {
+      fetchConversations();
+    }
+
+    window.addEventListener("chat-unread-updated", handleRefresh);
+    window.addEventListener("focus", handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("chat-unread-updated", handleRefresh);
+      window.removeEventListener("focus", handleRefresh);
+    };
   }, []);
 
   const filteredConversations = useMemo(() => {
@@ -284,9 +293,14 @@ export default function ConversationsList() {
       const normalizedStatus = normalizeStatus(conv.bookingStatus);
       if (filterStatus === "unread") return conv.unreadCount > 0;
       if (filterStatus === "ongoing") {
-        return ["AWAITING_PAYMENT", "CONFIRMED", "IN_PROGRESS", "IN-PROGRESS", "PROVIDER_EN_ROUTE", "PROVIDER-EN-ROUTE"].includes(
-          normalizedStatus
-        );
+        return [
+          "AWAITING_PAYMENT",
+          "CONFIRMED",
+          "IN_PROGRESS",
+          "IN-PROGRESS",
+          "PROVIDER_EN_ROUTE",
+          "PROVIDER-EN-ROUTE",
+        ].includes(normalizedStatus);
       }
       if (filterStatus === "completed") {
         return ["COMPLETED", "CANCELLED"].includes(normalizedStatus);
@@ -296,31 +310,19 @@ export default function ConversationsList() {
     });
   }, [conversations, searchQuery, filterStatus]);
 
-  const selectedConversation = useMemo(() => {
-    if (!filteredConversations.length) return null;
-
-    const byId = filteredConversations.find((conv) => conv._id === selectedConversationId);
-    return byId || filteredConversations[0];
-  }, [filteredConversations, selectedConversationId]);
-
   useEffect(() => {
     if (!filteredConversations.length) {
       setSelectedConversationId(null);
       return;
     }
 
-    const stillExists = filteredConversations.some((conv) => conv._id === selectedConversationId);
+    const stillExists = filteredConversations.some(
+      (conv) => conv._id === selectedConversationId
+    );
     if (!stillExists) {
       setSelectedConversationId(filteredConversations[0]._id);
     }
   }, [filteredConversations, selectedConversationId]);
-
-  // Navigate to chat
-  function handleOpenChat(conversation) {
-    navigate(conversation.route, {
-      state: { conversationId: conversation._id },
-    });
-  }
 
   if (loading) {
     return (
@@ -377,6 +379,7 @@ export default function ConversationsList() {
               </select>
             </div>
           </div>
+
           <div className="mt-6">
             <AnimatePresence>
               {filteredConversations.length === 0 ? (
@@ -387,8 +390,6 @@ export default function ConversationsList() {
                     key={conversation._id}
                     conversation={conversation}
                     active={selectedConversationId === conversation._id}
-                    onSelect={() => setSelectedConversationId(conversation._id)}
-                    onOpen={handleOpenChat}
                   />
                 ))
               )}

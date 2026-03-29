@@ -34,6 +34,10 @@ function getTargetRoute(type, targetId) {
       route: "/bookings/:bookingId",
       params: { bookingId: targetId },
     },
+    service_completed: {
+      route: "/bookings/:bookingId",
+      params: { bookingId: targetId },
+    },
     booking_cancelled: {
       route: "/client/bookings/history",
       params: { bookingId: targetId },

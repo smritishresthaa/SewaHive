@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { HiBars3, HiXMark } from "react-icons/hi2";
 import {
   HiChartBarSquare,
@@ -16,10 +16,49 @@ import {
   HiTrophy,
   HiQuestionMarkCircle,
 } from "react-icons/hi2";
+import api from "../../utils/axios";
 
 export default function ProviderSidebar() {
   const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  const fetchUnreadMessagesCount = useCallback(async () => {
+    try {
+      const res = await api.get("/chat/conversations");
+      const conversations = res?.data?.conversations || [];
+      const totalUnread = conversations.reduce(
+        (sum, conv) => sum + Number(conv?.unreadCount || 0),
+        0
+      );
+      setUnreadMessagesCount(totalUnread);
+    } catch (err) {
+      console.error("Failed to fetch unread messages count:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadMessagesCount();
+
+    const interval = setInterval(fetchUnreadMessagesCount, 15000);
+
+    function handleUnreadRefresh() {
+      fetchUnreadMessagesCount();
+    }
+
+    function handleWindowFocus() {
+      fetchUnreadMessagesCount();
+    }
+
+    window.addEventListener("chat-unread-updated", handleUnreadRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("chat-unread-updated", handleUnreadRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [fetchUnreadMessagesCount]);
 
   const navSections = useMemo(
     () => [
@@ -80,6 +119,7 @@ export default function ProviderSidebar() {
             to: "/provider/messages",
             label: "Messages",
             icon: HiChatBubbleLeftRight,
+            badgeCount: unreadMessagesCount,
           },
           {
             to: "/provider/reviews",
@@ -109,7 +149,7 @@ export default function ProviderSidebar() {
         ],
       },
     ],
-    []
+    [unreadMessagesCount]
   );
 
   function isActive(path) {
@@ -117,7 +157,7 @@ export default function ProviderSidebar() {
   }
 
   function navItemClass(path) {
-    return `group flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all ${
+    return `group flex items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all ${
       isActive(path)
         ? "border-l-[3px] border-emerald-600 bg-emerald-50 text-emerald-700"
         : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -146,6 +186,8 @@ export default function ProviderSidebar() {
           <div className="space-y-0.5">
             {section.items.map((item) => {
               const Icon = item.icon;
+              const badgeCount = Number(item.badgeCount || 0);
+
               return (
                 <Link
                   key={item.to}
@@ -153,8 +195,22 @@ export default function ProviderSidebar() {
                   className={navItemClass(item.to)}
                   onClick={() => isMobile && setMobileOpen(false)}
                 >
-                  <Icon className={iconClass(item.to)} />
-                  <span>{item.label}</span>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Icon className={iconClass(item.to)} />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+
+                  {badgeCount > 0 && (
+                    <span
+                      className={`ml-2 inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        isActive(item.to)
+                          ? "bg-emerald-600 text-white"
+                          : "bg-blue-600 text-white"
+                      }`}
+                    >
+                      {badgeCount > 99 ? "99+" : badgeCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

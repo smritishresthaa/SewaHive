@@ -36,6 +36,7 @@ const NotificationSchema = new Schema(
         "quote_approved",
         "quote_rejected",
         "provider_completed_service",
+        "service_completed",
 
         // En-route events
         "provider_en_route",

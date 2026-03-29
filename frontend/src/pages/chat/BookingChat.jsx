@@ -65,6 +65,10 @@ function makeTempId() {
   return `temp-${Date.now()}-${++tempIdCounter}`;
 }
 
+function notifyUnreadSidebarRefresh() {
+  window.dispatchEvent(new Event("chat-unread-updated"));
+}
+
 /* Detect MediaRecorder codec support */
 function getRecorderMimeType() {
   const candidates = [
@@ -346,7 +350,6 @@ export default function BookingChat() {
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
 
-
   /* ── Media state ── */
   const [imagePreview, setImagePreview] = useState(null); // { file, dataUrl }
   const [videoPreview, setVideoPreview] = useState(null); // { file, dataUrl }
@@ -378,7 +381,6 @@ export default function BookingChat() {
     reader.onload = () => setVideoPreview({ file, dataUrl: reader.result });
     reader.readAsDataURL(file);
 
-    // Reset input so re-selecting same file works
     e.target.value = "";
   }
 
@@ -423,6 +425,8 @@ export default function BookingChat() {
         const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
         return filtered.map((m) => (m._id === tempId ? res.data.message : m));
       });
+
+      notifyUnreadSidebarRefresh();
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -448,12 +452,10 @@ export default function BookingChat() {
 
   const voice = useVoiceRecorder();
 
-  /* ── Scroll helpers ── */
   function scrollToBottom(smooth = false) {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
   }
 
-  /* ── Load older messages ── */
   async function loadOlderMessages() {
     if (!pagination?.hasMore || !messages.length || loadingMore) return;
     const oldest = messages[0]?.createdAt;
@@ -477,7 +479,18 @@ export default function BookingChat() {
     }
   }
 
-  /* ── Text send (socket-first, REST fallback) ── */
+  async function markChatAsReadAndRefreshSidebar() {
+    try {
+      await api.post(`/chat/booking/${bookingId}/read`);
+    } catch (_) {}
+
+    try {
+      await api.post(`/chat/booking/${bookingId}/read-notifications`);
+    } catch (_) {}
+
+    notifyUnreadSidebarRefresh();
+  }
+
   async function handleSend() {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
@@ -512,12 +525,14 @@ export default function BookingChat() {
         const res = await api.post(`/chat/booking/${bookingId}/message`, { text: trimmed });
         created = res.data.message;
       }
-      // Replace temp message AND remove any socket-delivered duplicate
+
       setMessages((prev) => {
         const realId = created._id;
         const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
         return filtered.map((m) => (m._id === tempId ? created : m));
       });
+
+      notifyUnreadSidebarRefresh();
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -529,7 +544,6 @@ export default function BookingChat() {
     }
   }
 
-  /* ── Image send ── */
   function handleImageSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -548,7 +562,6 @@ export default function BookingChat() {
     reader.onload = () => setImagePreview({ file, dataUrl: reader.result });
     reader.readAsDataURL(file);
 
-    // Reset input so re-selecting same file works
     e.target.value = "";
   }
 
@@ -588,12 +601,13 @@ export default function BookingChat() {
         },
       });
 
-      // Replace temp message AND remove any socket-delivered duplicate
       setMessages((prev) => {
         const realId = res.data.message._id;
         const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
         return filtered.map((m) => (m._id === tempId ? res.data.message : m));
       });
+
+      notifyUnreadSidebarRefresh();
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -605,7 +619,6 @@ export default function BookingChat() {
     }
   }
 
-  /* ── Voice send ── */
   async function handleSendVoice() {
     if (!voice.blob || sending) return;
 
@@ -647,12 +660,13 @@ export default function BookingChat() {
         },
       });
 
-      // Replace temp message AND remove any socket-delivered duplicate
       setMessages((prev) => {
         const realId = res.data.message._id;
         const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
         return filtered.map((m) => (m._id === tempId ? res.data.message : m));
       });
+
+      notifyUnreadSidebarRefresh();
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -664,20 +678,16 @@ export default function BookingChat() {
     }
   }
 
-  /* ── Retry failed message ── */
   async function handleRetry(failedMsg) {
-    // Remove the failed message and re-attempt
     setMessages((prev) => prev.filter((m) => m._id !== failedMsg._id));
 
     if (failedMsg.type === "text") {
       setText(failedMsg.text);
-      // User can press send again
     } else {
       toast("Please re-attach and send the media again.");
     }
   }
 
-  /* ── Effects ── */
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -691,8 +701,7 @@ export default function BookingChat() {
         setBooking(bookingRes.data.booking);
         setMessages(chatRes.data.messages || []);
         setPagination(chatRes.data.pagination || { hasMore: false, nextBefore: null });
-        await api.post(`/chat/booking/${bookingId}/read`);
-        try { await api.post(`/chat/booking/${bookingId}/read-notifications`); } catch (_) {}
+        await markChatAsReadAndRefreshSidebar();
       } catch (err) {
         if (cancelled) return;
         toast.error(err?.response?.data?.message || "Failed to load chat");
@@ -723,18 +732,15 @@ export default function BookingChat() {
 
       const mine = String(incoming?.senderId) === selfId;
 
-      // Skip own messages — we already handle them via REST response
-      // or socket callback. The server broadcasts to the whole room
-      // (including sender), which causes duplicates if we don't skip.
       if (mine) return;
 
-      // Deduplicate: skip if we already have this message
       setMessages((prev) => {
         if (prev.some((m) => m._id === incoming._id)) return prev;
         return [...prev, incoming];
       });
 
-      try { await api.post(`/chat/booking/${bookingId}/read`); } catch (_) {}
+      await markChatAsReadAndRefreshSidebar();
+
       if (isNearBottom) setTimeout(() => scrollToBottom(true), 0);
       else setNewMessageCount((c) => c + 1);
     });
@@ -746,6 +752,7 @@ export default function BookingChat() {
           String(m.senderId) === selfId ? { ...m, status: "read" } : m
         )
       );
+      notifyUnreadSidebarRefresh();
     });
 
     return () => {
@@ -774,13 +781,11 @@ export default function BookingChat() {
     }
   }
 
-  /* ── Computed flags ── */
   const isRecording = voice.state === "recording";
   const hasVoicePreview = voice.state === "preview";
   const hasVoiceError = voice.state === "error";
-  const isMediaActive = !!imagePreview || isRecording || hasVoicePreview || hasVoiceError;
+  const isMediaActive = !!imagePreview || !!videoPreview || isRecording || hasVoicePreview || hasVoiceError;
 
-  /* ── Loading ── */
   if (loading) {
     return (
       <Layout>
@@ -791,7 +796,6 @@ export default function BookingChat() {
     );
   }
 
-  /* ──────────── RENDER ──────────── */
   return (
     <Layout>
       <div className="max-w-4xl mx-auto flex flex-col" style={{ height: "calc(100vh - 80px)" }}>
@@ -886,7 +890,6 @@ export default function BookingChat() {
             <div ref={bottomRef} />
           </div>
 
-          {/* ── New messages indicator ── */}
           {!isNearBottom && newMessageCount > 0 && (
             <div className="flex justify-center py-1">
               <button
@@ -899,7 +902,6 @@ export default function BookingChat() {
             </div>
           )}
 
-          {/* ── Upload progress bar ── */}
           {sending && uploadProgress > 0 && uploadProgress < 100 && (
             <div className="px-4">
               <div className="h-1 rounded-full bg-gray-200 overflow-hidden">
@@ -911,7 +913,6 @@ export default function BookingChat() {
             </div>
           )}
 
-          {/* ── Image preview tray ── */}
           {imagePreview && (
             <div className="border-t bg-gray-50 px-4 py-3">
               <div className="relative inline-block">
@@ -946,7 +947,6 @@ export default function BookingChat() {
             </div>
           )}
 
-          {/* ── Video preview tray ── */}
           {videoPreview && (
             <div className="border-t bg-gray-50 px-4 py-3">
               <div className="relative inline-block">
@@ -981,7 +981,6 @@ export default function BookingChat() {
             </div>
           )}
 
-          {/* ── Voice recording / preview tray ── */}
           {isRecording && (
             <div className="border-t bg-red-50 px-4 py-3">
               <div className="flex items-center gap-3">
@@ -1041,12 +1040,9 @@ export default function BookingChat() {
             </div>
           )}
 
-          {/* ── Composer ── */}
           {!isMediaActive && (
             <div className="border-t px-3 py-3">
               <div className="flex items-end gap-2">
-
-                {/* Image picker */}
                 <input
                   ref={imageInputRef}
                   type="file"
@@ -1065,7 +1061,6 @@ export default function BookingChat() {
                   <HiPhoto className="h-5 w-5" />
                 </button>
 
-                {/* Video picker */}
                 <input
                   ref={videoInputRef}
                   type="file"
@@ -1084,7 +1079,6 @@ export default function BookingChat() {
                   <HiFilm className="h-5 w-5" />
                 </button>
 
-                {/* Voice recorder */}
                 <button
                   onClick={voice.start}
                   disabled={sending}
@@ -1095,7 +1089,6 @@ export default function BookingChat() {
                   <HiMicrophone className="h-5 w-5" />
                 </button>
 
-                {/* Text input */}
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -1105,7 +1098,6 @@ export default function BookingChat() {
                   className="flex-1 min-h-[40px] max-h-24 resize-none rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
 
-                {/* Send */}
                 <button
                   onClick={handleSend}
                   disabled={sending || !text.trim()}
@@ -1120,7 +1112,6 @@ export default function BookingChat() {
         </div>
       </div>
 
-      {/* ── Lightbox ── */}
       {lightboxSrc && (
         <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
