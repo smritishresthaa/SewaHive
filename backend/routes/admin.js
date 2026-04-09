@@ -1,4 +1,3 @@
-// routes/admin.js
 const express = require('express');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const categoryImageUpload = require('../middleware/categoryImageUpload');
@@ -23,6 +22,49 @@ const {
 const router = express.Router();
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function getRangeBounds(range, from, to) {
+  const now = new Date();
+  if (range === 'today') {
+    const start = startOfDay(now);
+    return { start, end: addDays(start, 1) };
+  }
+  if (range === 'week') {
+    const current = startOfDay(now);
+    const day = current.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    const start = addDays(current, -diffToMonday);
+    return { start, end: addDays(start, 7) };
+  }
+  if (range === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start, end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
+  }
+  if (range === 'year') {
+    const start = new Date(now.getFullYear(), 0, 1);
+    return { start, end: new Date(now.getFullYear() + 1, 0, 1) };
+  }
+  if (range === 'custom' && from && to) {
+    const start = startOfDay(new Date(from));
+    const end = addDays(startOfDay(new Date(to)), 1);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start < end) {
+      return { start, end };
+    }
+  }
+  return null;
+}
 
 // ============================================
 // CATEGORY SKILL REVIEW (Phase 1)
@@ -207,6 +249,10 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
   try {
     const User = require('../models/User');
     const Payment = require('../models/Payment');
+    const { range = 'month', from, to } = req.query;
+    const bounds = getRangeBounds(range, from, to);
+    const bookingDateFilter = bounds ? { createdAt: { $gte: bounds.start, $lt: bounds.end } } : {};
+    const paymentDateFilter = bounds ? { createdAt: { $gte: bounds.start, $lt: bounds.end } } : {};
 
     const totalUsers = await User.countDocuments({ role: 'client' });
     const totalProviders = await User.countDocuments({ role: 'provider' });
@@ -230,13 +276,15 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
       status: { $in: ['submitted', 'under_review'] },
     });
 
-    const totalBookings = await Booking.countDocuments();
-    const completedBookings = await Booking.countDocuments({ status: 'completed' });
+    const totalBookings = await Booking.countDocuments(bookingDateFilter);
+    const completedBookings = await Booking.countDocuments({ ...bookingDateFilter, status: 'completed' });
     const ongoingBookings = await Booking.countDocuments({
-      status: { $in: ['accepted', 'work_in_progress', 'on_the_way'] },
+      ...bookingDateFilter,
+      status: { $in: ['accepted', 'work_in_progress', 'on_the_way', 'confirmed', 'in-progress', 'provider_en_route'] },
     });
     const cancelledBookings = await Booking.countDocuments({
-      status: { $in: ['cancelled', 'declined'] },
+      ...bookingDateFilter,
+      status: { $in: ['cancelled', 'declined', 'rejected'] },
     });
 
     const totalDisputes = await Dispute.countDocuments();
@@ -257,17 +305,18 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
     });
 
     const revenueData = await Payment.aggregate([
-      { $match: { status: 'RELEASED' } },
+      { $match: { ...paymentDateFilter, status: 'RELEASED' } },
       { $group: { _id: null, totalRevenue: { $sum: '$amount' } } },
     ]);
     const totalRevenue = revenueData[0]?.totalRevenue || 0;
 
-    const totalTransactions = await Payment.countDocuments();
-    const completedTransactions = await Payment.countDocuments({ status: 'RELEASED' });
+    const totalTransactions = await Payment.countDocuments(paymentDateFilter);
+    const completedTransactions = await Payment.countDocuments({ ...paymentDateFilter, status: 'RELEASED' });
     const pendingTransactions = await Payment.countDocuments({
+      ...paymentDateFilter,
       status: { $in: ['INITIATED', 'FUNDS_HELD', 'DISPUTED'] },
     });
-    const failedTransactions = await Payment.countDocuments({ status: 'FAILED' });
+    const failedTransactions = await Payment.countDocuments({ ...paymentDateFilter, status: 'FAILED' });
 
     const totalCategories = await Category.countDocuments();
     const activeCategories = await Category.countDocuments({ status: 'active' });
@@ -283,14 +332,17 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
       isActive: true,
       $or: [{ adminDisabled: false }, { adminDisabled: { $exists: false } }],
     });
-    const flaggedServices = await Service.countDocuments({
-      adminDisabled: true,
-    });
-    const suspendedServices = await Service.countDocuments({
+
+    const pendingServices = await Service.countDocuments({
       isActive: false,
+      $or: [{ adminDisabled: false }, { adminDisabled: { $exists: false } }],
     });
 
-    const recentBookings = await Booking.find()
+    const suspendedServices = await Service.countDocuments({
+      adminDisabled: true,
+    });
+
+    const recentBookings = await Booking.find(bookingDateFilter)
       .populate('clientId', 'profile.name email')
       .populate('providerId', 'profile.name email')
       .sort({ createdAt: -1 })
@@ -313,9 +365,11 @@ router.get('/dashboard/stats', authenticate, requireAdmin, async (req, res, next
         },
         services: {
           activeServices,
-          flaggedServices,
+          pendingServices,
           suspendedServices,
+          flaggedServices: 0,
         },
+        appliedFilters: { range, from: from || null, to: to || null },
         admin: {
           pendingDisputes,
           pendingVerifications,
@@ -614,6 +668,8 @@ router.post('/categories', authenticate, requireAdmin, async (req, res, next) =>
       adminNotes,
       subcategories,
       status,
+      emergencyServiceAllowed,
+      kycVerificationRequired,
     } = req.body;
 
     if (!name || !description) {
@@ -639,6 +695,10 @@ router.post('/categories', authenticate, requireAdmin, async (req, res, next) =>
       subcategories: Array.isArray(subcategories) ? subcategories : [],
       adminNotes,
       status: status || 'active',
+      emergencyServiceAllowed:
+        emergencyServiceAllowed === true || emergencyServiceAllowed === 'true',
+      kycVerificationRequired:
+        kycVerificationRequired === true || kycVerificationRequired === 'true',
       createdBy: req.user._id,
       updatedBy: req.user._id,
     });
@@ -670,6 +730,8 @@ router.put('/categories/:categoryId', authenticate, requireAdmin, async (req, re
       adminNotes,
       status,
       subcategories,
+      emergencyServiceAllowed,
+      kycVerificationRequired,
     } = req.body;
 
     const category = await Category.findById(req.params.categoryId);
@@ -700,6 +762,16 @@ router.put('/categories/:categoryId', authenticate, requireAdmin, async (req, re
     if (adminNotes !== undefined) category.adminNotes = adminNotes;
     if (Array.isArray(subcategories)) category.subcategories = subcategories;
     if (status) category.status = status;
+
+    if (emergencyServiceAllowed !== undefined) {
+      category.emergencyServiceAllowed =
+        emergencyServiceAllowed === true || emergencyServiceAllowed === 'true';
+    }
+
+    if (kycVerificationRequired !== undefined) {
+      category.kycVerificationRequired =
+        kycVerificationRequired === true || kycVerificationRequired === 'true';
+    }
 
     category.updatedBy = req.user._id;
 
@@ -1054,6 +1126,8 @@ router.get('/category-requests', authenticate, requireAdmin, async (req, res, ne
       .populate('providerId', 'profile.name email')
       .populate('reviewedBy', 'profile.name email')
       .populate('categoryId', 'name status')
+      .populate('parentCategoryId', 'name status')
+      .populate('subcategoryId', 'name status categoryId')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: requests });
@@ -1073,13 +1147,90 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
       return res.status(400).json({ success: false, message: 'Request already reviewed' });
     }
 
+    const requestType = request.requestType || 'category';
+
+    if (requestType === 'subcategory') {
+      if (!request.parentCategoryId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Parent category is missing for this subcategory request',
+        });
+      }
+
+      const parentCategory = await Category.findById(request.parentCategoryId);
+      if (!parentCategory || parentCategory.status === 'deleted') {
+        return res.status(404).json({
+          success: false,
+          message: 'Parent category not found',
+        });
+      }
+
+      const existingSubcategory = await Subcategory.findOne({
+        categoryId: parentCategory._id,
+        name: { $regex: `^${escapeRegex(request.name)}$`, $options: 'i' }
+      });
+
+      if (existingSubcategory) {
+        request.status = 'rejected';
+        request.rejectionReason = `Subcategory already exists under ${parentCategory.name}`;
+        request.adminNotes = request.rejectionReason;
+        request.reviewedBy = req.user._id;
+        request.reviewedAt = new Date();
+        await request.save();
+
+        return res.status(400).json({
+          success: false,
+          message: 'Subcategory already exists under this category',
+          subcategory: existingSubcategory
+        });
+      }
+
+      const subcategory = await Subcategory.create({
+        categoryId: parentCategory._id,
+        name: request.name,
+        description: request.description || '',
+        status: 'active',
+        sortOrder: 0,
+      });
+
+      request.status = 'approved';
+      request.categoryId = parentCategory._id;
+      request.subcategoryId = subcategory._id;
+      request.adminNotes = req.body.adminNotes || 'Approved';
+      request.rejectionReason = undefined;
+      request.reviewedBy = req.user._id;
+      request.reviewedAt = new Date();
+      await request.save();
+
+      broadcastToRole('provider', {
+        event: 'category_request_approved',
+        data: {
+          requestId: String(request._id),
+          requestType: 'subcategory',
+          categoryId: String(parentCategory._id),
+          categoryName: parentCategory.name,
+          subcategoryId: String(subcategory._id),
+          subcategoryName: subcategory.name,
+          providerId: String(request.providerId)
+        },
+      });
+
+      return res.json({
+        success: true,
+        message: 'Subcategory request approved and subcategory created',
+        category: parentCategory,
+        subcategory,
+      });
+    }
+
     const existingCategory = await Category.findOne({
       name: { $regex: `^${escapeRegex(request.name)}$`, $options: 'i' }
     });
 
     if (existingCategory) {
       request.status = 'rejected';
-      request.adminNotes = 'Category already exists';
+      request.rejectionReason = 'Category already exists';
+      request.adminNotes = request.rejectionReason;
       request.reviewedBy = req.user._id;
       request.reviewedAt = new Date();
       await request.save();
@@ -1101,7 +1252,9 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
 
     request.status = 'approved';
     request.categoryId = category._id;
+    request.subcategoryId = undefined;
     request.adminNotes = req.body.adminNotes || 'Approved';
+    request.rejectionReason = undefined;
     request.reviewedBy = req.user._id;
     request.reviewedAt = new Date();
     await request.save();
@@ -1110,6 +1263,7 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
       event: 'category_request_approved',
       data: {
         requestId: String(request._id),
+        requestType: 'category',
         categoryId: String(category._id),
         categoryName: category.name,
         providerId: String(request.providerId)
@@ -1137,8 +1291,11 @@ router.post('/category-requests/:requestId/reject', authenticate, requireAdmin, 
       return res.status(400).json({ success: false, message: 'Request already reviewed' });
     }
 
+    const rejectionReason = req.body.reason || req.body.adminNotes || 'Does not meet platform requirements';
+
     request.status = 'rejected';
-    request.adminNotes = req.body.adminNotes || 'Does not meet platform requirements';
+    request.adminNotes = rejectionReason;
+    request.rejectionReason = rejectionReason;
     request.reviewedBy = req.user._id;
     request.reviewedAt = new Date();
     await request.save();
@@ -1147,7 +1304,8 @@ router.post('/category-requests/:requestId/reject', authenticate, requireAdmin, 
       event: 'category_request_rejected',
       data: {
         requestId: String(request._id),
-        reason: request.adminNotes,
+        requestType: request.requestType || 'category',
+        reason: rejectionReason,
         providerId: String(request.providerId)
       },
     });
@@ -1168,8 +1326,11 @@ router.patch('/services/:serviceId/status', authenticate, requireAdmin, async (r
   try {
     const { status, reason } = req.body;
 
-    if (!['active', 'inactive'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status' });
+    if (!['active', 'pending', 'suspended'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Allowed values: active, pending, suspended',
+      });
     }
 
     const service = await Service.findById(req.params.serviceId);
@@ -1177,13 +1338,7 @@ router.patch('/services/:serviceId/status', authenticate, requireAdmin, async (r
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
-    if (status === 'inactive') {
-      service.isActive = false;
-      service.adminDisabled = true;
-      service.adminDisabledReason = reason || 'Service restricted by admin';
-      service.adminDisabledAt = new Date();
-      service.adminDisabledBy = req.user._id;
-    } else {
+    if (status === 'active') {
       service.isActive = true;
       service.adminDisabled = false;
       service.adminDisabledReason = null;
@@ -1191,21 +1346,63 @@ router.patch('/services/:serviceId/status', authenticate, requireAdmin, async (r
       service.adminDisabledBy = null;
     }
 
+    if (status === 'pending') {
+      service.isActive = false;
+      service.adminDisabled = false;
+      service.adminDisabledReason = reason || null;
+      service.adminDisabledAt = null;
+      service.adminDisabledBy = null;
+    }
+
+    if (status === 'suspended') {
+      service.isActive = false;
+      service.adminDisabled = true;
+      service.adminDisabledReason = reason || 'Service suspended by admin';
+      service.adminDisabledAt = new Date();
+      service.adminDisabledBy = req.user._id;
+    }
+
     await service.save();
 
     const { createNotification } = require('../utils/createNotification');
+
+    let type = 'service_status_updated';
+    let title = 'Service Status Updated';
+    let message = `Your service "${service.title}" status was updated.`;
+
+    if (status === 'active') {
+      type = 'service_restored';
+      title = 'Service Activated';
+      message = `Your service "${service.title}" is now active.`;
+    } else if (status === 'pending') {
+      type = 'service_unpublished';
+      title = 'Service Moved to Pending';
+      message = `Your service "${service.title}" was moved to pending.${reason ? ` Reason: ${reason}` : ''}`;
+    } else if (status === 'suspended') {
+      type = 'service_suspended';
+      title = 'Service Suspended';
+      message = `Your service "${service.title}" was suspended by admin.${service.adminDisabledReason ? ` Reason: ${service.adminDisabledReason}` : ''}`;
+    }
+
     await createNotification({
       userId: service.providerId,
-      type: status === 'inactive' ? 'service_flagged' : 'service_restored',
-      title: status === 'inactive' ? 'Service Restricted' : 'Service Restored',
-      message:
-        status === 'inactive'
-          ? `Your service "${service.title}" was restricted by admin. ${service.adminDisabledReason || ''}`
-          : `Your service "${service.title}" is active again.`,
+      type,
+      title,
+      message,
       metadata: { serviceId: service._id, status },
     });
 
-    res.json({ success: true, data: service });
+    res.json({
+      success: true,
+      data: {
+        _id: service._id,
+        title: service.title,
+        isActive: service.isActive,
+        adminDisabled: service.adminDisabled,
+        adminDisabledReason: service.adminDisabledReason,
+        status,
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -1327,65 +1524,77 @@ router.get('/services/moderation', authenticate, requireAdmin, async (req, res, 
   try {
     const { search, status } = req.query;
     const filter = {};
-    const activeFilter = {
-      isActive: true,
-      $or: [{ adminDisabled: false }, { adminDisabled: { $exists: false } }],
-    };
 
-    if (status === 'flagged') filter.adminDisabled = true;
-    if (status === 'suspended') filter.isActive = false;
     if (status === 'active') {
-      filter.$and = filter.$and || [];
-      filter.$and.push(activeFilter);
+      filter.isActive = true;
+      filter.$or = [{ adminDisabled: false }, { adminDisabled: { $exists: false } }];
     }
 
     if (status === 'pending') {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      filter.$and = filter.$and || [];
-      filter.$and.push(activeFilter);
-      filter.createdAt = { $gte: sevenDaysAgo };
+      filter.isActive = false;
+      filter.$or = [{ adminDisabled: false }, { adminDisabled: { $exists: false } }];
+    }
+
+    if (status === 'suspended') {
+      filter.adminDisabled = true;
     }
 
     if (search) {
-      const searchClause = {
+      const regex = new RegExp(search, 'i');
+      filter.$and = filter.$and || [];
+      filter.$and.push({
         $or: [
-          { title: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { category: { $regex: search, $options: 'i' } },
-          { subcategory: { $regex: search, $options: 'i' } },
+          { title: regex },
+          { description: regex },
+          { category: regex },
+          { subcategory: regex },
         ],
-      };
-
-      if (filter.$and) {
-        filter.$and.push(searchClause);
-      } else {
-        filter.$or = searchClause.$or;
-      }
+      });
     }
 
     const services = await Service.find(filter)
       .populate('providerId', 'profile.name email')
       .populate('categoryId', 'name')
+      .populate('subcategoryId', 'name')
       .sort({ createdAt: -1 })
       .limit(100);
 
-    const queue = services.map((service) => {
-      let derivedStatus = 'active';
-      if (service.adminDisabled) derivedStatus = 'flagged';
-      else if (!service.isActive) derivedStatus = 'suspended';
-      else if (service.createdAt > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) {
-        derivedStatus = 'pending';
-      }
+    const queue = services
+      .filter((service) => {
+        if (!search) return true;
 
-      return {
-        id: service._id,
-        service: service.title,
-        provider: service.providerId?.profile?.name || 'Unknown',
-        category: service.categoryId?.name || service.category,
-        status: derivedStatus,
-        flagReason: service.adminDisabledReason || '-',
-      };
-    });
+        const searchLower = search.toLowerCase();
+        const providerName = service.providerId?.profile?.name?.toLowerCase() || '';
+        const categoryName = service.categoryId?.name?.toLowerCase() || service.category?.toLowerCase() || '';
+        const subcategoryName = service.subcategoryId?.name?.toLowerCase() || service.subcategory?.toLowerCase() || '';
+        const title = service.title?.toLowerCase() || '';
+        const description = service.description?.toLowerCase() || '';
+
+        return (
+          providerName.includes(searchLower) ||
+          categoryName.includes(searchLower) ||
+          subcategoryName.includes(searchLower) ||
+          title.includes(searchLower) ||
+          description.includes(searchLower)
+        );
+      })
+      .map((service) => {
+        let derivedStatus = 'pending';
+        if (service.adminDisabled) derivedStatus = 'suspended';
+        else if (service.isActive) derivedStatus = 'active';
+
+        return {
+          id: String(service._id),
+          service: service.title,
+          provider: service.providerId?.profile?.name || 'Unknown',
+          category: service.categoryId?.name || service.category || 'Uncategorized',
+          status: derivedStatus,
+          flagReason:
+            service.adminDisabledReason ||
+            (derivedStatus === 'pending' ? 'Awaiting activation / unpublished' : '-'),
+          createdAt: service.createdAt,
+        };
+      });
 
     res.json({ success: true, data: queue });
   } catch (err) {
@@ -1430,7 +1639,9 @@ router.get('/services/analytics', authenticate, requireAdmin, async (req, res, n
         },
       },
       { $unwind: '$service' },
-      { $group: { _id: '$service.category', count: { $sum: 1 } } },
+      {
+        $group: { _id: '$service.category', count: { $sum: 1 } },
+      },
       { $sort: { count: -1 } },
       { $limit: 5 },
     ]);

@@ -32,7 +32,14 @@ export default function ProtectedRoute({ children, role }) {
   }
 
   // -------------------------------
-  // 3. Role protection
+  // 3. Account restriction handling
+  // -------------------------------
+  if (user?.accountStatus === "suspended" || user?.accountStatus === "deleted") {
+    return <Navigate to="/" replace state={{ accountNotice: user?.suspension || {} }} />;
+  }
+
+  // -------------------------------
+  // 4. Role protection
   // -------------------------------
   if (role && user?.role !== role) {
     const redirectByRole =
@@ -46,7 +53,7 @@ export default function ProtectedRoute({ children, role }) {
   }
 
   // -------------------------------
-  // 4. Access granted
+  // 5. Access granted
   // -------------------------------
   return children;
 }

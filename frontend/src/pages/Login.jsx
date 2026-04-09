@@ -37,7 +37,7 @@ export default function Login() {
     if (returnTo && role === "client") {
       return navigate(returnTo);
     }
-    return navigate(getRedirectPath(role));
+    return navigate(getRedirectPath(role, { role }));
   }
 
   async function handleLogin(e) {
@@ -49,7 +49,7 @@ export default function Login() {
       const user = await login(form.email, form.password);
 
       toast.success("Logged in successfully");
-      redirectByRole(user.role);
+      navigate(getRedirectPath(user.role, user));
     } catch (err) {
       console.error(err);
 
@@ -83,7 +83,7 @@ export default function Login() {
           const user = await loginWithGoogle(response.credential);
 
           toast.success("Logged in with Google");
-          redirectByRole(user.role);
+          navigate(getRedirectPath(user.role, user));
         } catch (err) {
           console.error(err);
           setError("Google login failed");

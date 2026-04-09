@@ -2,14 +2,85 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../utils/axios";
 import { useAuth } from "../context/AuthContext";
-import { HiMail, HiLockClosed, HiUser, HiEye, HiEyeOff } from "react-icons/hi";
+import {
+  HiMail,
+  HiLockClosed,
+  HiUser,
+  HiEye,
+  HiEyeOff,
+  HiX,
+} from "react-icons/hi";
 import { FcGoogle } from "react-icons/fc";
 import logo from "../logos/logo.png";
 import toast from "react-hot-toast";
 
+function TermsModal({
+  open,
+  onClose,
+  termsAndConditions,
+  termsVersion,
+  termsUpdatedAt,
+}) {
+  if (!open) return null;
+
+  const formattedUpdatedAt = termsUpdatedAt
+    ? new Date(termsUpdatedAt).toLocaleString()
+    : "Not available";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm">
+      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(15,23,42,0.28)]">
+        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4 md:px-6">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 md:text-xl">
+              Terms & Conditions
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 md:text-sm">
+              Version {termsVersion || "1.0"} • Last updated {formattedUpdatedAt}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-4 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close terms and conditions"
+          >
+            <HiX size={20} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-5 py-4 md:px-6 md:py-5">
+          {termsAndConditions?.trim() ? (
+            <div className="whitespace-pre-line text-sm leading-7 text-slate-700">
+              {termsAndConditions}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+              No Terms & Conditions have been published yet.
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-200 px-5 py-4 md:px-6">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-800"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Signup() {
   const navigate = useNavigate();
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, getRedirectPath } = useAuth();
 
   const [form, setForm] = useState({
     name: "",
@@ -26,15 +97,15 @@ export default function Signup() {
   const [registrationOpen, setRegistrationOpen] = useState(true);
   const [checkingRegistration, setCheckingRegistration] = useState(true);
 
+  const [termsAndConditions, setTermsAndConditions] = useState("");
+  const [termsVersion, setTermsVersion] = useState("1.0");
+  const [termsUpdatedAt, setTermsUpdatedAt] = useState(null);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [touched, setTouched] = useState({});
 
-  function getRedirectPath(role) {
-    if (role === "provider") return "/provider/dashboard";
-    if (role === "admin") return "/admin/dashboard";
-    return "/client/dashboard";
-  }
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
@@ -96,10 +167,17 @@ export default function Signup() {
     async function fetchPublicRegistrationStatus() {
       try {
         const res = await api.get("/settings/public");
+
         setRegistrationOpen(res?.data?.registrationOpen ?? true);
+        setTermsAndConditions(res?.data?.termsAndConditions ?? "");
+        setTermsVersion(res?.data?.termsVersion ?? "1.0");
+        setTermsUpdatedAt(res?.data?.termsUpdatedAt ?? null);
       } catch (err) {
         console.error("Failed to fetch public registration status:", err);
         setRegistrationOpen(true);
+        setTermsAndConditions("");
+        setTermsVersion("1.0");
+        setTermsUpdatedAt(null);
       } finally {
         setCheckingRegistration(false);
       }
@@ -120,7 +198,7 @@ export default function Signup() {
           setGoogleLoading(true);
           const user = await loginWithGoogle(response.credential, "client");
           toast.success("Signed up with Google!");
-          navigate(getRedirectPath(user?.role));
+          navigate(getRedirectPath(user?.role, user));
         } catch (err) {
           console.error(err);
           const errorMsg =
@@ -133,6 +211,17 @@ export default function Signup() {
       },
     });
   }, [loginWithGoogle, navigate]);
+
+  useEffect(() => {
+    if (!showTermsModal) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showTermsModal]);
 
   async function handleSignup(e) {
     e.preventDefault();
@@ -222,270 +311,292 @@ export default function Signup() {
     }`;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      {registrationOpen ? (
-        <div className="relative w-full max-w-5xl rounded-3xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600 p-[1px] shadow-[0_40px_80px_rgba(15,23,42,0.55)]">
-          <div className="relative flex flex-col overflow-hidden rounded-[22px] bg-white md:flex-row">
-            <div className="pointer-events-none absolute -left-20 top-6 h-56 w-56 rounded-full bg-emerald-300/40 blur-3xl" />
-            <div className="pointer-events-none absolute bottom-0 right-0 h-52 w-52 rounded-full bg-emerald-500/30 blur-3xl" />
+    <>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        {registrationOpen ? (
+          <div className="relative w-full max-w-5xl rounded-3xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600 p-[1px] shadow-[0_40px_80px_rgba(15,23,42,0.55)]">
+            <div className="relative flex flex-col overflow-hidden rounded-[22px] bg-white md:flex-row">
+              <div className="pointer-events-none absolute -left-20 top-6 h-56 w-56 rounded-full bg-emerald-300/40 blur-3xl" />
+              <div className="pointer-events-none absolute bottom-0 right-0 h-52 w-52 rounded-full bg-emerald-500/30 blur-3xl" />
 
-            <div className="relative bg-gradient-to-br from-emerald-50/95 via-emerald-50 to-emerald-100/90 px-8 py-8 md:w-1/2 md:px-10 md:py-10">
-              <Link
-                to="/"
-                className="inline-flex items-center text-xs text-emerald-800/70 hover:text-emerald-900"
-              >
-                <span className="mr-2">←</span>
-                Back to Home
-              </Link>
+              <div className="relative bg-gradient-to-br from-emerald-50/95 via-emerald-50 to-emerald-100/90 px-8 py-8 md:w-1/2 md:px-10 md:py-10">
+                <Link
+                  to="/"
+                  className="inline-flex items-center text-xs text-emerald-800/70 hover:text-emerald-900"
+                >
+                  <span className="mr-2">←</span>
+                  Back to Home
+                </Link>
 
-              <div className="mt-6">
-                <img
-                  src={logo}
-                  alt="SewaHive logo"
-                  className="h-10 w-auto object-contain"
-                />
+                <div className="mt-6">
+                  <img
+                    src={logo}
+                    alt="SewaHive logo"
+                    className="h-10 w-auto object-contain"
+                  />
+                </div>
+
+                <div className="mt-10 max-w-sm space-y-4 md:mt-16">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700/80">
+                    GET STARTED
+                  </p>
+
+                  <h1 className="text-3xl font-semibold leading-tight text-emerald-950 md:text-4xl">
+                    Join the
+                    <br />
+                    <span className="text-emerald-700">SewaHive Community</span>
+                  </h1>
+
+                  <p className="text-sm leading-relaxed text-emerald-900/80">
+                    Create your account and start booking trusted service providers
+                    for your home — fast, safe, and easy.
+                  </p>
+                </div>
+
+                <div className="mt-10 text-[11px] text-emerald-900/60">
+                  Verified providers · Transparent pricing · 24/7 booking
+                </div>
               </div>
 
-              <div className="mt-10 max-w-sm space-y-4 md:mt-16">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700/80">
-                  GET STARTED
-                </p>
+              <div className="relative bg-white px-6 py-7 md:w-1/2 md:px-8 md:py-9">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 md:text-2xl">
+                    Create Account
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Sign up to get started with SewaHive.
+                  </p>
+                </div>
 
-                <h1 className="text-3xl font-semibold leading-tight text-emerald-950 md:text-4xl">
-                  Join the
-                  <br />
-                  <span className="text-emerald-700">SewaHive Community</span>
-                </h1>
-
-                <p className="text-sm leading-relaxed text-emerald-900/80">
-                  Create your account and start booking trusted service providers
-                  for your home — fast, safe, and easy.
-                </p>
-              </div>
-
-              <div className="mt-10 text-[11px] text-emerald-900/60">
-                Verified providers · Transparent pricing · 24/7 booking
-              </div>
-            </div>
-
-            <div className="relative bg-white px-6 py-7 md:w-1/2 md:px-8 md:py-9">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900 md:text-2xl">
-                  Create Account
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Sign up to get started with SewaHive.
-                </p>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-slate-100 px-5 py-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-                {error && (
-                  <div className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
-                    {error}
-                  </div>
-                )}
-
-                <form className="space-y-5" onSubmit={handleSignup} noValidate>
-                  <div>
-                    <label className="text-xs font-medium text-slate-700">
-                      Full Name
-                    </label>
-                    <div className={getWrapperClass("name")}>
-                      <HiUser className="mr-2 text-lg text-slate-400" />
-                      <input
-                        type="text"
-                        name="name"
-                        value={form.name}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={inputBase}
-                        placeholder="Enter your full name"
-                        disabled={!registrationOpen}
-                        required
-                      />
+                <div className="mt-5 rounded-2xl border border-slate-100 px-5 py-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+                  {error && (
+                    <div className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
+                      {error}
                     </div>
-                    {touched.name && fieldErrors.name && (
-                      <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>
-                    )}
-                  </div>
+                  )}
 
-                  <div>
-                    <label className="text-xs font-medium text-slate-700">Email</label>
-                    <div className={getWrapperClass("email")}>
-                      <HiMail className="mr-2 text-lg text-slate-400" />
-                      <input
-                        type="email"
-                        name="email"
-                        value={form.email}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={inputBase}
-                        placeholder="Enter your email"
-                        disabled={!registrationOpen}
-                        required
-                      />
+                  <form className="space-y-5" onSubmit={handleSignup} noValidate>
+                    <div>
+                      <label className="text-xs font-medium text-slate-700">
+                        Full Name
+                      </label>
+                      <div className={getWrapperClass("name")}>
+                        <HiUser className="mr-2 text-lg text-slate-400" />
+                        <input
+                          type="text"
+                          name="name"
+                          value={form.name}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          className={inputBase}
+                          placeholder="Enter your full name"
+                          disabled={!registrationOpen}
+                          required
+                        />
+                      </div>
+                      {touched.name && fieldErrors.name && (
+                        <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>
+                      )}
                     </div>
-                    {touched.email && fieldErrors.email && (
-                      <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="text-xs font-medium text-slate-700">
-                      Password
-                    </label>
-                    <div className={getWrapperClass("password")}>
-                      <HiLockClosed className="mr-2 text-lg text-slate-400" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        name="password"
-                        value={form.password}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={inputBase}
-                        placeholder="Create a password"
-                        disabled={!registrationOpen}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        className="text-slate-500 hover:text-slate-700"
-                      >
-                        {showPassword ? <HiEyeOff size={18} /> : <HiEye size={18} />}
-                      </button>
+                    <div>
+                      <label className="text-xs font-medium text-slate-700">Email</label>
+                      <div className={getWrapperClass("email")}>
+                        <HiMail className="mr-2 text-lg text-slate-400" />
+                        <input
+                          type="email"
+                          name="email"
+                          value={form.email}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          className={inputBase}
+                          placeholder="Enter your email"
+                          disabled={!registrationOpen}
+                          required
+                        />
+                      </div>
+                      {touched.email && fieldErrors.email && (
+                        <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>
+                      )}
                     </div>
-                    {touched.password && fieldErrors.password ? (
-                      <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
-                    ) : (
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        Use at least 8 characters, 1 uppercase letter, and 1 number.
-                      </p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="text-xs font-medium text-slate-700">
-                      Confirm Password
-                    </label>
-                    <div className={getWrapperClass("confirmPassword")}>
-                      <HiLockClosed className="mr-2 text-lg text-slate-400" />
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        name="confirmPassword"
-                        value={form.confirmPassword}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={inputBase}
-                        placeholder="Re-enter your password"
-                        disabled={!registrationOpen}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword((prev) => !prev)}
-                        className="text-slate-500 hover:text-slate-700"
-                      >
-                        {showConfirmPassword ? (
-                          <HiEyeOff size={18} />
-                        ) : (
-                          <HiEye size={18} />
-                        )}
-                      </button>
+                    <div>
+                      <label className="text-xs font-medium text-slate-700">
+                        Password
+                      </label>
+                      <div className={getWrapperClass("password")}>
+                        <HiLockClosed className="mr-2 text-lg text-slate-400" />
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          name="password"
+                          value={form.password}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          className={inputBase}
+                          placeholder="Create a password"
+                          disabled={!registrationOpen}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="text-slate-500 hover:text-slate-700"
+                        >
+                          {showPassword ? <HiEyeOff size={18} /> : <HiEye size={18} />}
+                        </button>
+                      </div>
+                      {touched.password && fieldErrors.password ? (
+                        <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Use at least 8 characters, 1 uppercase letter, and 1 number.
+                        </p>
+                      )}
                     </div>
-                    {touched.confirmPassword && fieldErrors.confirmPassword && (
-                      <p className="mt-1 text-xs text-red-500">
-                        {fieldErrors.confirmPassword}
-                      </p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="flex items-start gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        name="acceptTerms"
-                        checked={form.acceptTerms}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className="mt-0.5 rounded border-slate-300"
-                      />
-                      <span>
-                        I agree to the{" "}
-                        <span className="font-medium text-emerald-700">
-                          Terms & Conditions
+                    <div>
+                      <label className="text-xs font-medium text-slate-700">
+                        Confirm Password
+                      </label>
+                      <div className={getWrapperClass("confirmPassword")}>
+                        <HiLockClosed className="mr-2 text-lg text-slate-400" />
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          name="confirmPassword"
+                          value={form.confirmPassword}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          className={inputBase}
+                          placeholder="Re-enter your password"
+                          disabled={!registrationOpen}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          className="text-slate-500 hover:text-slate-700"
+                        >
+                          {showConfirmPassword ? (
+                            <HiEyeOff size={18} />
+                          ) : (
+                            <HiEye size={18} />
+                          )}
+                        </button>
+                      </div>
+                      {touched.confirmPassword && fieldErrors.confirmPassword && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {fieldErrors.confirmPassword}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="flex items-start gap-2 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          name="acceptTerms"
+                          checked={form.acceptTerms}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          className="mt-0.5 rounded border-slate-300"
+                        />
+                        <span>
+                          I agree to the{" "}
+                          <button
+                            type="button"
+                            onClick={() => setShowTermsModal(true)}
+                            className="font-medium text-emerald-700 underline underline-offset-2 transition-colors hover:text-emerald-800"
+                          >
+                            Terms & Conditions
+                          </button>
+                          .
                         </span>
-                        .
+                      </label>
+
+                      <div className="mt-1 pl-6 text-[11px] text-slate-400">
+                        Version {termsVersion || "1.0"}
+                        {termsUpdatedAt
+                          ? ` • Updated ${new Date(termsUpdatedAt).toLocaleDateString()}`
+                          : ""}
+                      </div>
+
+                      {touched.acceptTerms && fieldErrors.acceptTerms && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {fieldErrors.acceptTerms}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !registrationOpen || !isFormValid}
+                      className="mt-1 w-full rounded-xl bg-emerald-700 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(4,120,87,0.45)] transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {loading ? "Creating account..." : "Sign Up"}
+                    </button>
+
+                    <div className="flex items-center gap-3 pt-1">
+                      <span className="h-px flex-1 bg-slate-200" />
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                        or
                       </span>
-                    </label>
-                    {touched.acceptTerms && fieldErrors.acceptTerms && (
-                      <p className="mt-1 text-xs text-red-500">
-                        {fieldErrors.acceptTerms}
-                      </p>
-                    )}
-                  </div>
+                      <span className="h-px flex-1 bg-slate-200" />
+                    </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading || !registrationOpen || !isFormValid}
-                    className="mt-1 w-full rounded-xl bg-emerald-700 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(4,120,87,0.45)] transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {loading ? "Creating account..." : "Sign Up"}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignup}
+                      disabled={googleLoading || !registrationOpen}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      <FcGoogle className="text-xl" />
+                      <span>{googleLoading ? "Connecting..." : "Continue with Google"}</span>
+                    </button>
+                  </form>
+                </div>
 
-                  <div className="flex items-center gap-3 pt-1">
-                    <span className="h-px flex-1 bg-slate-200" />
-                    <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                      or
-                    </span>
-                    <span className="h-px flex-1 bg-slate-200" />
-                  </div>
+                <div className="mt-5 text-center text-xs text-slate-500">
+                  Already have an account?{" "}
+                  <Link to="/login" className="font-medium text-emerald-700">
+                    Login
+                  </Link>
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignup}
-                    disabled={googleLoading || !registrationOpen}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <FcGoogle className="text-xl" />
-                    <span>{googleLoading ? "Connecting..." : "Continue with Google"}</span>
-                  </button>
-                </form>
-              </div>
-
-              <div className="mt-5 text-center text-xs text-slate-500">
-                Already have an account?{" "}
-                <Link to="/login" className="font-medium text-emerald-700">
-                  Login
-                </Link>
-              </div>
-
-              <div className="mt-2 text-center text-[11px] text-slate-400">
-                Want to offer services?{" "}
-                <Link to="/provider/signup" className="text-emerald-700">
-                  Become a Provider
-                </Link>
+                <div className="mt-2 text-center text-[11px] text-slate-400">
+                  Want to offer services?{" "}
+                  <Link to="/provider/signup" className="text-emerald-700">
+                    Become a Provider
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center text-center">
-          <img
-            src="https://cdn-icons-png.flaticon.com/512/679/679720.png"
-            alt="Construction"
-            style={{ width: 120, height: 120 }}
-          />
-          <h2 className="mt-6 text-2xl font-bold text-emerald-800">
-            We're working on something new!
-          </h2>
-          <p className="mt-2 text-lg text-emerald-700">
-            Registration is temporarily closed.
-            <br />
-            Please check back soon.
-          </p>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center text-center">
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/679/679720.png"
+              alt="Construction"
+              style={{ width: 120, height: 120 }}
+            />
+            <h2 className="mt-6 text-2xl font-bold text-emerald-800">
+              We're working on something new!
+            </h2>
+            <p className="mt-2 text-lg text-emerald-700">
+              Registration is temporarily closed.
+              <br />
+              Please check back soon.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <TermsModal
+        open={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        termsAndConditions={termsAndConditions}
+        termsVersion={termsVersion}
+        termsUpdatedAt={termsUpdatedAt}
+      />
+    </>
   );
 }

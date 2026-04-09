@@ -24,9 +24,10 @@ const CHAT_ALLOWED_STATUSES = new Set([
   "quote_accepted",
 ]);
 
-function createHttpError(status, message) {
+function createHttpError(status, message, extra = {}) {
   const error = new Error(message);
   error.status = status;
+  Object.assign(error, extra);
   return error;
 }
 
@@ -36,10 +37,13 @@ function normalizeLimit(limitValue, fallback = 30) {
   return Math.min(parsed, 100);
 }
 
+function buildPairKey(clientId, providerId) {
+  return `${String(clientId)}:${String(providerId)}`;
+}
+
 function mapSenderRoleFromBooking(booking, userId) {
   const isClient = String(booking.clientId?._id || booking.clientId) === String(userId);
-  if (isClient) return "client";
-  return "provider";
+  return isClient ? "client" : "provider";
 }
 
 async function ensureBookingForChat({ bookingId, user, allowAdminRead = false, adminDisputeOnly = false }) {
@@ -95,27 +99,72 @@ async function ensureBookingForChat({ bookingId, user, allowAdminRead = false, a
 }
 
 async function getOrCreateConversationForBooking(booking) {
-  const bookingId = booking._id;
+  const clientId = booking.clientId?._id || booking.clientId;
+  const providerId = booking.providerId?._id || booking.providerId;
+  const pairKey = buildPairKey(clientId, providerId);
 
-  let conversation = await Conversation.findOne({ bookingId });
+  let conversation = await Conversation.findOne({ pairKey });
   if (!conversation) {
     conversation = await Conversation.create({
-      bookingId,
-      clientId: booking.clientId?._id || booking.clientId,
-      providerId: booking.providerId?._id || booking.providerId,
+      bookingId: booking._id,
+      pairKey,
+      clientId,
+      providerId,
       lastMessageAt: null,
       lastMessageText: "",
       unreadByClient: 0,
       unreadByProvider: 0,
+      blockedBy: null,
+      blockedAt: null,
     });
+  } else if (String(conversation.bookingId) !== String(booking._id)) {
+    conversation.bookingId = booking._id;
+    await conversation.save();
   }
 
   return conversation;
 }
 
-async function getBookingChatHistory({ bookingId, before, limit = 30 }) {
+async function getPairBookingIds(booking) {
+  const clientId = booking.clientId?._id || booking.clientId;
+  const providerId = booking.providerId?._id || booking.providerId;
+  const bookings = await Booking.find(
+    { clientId, providerId },
+    { _id: 1 }
+  ).lean();
+  return bookings.map((b) => b._id);
+}
+
+function buildBlockState(conversation, userId) {
+  const blockedBy = conversation?.blockedBy ? String(conversation.blockedBy) : null;
+  return {
+    isBlocked: Boolean(blockedBy),
+    blockedBy,
+    blockedAt: conversation?.blockedAt || null,
+    blockedByMe: blockedBy && String(blockedBy) === String(userId),
+    blockedByOther: blockedBy && String(blockedBy) !== String(userId),
+  };
+}
+
+async function getBookingChatHistory({ booking, bookingId, before, limit = 30 }) {
+  let bookingDoc = booking;
+  if (!bookingDoc) {
+    bookingDoc = await Booking.findById(bookingId).select("clientId providerId");
+    if (!bookingDoc) {
+      throw createHttpError(404, "Booking not found");
+    }
+  }
+
   const safeLimit = normalizeLimit(limit);
-  const query = { bookingId };
+  const clientId = bookingDoc.clientId?._id || bookingDoc.clientId;
+  const providerId = bookingDoc.providerId?._id || bookingDoc.providerId;
+
+  const query = {
+    $or: [
+      { senderId: clientId, receiverId: providerId },
+      { senderId: providerId, receiverId: clientId },
+    ],
+  };
 
   if (before) {
     const beforeDate = new Date(before);
@@ -147,10 +196,10 @@ async function sendBookingMessage({ booking, senderId, text, type = "text", atta
     throw createHttpError(400, "Message text is required");
   }
 
-  // Build display text for conversation preview
   let previewText = trimmedText;
   if (msgType === "image") previewText = trimmedText || "📷 Photo";
   if (msgType === "voice") previewText = trimmedText || "🎤 Voice message";
+  if (msgType === "video") previewText = trimmedText || "🎬 Video";
 
   const senderRole = mapSenderRoleFromBooking(booking, senderId);
   const receiverId =
@@ -159,6 +208,14 @@ async function sendBookingMessage({ booking, senderId, text, type = "text", atta
       : booking.clientId?._id || booking.clientId;
 
   const conversation = await getOrCreateConversationForBooking(booking);
+  const blockState = buildBlockState(conversation, senderId);
+  if (blockState.isBlocked) {
+    throw createHttpError(
+      403,
+      blockState.blockedByMe ? "You blocked this chat" : "You cannot message this user right now",
+      { code: "CHAT_BLOCKED", block: blockState }
+    );
+  }
 
   const messageData = {
     bookingId: booking._id,
@@ -171,7 +228,7 @@ async function sendBookingMessage({ booking, senderId, text, type = "text", atta
     status: "sent",
   };
 
-  if (attachment && (msgType === "image" || msgType === "voice")) {
+  if (attachment && ["image", "voice", "video"].includes(msgType)) {
     messageData.attachment = attachment;
   }
 
@@ -181,6 +238,7 @@ async function sendBookingMessage({ booking, senderId, text, type = "text", atta
     { _id: conversation._id },
     {
       $set: {
+        bookingId: booking._id,
         lastMessageAt: message.createdAt,
         lastMessageText: previewText.slice(0, 300),
       },
@@ -210,6 +268,7 @@ async function sendBookingMessage({ booking, senderId, text, type = "text", atta
     message,
     receiverId: String(receiverId),
     senderRole,
+    conversation,
   };
 }
 
@@ -219,9 +278,15 @@ async function markBookingAsRead({ booking, userId, participantRole }) {
   }
 
   const readAt = new Date();
+  const clientId = booking.clientId?._id || booking.clientId;
+  const providerId = booking.providerId?._id || booking.providerId;
+
   const updateResult = await Message.updateMany(
     {
-      bookingId: booking._id,
+      $or: [
+        { senderId: clientId, receiverId: providerId },
+        { senderId: providerId, receiverId: clientId },
+      ],
       receiverId: userId,
       status: { $ne: "read" },
     },
@@ -237,8 +302,10 @@ async function markBookingAsRead({ booking, userId, participantRole }) {
   const unreadField = participantRole === "client" ? "unreadByClient" : "unreadByProvider";
   const setPayload = {};
   setPayload[unreadField] = 0;
-
-  await Conversation.updateOne({ _id: conversation._id }, { $set: setPayload });
+  await Conversation.updateMany(
+    { pairKey: conversation.pairKey },
+    { $set: setPayload }
+  );
 
   return {
     updatedCount: Number(updateResult.modifiedCount || 0),
@@ -254,4 +321,6 @@ module.exports = {
   sendBookingMessage,
   markBookingAsRead,
   createHttpError,
+  buildPairKey,
+  buildBlockState,
 };

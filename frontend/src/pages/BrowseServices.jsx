@@ -73,6 +73,7 @@ export default function BrowseServices() {
 
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [sortBy, setSortBy] = useState("relevance");
+  const [emergencyOnly, setEmergencyOnly] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -119,13 +120,14 @@ export default function BrowseServices() {
     setServices(
       allServices.filter(
         (s) =>
-          s.title?.toLowerCase().includes(q) ||
-          s.description?.toLowerCase().includes(q) ||
-          s.categoryId?.name?.toLowerCase().includes(q) ||
-          s.subcategoryId?.name?.toLowerCase().includes(q)
+          (!emergencyOnly || s.providerId?.providerDetails?.emergencyAvailable) &&
+          (s.title?.toLowerCase().includes(q) ||
+            s.description?.toLowerCase().includes(q) ||
+            s.categoryId?.name?.toLowerCase().includes(q) ||
+            s.subcategoryId?.name?.toLowerCase().includes(q))
       )
     );
-  }, [searchQuery, allServices]);
+  }, [searchQuery, allServices, emergencyOnly]);
 
   const selectedCategoryObject = useMemo(() => {
     if (selectedCategory === "All") return null;
@@ -230,6 +232,10 @@ export default function BrowseServices() {
 
   function applyPriceFilter() {
     let filtered = [...allServices];
+
+    if (emergencyOnly) {
+      filtered = filtered.filter((s) => s.providerId?.providerDetails?.emergencyAvailable);
+    }
 
     if (priceRange.min || priceRange.max) {
       const min = priceRange.min ? Number(priceRange.min) : 0;
@@ -365,6 +371,10 @@ export default function BrowseServices() {
                 >
                   Clear
                 </button>
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={emergencyOnly} onChange={(e) => setEmergencyOnly(e.target.checked)} />
+                  Emergency available only
+                </label>
                 <button
                   onClick={applyPriceFilter}
                   className="rounded-lg bg-brand-700 px-6 py-2 text-white transition-colors hover:bg-brand-800"
@@ -552,6 +562,8 @@ export default function BrowseServices() {
                     basePrice: service.basePrice,
                     priceRange: service.priceRange,
                     priceMode: service.priceMode,
+                    views: service.views,
+                    bookingsCount: service.bookingsCount,
                   }}
                   provider={{
                     _id: service.providerId._id,
@@ -567,6 +579,7 @@ export default function BrowseServices() {
                       service.providerId.providerDetails?.metrics?.completionRate || 0,
                     responseTimeMinutes:
                       service.providerId.providerDetails?.metrics?.responseSpeed || 0,
+                    emergencyAvailable: service.providerId.providerDetails?.emergencyAvailable || false,
                   }}
                   onBook={handleBookService}
                 />

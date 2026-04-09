@@ -13,6 +13,7 @@
     "cloudinary": "^1.41.3",
     "framer-motion": "^12.34.5",
     "leaflet": "^1.9.4",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.576.0",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",

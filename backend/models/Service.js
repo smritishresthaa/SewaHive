@@ -1,44 +1,49 @@
 // models/Service.js
-const { Schema, model } = require('mongoose');
+const { Schema, model } = require("mongoose");
 
 const ServiceSchema = new Schema(
   {
-    providerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    providerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
 
     // CATEGORY REFERENCE (admin-controlled only)
-    categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true, index: true },
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+      index: true,
+    },
 
     // SUBCATEGORY REFERENCE (optional)
-    subcategoryId: { type: Schema.Types.ObjectId, ref: 'Subcategory', index: true },
+    subcategoryId: { type: Schema.Types.ObjectId, ref: "Subcategory", index: true },
 
     // BASIC SERVICE DETAILS
-    title: { type: String, required: true },
-    description: { type: String },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, default: "" },
     images: [String],
 
     // PRICING MODEL (flexible pricing system)
     priceMode: {
       type: String,
-      enum: ['fixed', 'range', 'quote_required'],
-      default: 'fixed',
+      enum: ["fixed", "range", "quote_required"],
+      default: "fixed",
     },
 
     // Fixed Price Mode
-    basePrice: { type: Number, required: true },
-    emergencyPrice: { type: Number, default: 0 },
-    includedHours: { type: Number, default: 0 },
-    hourlyRate: Number,
-    fixedRate: Number,
+    basePrice: { type: Number, required: true, min: 0 },
+    emergencyPrice: { type: Number, default: 0, min: 0 },
+    includedHours: { type: Number, default: 0, min: 0 },
+    hourlyRate: { type: Number, min: 0 },
+    fixedRate: { type: Number, min: 0 },
 
     // Range Price Mode
     priceRange: {
-      min: { type: Number, default: 0 },
-      max: { type: Number, default: 0 },
+      min: { type: Number, default: 0, min: 0 },
+      max: { type: Number, default: 0, min: 0 },
     },
 
     // Quote Required Mode
-    quoteDescription: String, // Description of what needs quote
-    visitFee: { type: Number, default: 0 },
+    quoteDescription: { type: String, default: "" },
+    visitFee: { type: Number, default: 0, min: 0 },
 
     // AVAILABILITY
     availability: [
@@ -59,7 +64,7 @@ const ServiceSchema = new Schema(
 
     // GEO COVERAGE
     coverage: {
-      type: { type: String, enum: ['Polygon', 'Circle'] },
+      type: { type: String, enum: ["Polygon", "Circle"] },
       radius: Number,
       polygon: {},
     },
@@ -73,7 +78,7 @@ const ServiceSchema = new Schema(
     adminDisabled: { type: Boolean, default: false },
     adminDisabledReason: String,
     adminDisabledAt: Date,
-    adminDisabledBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    adminDisabledBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
@@ -81,4 +86,4 @@ const ServiceSchema = new Schema(
 ServiceSchema.index({ providerId: 1, isActive: 1 });
 ServiceSchema.index({ categoryId: 1, isActive: 1 });
 
-module.exports = model('Service', ServiceSchema);
+module.exports = model("Service", ServiceSchema);

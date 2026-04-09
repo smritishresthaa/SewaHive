@@ -36,6 +36,29 @@ import {
   Bar,
 } from "recharts";
 
+const DASHBOARD_RANGES = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "year", label: "This Year" },
+  { value: "custom", label: "Custom Range" },
+];
+
+function buildRangeParams(range, fromDate, toDate, limit) {
+  const params = {};
+  if (limit != null) params.limit = limit;
+
+  if (range === "custom" && fromDate && toDate) {
+    params.range = "custom";
+    params.from = fromDate;
+    params.to = toDate;
+  } else {
+    params.range = range;
+  }
+
+  return params;
+}
+
 function formatCurrency(value) {
   return `NPR ${Number(value || 0).toLocaleString()}`;
 }
@@ -113,6 +136,10 @@ function getStatusMeta(status) {
       label: "Refunded",
       tone: "bg-rose-100 text-rose-800 border-rose-200",
     },
+    no_show: {
+      label: "No show",
+      tone: "bg-rose-100 text-rose-800 border-rose-200",
+    },
   };
 
   return (
@@ -173,6 +200,50 @@ function getKycBannerContent(status) {
   };
 }
 
+function computeCancellationRate(bookings = []) {
+  const relevantStatuses = [
+    "completed",
+    "cancelled",
+    "rejected",
+    "no-show",
+    "resolved_refunded",
+  ];
+
+  const relevant = bookings.filter((booking) =>
+    relevantStatuses.includes(String(booking?.status || "").toLowerCase())
+  );
+
+  if (relevant.length === 0) return 0;
+
+  const negativeStatuses = ["cancelled", "rejected", "no-show", "resolved_refunded"];
+  const negativeCount = relevant.filter((booking) =>
+    negativeStatuses.includes(String(booking?.status || "").toLowerCase())
+  ).length;
+
+  return Number(((negativeCount / relevant.length) * 100).toFixed(1));
+}
+
+function computeDynamicTrustScore({
+  rating = 0,
+  completedJobs = 0,
+  cancellationRate = 0,
+  kycApproved = false,
+  paymentReceived = 0,
+}) {
+  const ratingComponent = Math.min(35, (Number(rating || 0) / 5) * 35);
+  const jobsComponent = Math.min(25, (Number(completedJobs || 0) / 20) * 25);
+  const paymentComponent = paymentReceived > 0 ? 20 : completedJobs > 0 ? 10 : 0;
+  const kycComponent = kycApproved ? 15 : 0;
+  const reliabilityComponent = Math.max(
+    0,
+    5 - (Math.min(Number(cancellationRate || 0), 100) / 100) * 5
+  );
+
+  return Math.round(
+    ratingComponent + jobsComponent + paymentComponent + kycComponent + reliabilityComponent
+  );
+}
+
 export default function ProviderDashboard() {
   const { user, updateUser, fetchUser } = useAuth();
   const navigate = useNavigate();
@@ -186,6 +257,17 @@ export default function ProviderDashboard() {
     serviceCount: 0,
   });
 
+  const [paymentStats, setPaymentStats] = useState({
+    totalReceived: 0,
+    pendingPayouts: 0,
+    refunded: 0,
+    availableBalance: 0,
+  });
+
+  const [derivedMetrics, setDerivedMetrics] = useState({
+    cancellationRate: 0,
+  });
+
   const [recentBookings, setRecentBookings] = useState([]);
   const [kycStatus, setKycStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -194,14 +276,32 @@ export default function ProviderDashboard() {
   const [loadingRank, setLoadingRank] = useState(true);
   const [trustData, setTrustData] = useState(null);
 
+  const [selectedRange, setSelectedRange] = useState("month");
+  const [appliedRange, setAppliedRange] = useState("month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [appliedCustomFrom, setAppliedCustomFrom] = useState("");
+  const [appliedCustomTo, setAppliedCustomTo] = useState("");
+
+  useEffect(() => {
+    if (selectedRange !== "custom") {
+      setAppliedRange(selectedRange);
+    }
+  }, [selectedRange]);
+
   useEffect(() => {
     if (!user?.id) return;
-    fetchDashboardData();
-    fetchRankData();
+    fetchDashboardData(appliedRange, appliedCustomFrom, appliedCustomTo);
+    fetchRankData(appliedRange, appliedCustomFrom, appliedCustomTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, appliedRange, appliedCustomFrom, appliedCustomTo]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     const cleanup = setupRealtimeListener();
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, appliedRange, appliedCustomFrom, appliedCustomTo]);
 
   function setupRealtimeListener() {
     const token = localStorage.getItem("accessToken");
@@ -251,8 +351,24 @@ export default function ProviderDashboard() {
               }
             }
 
-            if (["payment_released", "payment_held", "payment_refunded"].includes(type)) {
-              fetchDashboardData();
+            if (
+              [
+                "payment_released",
+                "payment_held",
+                "payment_refunded",
+                "booking_request",
+                "booking_cancelled",
+                "booking_completed",
+                "provider_completed_service",
+                "dispute_raised",
+                "dispute_resolved_for_provider",
+                "dispute_resolved_no_payment",
+                "dispute_resolved_partial_payment",
+                "review_received",
+              ].includes(type)
+            ) {
+              fetchDashboardData(appliedRange, appliedCustomFrom, appliedCustomTo);
+              fetchRankData(appliedRange, appliedCustomFrom, appliedCustomTo);
             }
           }
         } catch (err) {
@@ -288,26 +404,83 @@ export default function ProviderDashboard() {
     }
   }
 
-  async function fetchDashboardData() {
+  async function fetchDashboardData(
+    range = appliedRange,
+    fromDate = appliedCustomFrom,
+    toDate = appliedCustomTo
+  ) {
     try {
-      const [statsRes, bookingsRes, reviewsRes, kycRes, trustRes] = await Promise.all([
-        api.get("/providers/stats"),
-        api.get("/bookings/provider-bookings?limit=5"),
-        api.get("/reviews/provider/" + user.id),
-        api.get("/providers/verification"),
-        api.get(`/providers/${user.id}/trust`).catch(() => ({ data: { trust: null } })),
-      ]);
+      setLoading(true);
 
+      const rangeParams = buildRangeParams(range, fromDate, toDate);
+
+      const [upcomingRes, pastRes, reviewsRes, kycRes, trustRes, walletRes] =
+        await Promise.all([
+          api.get("/bookings/upcoming", { params: rangeParams }),
+          api.get("/bookings/past", { params: rangeParams }),
+          api.get(`/reviews/provider/${user.id}`, { params: rangeParams }),
+          api.get("/providers/verification"),
+          api.get(`/providers/${user.id}/trust`).catch(() => ({ data: { trust: null } })),
+          api.get("/providers/wallet", { params: rangeParams }).catch(() => ({
+            data: { wallet: null },
+          })),
+        ]);
+
+      const upcomingBookings = upcomingRes.data?.bookings || [];
+      const pastBookings = pastRes.data?.bookings || [];
       const reviewStats = reviewsRes.data?.stats || {};
+      const wallet = walletRes.data?.wallet || null;
 
-      const mergedStats = {
-        ...statsRes.data?.stats,
-        rating: reviewStats?.averageRating || statsRes.data?.stats?.rating || 0,
-        ratingCount: reviewStats?.totalReviews || statsRes.data?.stats?.ratingCount || 0,
-      };
+      const completedBookingsOnly = pastBookings.filter(
+        (booking) => String(booking.status || "").toLowerCase() === "completed"
+      );
 
-      setStats(mergedStats);
-      setRecentBookings(bookingsRes.data?.bookings || []);
+      const pendingRequestsOnly = upcomingBookings.filter((booking) =>
+        ["requested", "quote_requested", "pending_payment"].includes(
+          String(booking.status || "").toLowerCase()
+        )
+      );
+
+      const allBookings = [...upcomingBookings, ...pastBookings]
+        .sort((a, b) => {
+          const dateA = new Date(
+            a?.requestedAt || a?.createdAt || a?.schedule?.date || a?.scheduledAt || 0
+          ).getTime();
+          const dateB = new Date(
+            b?.requestedAt || b?.createdAt || b?.schedule?.date || b?.scheduledAt || 0
+          ).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 5);
+
+      const totalReceived = Number(wallet?.totalEarned || 0);
+      const pendingPayouts = Number(wallet?.pendingPayouts || 0);
+      const refundedInRange = Number(wallet?.refundedInRange || 0);
+      const availableBalance = Number(wallet?.availableBalance || 0);
+
+      const cancellationRate = computeCancellationRate(pastBookings);
+
+      setPaymentStats({
+        totalReceived,
+        pendingPayouts,
+        refunded: refundedInRange,
+        availableBalance,
+      });
+
+      setDerivedMetrics({
+        cancellationRate,
+      });
+
+      setStats({
+        totalEarnings: totalReceived,
+        completedBookings: completedBookingsOnly.length,
+        pendingBookings: pendingRequestsOnly.length,
+        rating: Number(reviewStats?.averageRating || 0),
+        ratingCount: Number(reviewStats?.totalReviews || 0),
+        serviceCount: 0,
+      });
+
+      setRecentBookings(allBookings);
       setKycStatus(kycRes.data?.verification || null);
       setTrustData(trustRes.data?.trust || null);
     } catch (err) {
@@ -317,10 +490,16 @@ export default function ProviderDashboard() {
     }
   }
 
-  async function fetchRankData() {
+  async function fetchRankData(
+    range = appliedRange,
+    fromDate = appliedCustomFrom,
+    toDate = appliedCustomTo
+  ) {
     try {
       setLoadingRank(true);
-      const res = await api.get("/leaderboard/current?range=30d");
+
+      const params = buildRangeParams(range, fromDate, toDate);
+      const res = await api.get("/leaderboard/current", { params });
       const data = res.data?.data || [];
 
       setLeaderboardData(data);
@@ -336,14 +515,46 @@ export default function ProviderDashboard() {
     }
   }
 
+  function handleRangeSelect(rangeValue) {
+    setSelectedRange(rangeValue);
+
+    if (rangeValue !== "custom") {
+      setAppliedRange(rangeValue);
+    }
+  }
+
+  function handleApplyCustomRange() {
+    if (!customFrom || !customTo) return;
+    if (customFrom > customTo) return;
+
+    setAppliedCustomFrom(customFrom);
+    setAppliedCustomTo(customTo);
+    setAppliedRange("custom");
+  }
+
+  function handleResetCustomRange() {
+    setCustomFrom("");
+    setCustomTo("");
+    setAppliedCustomFrom("");
+    setAppliedCustomTo("");
+    setSelectedRange("month");
+    setAppliedRange("month");
+  }
+
   const normalizedKycStatus = normalizeKycStatus(kycStatus?.status);
 
-  const trustScore = Number(trustData?.trustScore || 0);
-  const ratingQuality = Number(trustData?.metrics?.ratingQuality || stats.rating || 0);
-  const completedJobs = Number(
-    trustData?.metrics?.completedJobs || stats.completedBookings || 0
-  );
-  const cancellationRate = Number(trustData?.metrics?.cancellationRate || 0);
+  const dynamicTrustScore = computeDynamicTrustScore({
+    rating: stats.rating,
+    completedJobs: stats.completedBookings,
+    cancellationRate: derivedMetrics.cancellationRate,
+    kycApproved: normalizedKycStatus === "approved",
+    paymentReceived: paymentStats.totalReceived,
+  });
+
+  const trustScore = Number(dynamicTrustScore || 0);
+  const ratingQuality = Number(stats.rating || 0);
+  const completedJobs = Number(stats.completedBookings || 0);
+  const cancellationRate = Number(derivedMetrics.cancellationRate || 0);
 
   const providerBadges = useMemo(() => {
     if (!trustData?.badges || !Array.isArray(trustData.badges)) return [];
@@ -359,7 +570,7 @@ export default function ProviderDashboard() {
   }, [leaderboardData]);
 
   const pendingCount = Number(stats.pendingBookings || 0);
-  const totalEarnings = Number(stats.totalEarnings || 0);
+  const totalEarnings = Number(paymentStats.totalReceived || 0);
   const ratingCount = Number(stats.ratingCount || 0);
 
   const kycBanner = getKycBannerContent(normalizedKycStatus);
@@ -412,9 +623,9 @@ export default function ProviderDashboard() {
 
   const kpiItems = [
     {
-      title: "Total Earnings",
+      title: "Payment Received",
       value: formatCurrency(totalEarnings),
-      sub: "All-time",
+      sub: "Released in selected range",
       icon: HiCurrencyDollar,
       iconWrap: "bg-emerald-100",
       iconColor: "text-emerald-700",
@@ -422,7 +633,7 @@ export default function ProviderDashboard() {
     {
       title: "Completed Jobs",
       value: `${stats.completedBookings || 0}`,
-      sub: "Delivered successfully",
+      sub: "Finished in selected range",
       icon: HiCheckCircle,
       iconWrap: "bg-emerald-100",
       iconColor: "text-emerald-700",
@@ -438,7 +649,10 @@ export default function ProviderDashboard() {
     {
       title: "Average Rating",
       value: stats.rating ? stats.rating.toFixed(1) : "N/A",
-      sub: ratingCount > 0 ? `${ratingCount} reviews` : "No reviews yet",
+      sub:
+        ratingCount > 0
+          ? `${ratingCount} reviews in selected range`
+          : "No reviews in selected range",
       icon: HiStar,
       iconWrap: "bg-yellow-100",
       iconColor: "text-yellow-700",
@@ -503,7 +717,7 @@ export default function ProviderDashboard() {
           <div className="text-sm text-gray-600">
             {rankData ? (
               <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 font-semibold text-amber-900">
-                Rank #{rankData.rank || "-"} this month
+                Rank #{rankData.rank || "-"} in selected range
               </span>
             ) : (
               <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 font-medium text-gray-700">
@@ -511,6 +725,72 @@ export default function ProviderDashboard() {
               </span>
             )}
           </div>
+        </div>
+
+        <div className="mb-8 flex flex-col gap-3 lg:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            {DASHBOARD_RANGES.map((item) => {
+              const active = selectedRange === item.value;
+
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => handleRangeSelect(item.value)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                    active
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedRange === "custom" && (
+            <div className="flex w-full flex-col gap-2 rounded-2xl border bg-white p-3 shadow-sm sm:flex-row sm:items-end lg:w-auto">
+              <div className="flex flex-col">
+                <label className="mb-1 text-xs font-medium text-gray-600">From</label>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 text-xs font-medium text-gray-600">To</label>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleApplyCustomRange}
+                  disabled={!customFrom || !customTo || customFrom > customTo}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Apply
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetCustomRange}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {normalizedKycStatus !== "approved" && (
@@ -570,6 +850,32 @@ export default function ProviderDashboard() {
           })}
         </div>
 
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <p className="text-sm font-medium text-gray-600">Funds Held</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-gray-950">
+              {formatCurrency(paymentStats.pendingPayouts)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">Pending payout in selected range</p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <p className="text-sm font-medium text-gray-600">Refunded</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-gray-950">
+              {formatCurrency(paymentStats.refunded)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">Refunded in selected range</p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <p className="text-sm font-medium text-gray-600">Available Balance</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-gray-950">
+              {formatCurrency(paymentStats.availableBalance)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">Current live wallet balance</p>
+          </div>
+        </div>
+
         <div className="mb-8 grid gap-6 xl:grid-cols-[1.6fr,1fr]">
           <div className="rounded-3xl border border-gray-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5">
@@ -581,7 +887,7 @@ export default function ProviderDashboard() {
               </div>
 
               <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                Live
+                Selected range
               </span>
             </div>
 
@@ -637,8 +943,8 @@ export default function ProviderDashboard() {
 
                 <div className="mt-4 border-t border-gray-200 pt-4">
                   <p className="text-sm leading-6 text-gray-600">
-                    Based on provider signals like rating quality, completed work,
-                    verification strength, and cancellation behavior.
+                    Based on selected-range signals like rating quality, completed work,
+                    payout activity, verification, and cancellation behavior.
                   </p>
                 </div>
               </div>
@@ -793,8 +1099,8 @@ export default function ProviderDashboard() {
 
                 <div className="rounded-2xl bg-gray-50 px-4 py-4">
                   <p className="text-sm leading-6 text-gray-600">
-                    This section is intentionally simplified so the dashboard stays focused on
-                    insights, not navigation. Detailed actions can remain in the sidebar.
+                    All values in this card now follow the selected date range, except
+                    provider badges and verification state which remain account-level.
                   </p>
                 </div>
               </div>
@@ -813,7 +1119,7 @@ export default function ProviderDashboard() {
                     </p>
                   </div>
                   <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                    30 days
+                    selected range
                   </span>
                 </div>
               </div>
@@ -929,10 +1235,14 @@ export default function ProviderDashboard() {
               <div className="space-y-4">
                 {recentBookings.map((booking) => {
                   const statusMeta = getStatusMeta(booking.status);
-                  const bookingDate = booking.schedule?.date || booking.createdAt;
+                  const bookingDate =
+                    booking.schedule?.date ||
+                    booking.scheduledAt ||
+                    booking.createdAt ||
+                    booking.requestedAt;
                   const bookingTime = booking.schedule?.date
                     ? formatTime(booking.schedule.date)
-                    : null;
+                    : formatTime(booking.scheduledAt);
 
                   return (
                     <div
@@ -975,7 +1285,7 @@ export default function ProviderDashboard() {
                             Amount
                           </p>
                           <p className="mt-1 text-2xl font-extrabold tracking-tight text-gray-950">
-                            {formatCurrency(booking.price)}
+                            {formatCurrency(booking.totalAmount || booking.price)}
                           </p>
                         </div>
                       </div>

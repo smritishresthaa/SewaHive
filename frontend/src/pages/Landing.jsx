@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import TopNavbar from "../components/Navbar/TopNavbar";
 import api from "../utils/axios";
+import { useAuth } from "../context/AuthContext";
 import {
   FiHome,
   FiDroplet,
@@ -20,10 +21,18 @@ import {
 } from "react-icons/fi";
 import { HiBugAnt } from "react-icons/hi2";
 
-import amazonLogo from "../logos/amazon.png";
-import coinbaseLogo from "../logos/coinbase.png";
-import googleLogo from "../logos/google.png";
-import microsoftLogo from "../logos/microsoft.png";
+import Lottie from "lottie-react";
+
+
+import airbnbLogo from "../assets/logos-companies/Airbnb Logo Animation.json";
+import amazonLogo from "../assets/logos-companies/Amazon Logo.json";
+import googleLogo from "../assets/logos-companies/Google Logo.json";
+import nvidiaLogo from "../assets/logos-companies/Remix of NVIDIA Logo Animation.json";
+import decorVideo from "../assets/Videos/Decor.mp4";
+import electricianVideo from "../assets/Videos/electrician.mp4";
+import homecleanVideo from "../assets/Videos/homeclean.mp4";
+import plumbingFixVideo from "../assets/Videos/plumbing-fix.mp4";
+import sewaHiveLogo from "../logos/logo.png";
 
 const leftWorker = new URL("../../hero-left.png", import.meta.url).href;
 const rightWorker = new URL("../../hero-right.png", import.meta.url).href;
@@ -88,7 +97,7 @@ function BadgePill({ label, dark = false }) {
   const cls =
     styles[label] ||
     (dark
-      ? "bg-white/10 text-white/90 border border-white/10"
+      ? "bg-white/10 text-white/90 border border-slate-200"
       : "bg-gray-100 text-gray-700");
 
   return (
@@ -353,8 +362,44 @@ function CategoryIcon({ iconKey, categoryName }) {
   return <Icon className={baseClass} />;
 }
 
+const readyToStartVideos = [
+  decorVideo,
+  electricianVideo,
+  homecleanVideo,
+  plumbingFixVideo,
+];
+
+const trustedCompanyLogos = [
+  { name: "Airbnb", animation: airbnbLogo },
+  { name: "Amazon", animation: amazonLogo },
+  { name: "Google", animation: googleLogo },
+  { name: "NVIDIA", animation: nvidiaLogo },
+];
+
 export default function Landing() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleLeaderboardClick = React.useCallback(() => {
+    if (!user) {
+      navigate("/signup");
+      return;
+    }
+
+    if (user.role === "provider") {
+      navigate("/provider/leaderboard");
+      return;
+    }
+
+    navigate("/client/leaderboard");
+  }, [navigate, user]);
+
+  const scrollToSection = React.useCallback((sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
   const [activeCategoryId, setActiveCategoryId] = React.useState(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [realReviews, setRealReviews] = React.useState([]);
@@ -416,6 +461,16 @@ export default function Landing() {
       .catch(() => setRealReviews([]))
       .finally(() => setLoadingReviews(false));
   }, []);
+
+  const [activeReadyVideo, setActiveReadyVideo] = React.useState(0);
+
+React.useEffect(() => {
+  const interval = setInterval(() => {
+    setActiveReadyVideo((prev) => (prev + 1) % readyToStartVideos.length);
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, []);
 
   React.useEffect(() => {
     async function fetchCategoriesAndSubcategories() {
@@ -517,13 +572,12 @@ export default function Landing() {
       <section className="relative flex min-h-[88vh] w-full items-center overflow-hidden bg-[#164f2b] text-white sm:min-h-[90vh]">
         <img
           src={leftWorker}
-          alt=""
-          className="pointer-events-none absolute bottom-0 left-0 hidden w-[280px] opacity-90 sm:block md:w-[360px] lg:w-[430px] xl:w-[480px]"
+          className="pointer-events-none absolute bottom-0 left-[40px] hidden w-[200px] opacity-70 sm:block md:w-[260px] lg:w-[320px] xl:w-[400px]"
         />
+
         <img
           src={rightWorker}
-          alt=""
-          className="pointer-events-none absolute bottom-0 right-0 hidden w-[280px] opacity-90 sm:block md:w-[360px] lg:w-[430px] xl:w-[480px]"
+          className="pointer-events-none absolute bottom-0 right-[40px] hidden w-[200px] opacity-70 sm:block md:w-[260px] lg:w-[320px] xl:w-[410px]"
         />
 
         <div className="relative z-10 mx-auto w-full max-w-5xl px-4 py-16 text-center sm:px-6 md:py-20">
@@ -542,7 +596,7 @@ export default function Landing() {
           </p>
 
           <div className="mx-auto mt-8 flex max-w-2xl flex-col rounded-[28px] bg-[#1a5b35]/80 p-2 shadow-lg sm:mt-10 sm:flex-row sm:items-center sm:rounded-full">
-            <span className="hidden pl-5 pr-3 text-white/80 sm:block">
+            <span className="hidden pl-5 pr-3 text-slate-600 sm:block">
               <svg
                 width="24"
                 height="24"
@@ -572,22 +626,28 @@ export default function Landing() {
             </button>
           </div>
 
-          <div className="mt-10 text-sm text-white/80 font-inter sm:mt-12">
+          <div className="mt-16 text-sm text-slate-600 font-inter sm:mt-18">
             Trusted by top companies
           </div>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-3 opacity-95 sm:gap-x-6">
-            <div className="flex h-12 w-24 items-center justify-center sm:w-28 md:w-32">
-              <img src={amazonLogo} alt="Amazon" className="max-h-16 object-contain sm:max-h-20 md:max-h-24" />
-            </div>
-            <div className="flex h-12 w-24 items-center justify-center sm:w-28 md:w-32">
-              <img src={coinbaseLogo} alt="Coinbase" className="max-h-10 object-contain sm:max-h-12" />
-            </div>
-            <div className="flex h-12 w-24 items-center justify-center sm:w-28 md:w-32">
-              <img src={googleLogo} alt="Google" className="max-h-10 object-contain sm:max-h-12" />
-            </div>
-            <div className="flex h-12 w-24 items-center justify-center sm:w-28 md:w-32">
-              <img src={microsoftLogo} alt="Microsoft" className="max-h-20 object-contain sm:max-h-24 md:max-h-28" />
-            </div>
+
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-2 sm:gap-x-2">
+            {trustedCompanyLogos.map((logo) => (
+              <div
+                key={logo.name}
+                className="flex h-24 w-40 items-center justify-center sm:h-28 sm:w-48 md:h-32 md:w-36"
+                aria-label={logo.name}
+                title={logo.name}
+              >
+                <div className="h-[80%] w-[80%]">
+                  <Lottie
+                    animationData={logo.animation}
+                    loop
+                    autoplay
+                    className="h-full w-full"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -917,7 +977,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
+      <section id="popular-services" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
         <div className="text-center">
           <h2 className="text-3xl font-poppins font-medium">Discover Most Popular Services</h2>
           <p className="mt-2 text-sm text-gray-600 font-inter">
@@ -1082,11 +1142,209 @@ export default function Landing() {
             Browse All Services <span>›</span>
           </Link>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
-        <div className="text-center">
-          <h2 className="text-3xl font-poppins font-medium">What our customers are saying</h2>
+</section>
+
+
+<section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-16">
+  <div className="overflow-hidden rounded-[32px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-100 shadow-[0_25px_80px_-45px_rgba(22,79,43,0.35)]">
+    <div className="grid gap-8 px-5 py-8 sm:px-8 sm:py-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-10">
+      <div>
+        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          Trust + competition
+        </span>
+        <h2 className="mt-4 text-3xl font-poppins font-semibold text-slate-900 sm:text-4xl">
+          Explore the SewaHive leaderboard before you book
+        </h2>
+        <p className="mt-4 max-w-2xl text-base font-inter text-slate-600 sm:text-lg">
+          Our leaderboard highlights providers who consistently deliver top ratings, faster responses, more completed jobs, and stronger trust signals. It helps clients discover standout professionals instantly instead of guessing who is reliable.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+            <div className="text-sm font-semibold text-slate-900">Top performers</div>
+            <p className="mt-2 text-sm text-slate-600">See who is leading based on real completed work and customer satisfaction.</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+            <div className="text-sm font-semibold text-slate-900">Clear trust signals</div>
+            <p className="mt-2 text-sm text-slate-600">Ratings, badges, and service quality indicators are surfaced in one place.</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+            <div className="text-sm font-semibold text-slate-900">More engaging</div>
+            <p className="mt-2 text-sm text-slate-600">Providers are motivated to stay responsive and dependable to climb the ranks.</p>
+          </div>
+        </div>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleLeaderboardClick}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#164f2b] px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#123f22] hover:shadow-lg"
+          >
+            View leaderboard
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-4 w-4"
+            >
+              <path d="M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <Link
+            to="/services"
+            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+          >
+            Browse services
+          </Link>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-emerald-100 bg-white p-5 shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Leaderboard preview</p>
+            <h3 className="mt-1 text-xl font-semibold text-gray-900">Why clients love it</h3>
+          </div>
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Top Rated</span>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {[
+            { rank: "#1", title: "More confidence", text: "Clients quickly identify verified high performers instead of browsing blindly." },
+            { rank: "#2", title: "Faster decisions", text: "Response speed, completed jobs, and ratings make comparisons much easier." },
+            { rank: "#3", title: "Healthy competition", text: "Providers stay active and trustworthy because the ranking is visible." },
+          ].map((item) => (
+            <div key={item.rank} className="flex items-start gap-4 rounded-2xl bg-gray-50 px-4 py-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#164f2b] text-sm font-bold text-white">
+                {item.rank}
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">{item.title}</h4>
+                <p className="mt-1 text-sm text-gray-600">{item.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+{/* <section className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 sm:pb-6">
+  <div className="overflow-hidden rounded-[32px] border border-amber-100 bg-gradient-to-br from-[#fffdf7] via-white to-emerald-50 shadow-[0_25px_80px_-45px_rgba(22,79,43,0.35)]">
+    <div className="grid gap-8 px-5 py-8 sm:px-8 sm:py-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-10">
+      <div>
+        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          Leaderboard spotlight
+        </span>
+        <h2 className="mt-4 text-3xl font-poppins font-semibold text-slate-900 sm:text-4xl">
+          See who clients trust most before you book
+        </h2>
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+          The SewaHive leaderboard highlights providers with standout ratings, stronger reliability, and more completed work so clients can choose with confidence in seconds.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          {[
+            "Top-rated performance",
+            "Fast response signals",
+            "Trust badges and real reviews",
+          ].map((item) => (
+            <span
+              key={item}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200"
+            >
+              <span className="text-emerald-600">✓</span>
+              {item}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={handleLeaderboardClick}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#164f2b] px-6 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#123f22] hover:shadow-lg"
+          >
+            View leaderboard
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-4 w-4"
+            >
+              <path d="M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <Link
+            to="/services"
+            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+          >
+            Browse services
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+        {[
+          {
+            title: "Gold tier",
+            subtitle: "Elite performer",
+            tone: "from-[#f7d46b] via-[#f4bf33] to-[#db9f10]",
+            glow: "shadow-[0_20px_45px_-25px_rgba(219,159,16,0.65)]",
+            text: "Outstanding consistency, trust, and client satisfaction.",
+            icon: "1",
+          },
+          {
+            title: "Silver tier",
+            subtitle: "Trusted favorite",
+            tone: "from-[#edf1f7] via-[#d7dde8] to-[#a9b3c7]",
+            glow: "shadow-[0_20px_45px_-25px_rgba(100,116,139,0.45)]",
+            text: "Strong service quality with dependable delivery signals.",
+            icon: "2",
+          },
+          {
+            title: "Bronze tier",
+            subtitle: "Rising star",
+            tone: "from-[#efc39d] via-[#d7925d] to-[#b56a3c]",
+            glow: "shadow-[0_20px_45px_-25px_rgba(180,83,9,0.45)]",
+            text: "Growing providers making a strong impression quickly.",
+            icon: "3",
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className={`relative overflow-hidden rounded-[28px] bg-white p-4 ring-1 ring-slate-200 ${item.glow}`}
+          >
+            <div className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-lg font-bold text-white shadow-lg`}>
+              {item.icon}
+            </div>
+            <div className="mt-4">
+              <div className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                {item.subtitle}
+              </div>
+              <h3 className="mt-1 text-xl font-poppins font-semibold text-slate-900">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section> */}
+
+<section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
+  <div className="text-center">
+    <h2 className="text-3xl font-poppins font-medium">What our customers are saying</h2>
+
           <p className="mt-2 text-sm text-gray-600 font-inter">
             Real stories from satisfied customers across Nepal
           </p>
@@ -1145,7 +1403,7 @@ export default function Landing() {
                   <span className="font-poppins font-medium">
                     {featuredReview.client?.name}
                   </span>
-                  <span className="text-white/80 font-inter">
+                  <span className="text-slate-600 font-inter">
                     Used {featuredReview.serviceTitle}
                   </span>
 
@@ -1156,7 +1414,7 @@ export default function Landing() {
                         {featuredReview.provider?.id ? (
                           <Link
                             to={`/provider/${featuredReview.provider.id}`}
-                            className="underline underline-offset-2 transition-colors hover:text-white"
+                            className="underline underline-offset-2 transition-colors hover:text-emerald-700"
                           >
                             {featuredReview.provider.name}
                           </Link>
@@ -1193,7 +1451,7 @@ export default function Landing() {
           <div className="mt-8 rounded-2xl bg-[#1c6c3b] p-6 text-white shadow sm:p-8 md:p-10">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-full bg-white/20">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-white/80">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-slate-600">
                   <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8C16.8 4.53 14.67 2.4 12 2.4s-4.8 2.13-4.8 4.8c0 2.67 2.13 4.8 4.8 4.8zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
                 </svg>
               </div>
@@ -1221,7 +1479,7 @@ export default function Landing() {
                 </blockquote>
                 <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
                   <span className="font-poppins font-medium">Rajesh Maharjan</span>
-                  <span className="text-white/80 font-inter">
+                  <span className="text-slate-600 font-inter">
                     Kathmandu • Used Plumbing Service
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-white/95 font-inter font-medium">
@@ -1293,7 +1551,7 @@ export default function Landing() {
         <div className="mt-8 text-center">
           <Link
             to="/reviews"
-            className="inline-flex items-center gap-2 rounded-full border border-brand-700 px-6 py-2.5 text-sm text-brand-700 font-inter transition-all hover:bg-brand-700 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-full border border-brand-700 px-6 py-2.5 text-sm text-brand-700 font-inter transition-all hover:bg-brand-700 hover:text-emerald-700"
           >
             Read All Reviews
             <svg
@@ -1308,182 +1566,150 @@ export default function Landing() {
           </Link>
         </div>
       </section>
+<section className="relative overflow-hidden text-white">
+  <div className="absolute inset-0 z-0">
+    {readyToStartVideos.map((videoSrc, index) => (
+      <video
+        key={index}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+          activeReadyVideo === index ? "opacity-100" : "opacity-0"
+        }`}
+        src={videoSrc}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+      />
+    ))}
+  </div>
 
-      <section className="bg-[#164f2b] text-white">
-        <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-14 sm:px-6 sm:py-16 md:grid-cols-2 md:gap-10">
-          <div>
-            <h3 className="text-3xl font-poppins font-medium">Ready to Start?</h3>
-            <p className="mt-3 text-white/90 font-inter">
-              Join thousands of satisfied customers who trust SewaHive for their home service needs.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link
-                to="/signup"
-                className="rounded-full bg-white px-5 py-2 text-center text-[#164f2b] font-inter transition-all hover:-translate-y-1 hover:shadow-md"
-              >
-                Get Started
-              </Link>
-              <Link
-                to="/provider/signup"
-                className="rounded-full border border-white px-5 py-2 text-center text-white font-inter transition-colors hover:bg-white/10"
-              >
-                Become a Tasker
-              </Link>
-            </div>
-          </div>
-          <div>
-            <div
-              className="h-48 rounded-2xl bg-cover bg-center md:h-64"
-              style={{
-                backgroundImage:
-                  "url(https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=1200&auto=format&fit=crop)",
-              }}
-            />
-          </div>
+  <div className="absolute inset-0 z-10 bg-black/45" />
+  <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/55 via-black/35 to-black/20" />
+
+  <div className="relative z-20 mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 md:py-24">
+    <div className="max-w-2xl">
+      <h3 className="text-3xl font-poppins font-medium sm:text-4xl md:text-5xl">
+        Ready to Start?
+      </h3>
+
+      <p className="mt-4 max-w-xl text-base leading-relaxed text-white/95 font-inter sm:text-lg">
+        Join thousands of satisfied customers who trust SewaHive for their home service needs.
+      </p>
+
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+        <Link
+          to="/signup"
+          className="rounded-full bg-white px-6 py-3 text-center text-[#164f2b] font-inter transition-all hover:-translate-y-1 hover:shadow-md"
+        >
+          Get Started
+        </Link>
+
+        <Link
+          to="/provider/signup"
+          className="rounded-full border border-white px-6 py-3 text-center text-white font-inter transition-colors hover:bg-white/10"
+        >
+          Become a Tasker
+        </Link>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section className="mt-10 border-t border-slate-200 bg-white text-slate-900">
+  <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+    <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+      <div>
+        <Link to="/" className="inline-flex items-center">
+          <img src={sewaHiveLogo} alt="SewaHive" className="h-16 w-auto object-contain" />
+        </Link>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
+          Book trusted home service providers across Nepal with clearer trust signals, real reviews, and a smoother booking experience.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleLeaderboardClick}
+            className="rounded-full bg-[#164f2b] px-5 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-[#123f22] hover:shadow-lg"
+          >
+            Explore leaderboard
+          </button>
+          <Link
+            to="/provider/signup"
+            className="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
+          >
+            Become a provider
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid gap-8 sm:grid-cols-3">
+        <div>
+          <h3 className="text-lg font-poppins font-semibold">Quick Links</h3>
+          <div className="mt-2 h-px w-12 bg-slate-200" />
+          <ul className="mt-5 space-y-3 text-sm text-slate-600">
+            <li><Link to="/services" className="transition hover:text-emerald-700">Browse Services</Link></li>
+            <li><Link to="/reviews" className="transition hover:text-emerald-700">Customer Reviews</Link></li>
+            <li><button type="button" onClick={() => scrollToSection("popular-services")} className="transition hover:text-emerald-700">Popular Services</button></li>
+            <li><button type="button" onClick={() => scrollToSection("categories")} className="transition hover:text-emerald-700">Service Categories</button></li>
+          </ul>
         </div>
 
-        <footer className="bg-white text-gray-800">
-          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 sm:px-6 md:grid-cols-3 lg:grid-cols-5">
-            <div>
-              <div className="font-poppins font-medium">SewaHive</div>
-              <ul className="mt-3 space-y-2 text-sm font-inter">
-                <li>
-                  <a href="#about" className="hover:text-brand-700">
-                    About
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Careers
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Press
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Blog
-                  </a>
-                </li>
-              </ul>
-            </div>
+        <div>
+          <h3 className="text-lg font-poppins font-semibold">Support</h3>
+          <div className="mt-2 h-px w-12 bg-slate-200" />
+          <ul className="mt-5 space-y-3 text-sm text-slate-600">
+            <li><Link to="/help" className="transition hover:text-emerald-700">Help Center</Link></li>
+            <li><Link to="/login" className="transition hover:text-emerald-700">Login</Link></li>
+            <li><Link to="/signup" className="transition hover:text-emerald-700">Create Account</Link></li>
+            <li><button type="button" onClick={handleLeaderboardClick} className="transition hover:text-emerald-700">View Leaderboard</button></li>
+          </ul>
+        </div>
 
-            <div>
-              <div className="font-poppins font-medium">Community</div>
-              <ul className="mt-3 space-y-2 text-sm font-inter">
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Taskers
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Customers
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Events
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Referrals
-                  </a>
-                </li>
-              </ul>
-            </div>
+        <div>
+          <h3 className="text-lg font-poppins font-semibold">Join SewaHive</h3>
+          <div className="mt-2 h-px w-12 bg-slate-200" />
+          <ul className="mt-5 space-y-3 text-sm text-slate-600">
+            <li><Link to="/provider/signup" className="transition hover:text-emerald-700">Become Provider</Link></li>
+            <li><Link to="/services" className="transition hover:text-emerald-700">Book a Service</Link></li>
+            <li><Link to="/" className="transition hover:text-emerald-700">Home</Link></li>
+          </ul>
+        </div>
+      </div>
+    </div>
 
-            <div>
-              <div className="font-poppins font-medium">Support</div>
-              <ul className="mt-3 space-y-2 text-sm font-inter">
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Help Center
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Safety
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Terms
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Privacy
-                  </a>
-                </li>
-              </ul>
-            </div>
+    <div className="mt-10 grid gap-4 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <div className="font-semibold text-slate-900">Platform</div>
+        <p className="mt-2 leading-6">Trusted local services, provider discovery, chat, bookings, and leaderboard visibility in one place.</p>
+      </div>
+      <div>
+        <div className="font-semibold text-slate-900">Useful Pages</div>
+        <p className="mt-2 leading-6">Services, Reviews, Help Center, Login, Signup, and role-based Leaderboard pages.</p>
+      </div>
+      <div>
+        <div className="font-semibold text-slate-900">Built for Nepal</div>
+        <p className="mt-2 leading-6">Designed to help clients book more confidently and help reliable providers stand out faster.</p>
+      </div>
+      <div>
+        <div className="font-semibold text-slate-900">SewaHive</div>
+        <p className="mt-2 leading-6">A cleaner, safer, and more transparent way to discover home services online.</p>
+      </div>
+    </div>
 
-            <div>
-              <div className="font-poppins font-medium">Discover</div>
-              <ul className="mt-3 space-y-2 text-sm font-inter">
-                <li>
-                  <a href="#categories" className="hover:text-brand-700">
-                    Services
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Projects
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Reviews
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Locations
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <div className="font-poppins font-medium">Hire on SewaHive</div>
-              <ul className="mt-3 space-y-2 text-sm font-inter">
-                <li>
-                  <a href="#categories" className="hover:text-brand-700">
-                    Browse Services
-                  </a>
-                </li>
-                <li>
-                  <Link to="/provider/signup" className="hover:text-brand-700">
-                    Become Provider
-                  </Link>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-brand-700">
-                    Business
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t">
-            <div className="mx-auto max-w-7xl px-4 py-6 text-center text-xs text-gray-600 font-inter sm:px-6">
-              © 2024 SewaHive Inc. All rights reserved.
-            </div>
-            <div className="pb-10 text-center text-xs font-inter">
-              <a href="/admin" className="text-brand-700">
-                Admin Portal
-              </a>
-            </div>
-          </div>
-        </footer>
-      </section>
-
-      <button className="fixed bottom-4 right-4 grid h-10 w-10 place-items-center rounded-full bg-black text-lg text-white shadow">
+    <div className="mt-8 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <p>© 2026 SewaHive. All rights reserved.</p>
+      <div className="flex flex-wrap items-center gap-4">
+        <Link to="/help" className="transition hover:text-emerald-700">Help Center</Link>
+        <Link to="/reviews" className="transition hover:text-emerald-700">Reviews</Link>
+        <button type="button" onClick={handleLeaderboardClick} className="transition hover:text-emerald-700">Leaderboard</button>
+      </div>
+    </div>
+  </div>
+</section>
+<button className="fixed bottom-4 right-4 grid h-10 w-10 place-items-center rounded-full bg-black text-lg text-white shadow">
         ?
       </button>
     </div>

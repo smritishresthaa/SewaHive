@@ -14,7 +14,7 @@ export default function CategoryRequests() {
   async function fetchRequests() {
     try {
       const res = await api.get("/providers/category-requests");
-      setRequests(res.data.requests || []);
+      setRequests(res.data.requests || res.data.data || []);
     } catch (err) {
       toast.error("Failed to load category requests");
     } finally {
@@ -51,6 +51,17 @@ export default function CategoryRequests() {
       minute: "2-digit",
     });
   }
+  function getRequestTitle(request) {
+    if (request.requestType === "subcategory" && request.parentCategoryId?.name) {
+      return `${request.name} • ${request.parentCategoryId.name}`;
+    }
+    return request.name;
+  }
+
+  function getRequestTypeText(request) {
+    return request.requestType === "subcategory" ? "Subcategory Request" : "Category Request";
+  }
+
 
   if (loading) {
     return (
@@ -117,9 +128,17 @@ export default function CategoryRequests() {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-bold text-gray-900">{request.name}</h3>
+                      <h3 className="text-lg font-bold text-gray-900">{getRequestTitle(request)}</h3>
                       {getStatusBadge(request.status)}
                     </div>
+                    <p className="text-xs font-semibold text-blue-700 mb-2">
+                      {getRequestTypeText(request)}
+                    </p>
+                    {request.requestType === "subcategory" && request.parentCategoryId?.name && (
+                      <p className="text-xs text-gray-500 mb-3">
+                        Parent category: <span className="font-medium text-gray-700">{request.parentCategoryId.name}</span>
+                      </p>
+                    )}
                     {request.description && (
                       <p className="text-sm text-gray-600 mb-3">{request.description}</p>
                     )}

@@ -10,7 +10,9 @@ router.get("/", async (req, res, next) => {
   try {
     const categories = await Category.find({ status: "active" })
       .sort({ sortOrder: 1, name: 1 })
-      .select("name description icon image iconKey sortOrder suggestedPriceMode recommendedPriceRange");
+      .select(
+        "name description icon image iconKey sortOrder suggestedPriceMode recommendedPriceRange emergencyServiceAllowed kycVerificationRequired"
+      );
 
     res.json({ data: categories });
   } catch (err) {

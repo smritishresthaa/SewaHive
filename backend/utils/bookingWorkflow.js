@@ -17,24 +17,52 @@ const pricingTypeAliasMap = {
 };
 
 const STATUS_ALIASES = Object.freeze({
-  requested: ["requested", "quote_requested", "quote_sent", "quote_pending_admin_review", "quote_rejected"],
+  requested: [
+    "requested",
+    "quote_requested",
+    "quote_sent",
+    "quote_pending_admin_review",
+    "quote_rejected",
+  ],
   pending_payment: ["pending_payment", "quote_accepted"],
   confirmed: ["confirmed", "accepted", "provider_en_route"],
   in_progress: ["in-progress", "in_progress"],
-  completion_pending: ["pending-completion", "pending_completion", "completion_pending", "provider_completed", "awaiting_client_confirmation"],
+  completion_pending: [
+    "pending-completion",
+    "pending_completion",
+    "completion_pending",
+    "provider_completed",
+    "awaiting_client_confirmation",
+  ],
   completed: ["completed", "resolved_refunded"],
   disputed: ["disputed"],
+  expired: ["expired"],
+  no_show: ["no-show", "no_show"],
+  rejected: ["rejected"],
+  cancelled: ["cancelled"],
 });
 
-const TERMINAL_STATUSES = Object.freeze(["completed", "cancelled", "rejected", "no-show", "resolved_refunded"]);
+const TERMINAL_STATUSES = Object.freeze([
+  "completed",
+  "cancelled",
+  "rejected",
+  "expired",
+  "no-show",
+  "resolved_refunded",
+]);
 
 function resolvePricingType(input) {
-  const raw = typeof input === "string"
-    ? input
-    : input?.pricing?.mode || input?.serviceId?.priceMode || input?.priceMode || "fixed";
+  const raw =
+    typeof input === "string"
+      ? input
+      : input?.pricing?.mode || input?.serviceId?.priceMode || input?.priceMode || "fixed";
 
   const key = String(raw || "fixed").trim();
-  return pricingTypeAliasMap[key] || pricingTypeAliasMap[key.toLowerCase()] || PRICING_TYPES.FIXED;
+  return (
+    pricingTypeAliasMap[key] ||
+    pricingTypeAliasMap[key.toLowerCase()] ||
+    PRICING_TYPES.FIXED
+  );
 }
 
 function isQuotePricing(input) {
@@ -74,6 +102,17 @@ function normalizeStatusForTab(status) {
   return status;
 }
 
+function statusMatchesTab(status, tab) {
+  if (!tab) return false;
+  if (tab === "all") return true;
+  return getStatusesForTab(tab).includes(status);
+}
+
+function isTerminalStatus(status) {
+  const raw = String(status || "").trim();
+  return TERMINAL_STATUSES.includes(raw);
+}
+
 function resolvePostInitialEscrowStatus(booking) {
   return isQuotePricing(booking) ? "confirmed" : "requested";
 }
@@ -90,5 +129,7 @@ module.exports = {
   getStatusesForTab,
   isCompletionPendingStatus,
   normalizeStatusForTab,
+  statusMatchesTab,
+  isTerminalStatus,
   resolvePostInitialEscrowStatus,
 };

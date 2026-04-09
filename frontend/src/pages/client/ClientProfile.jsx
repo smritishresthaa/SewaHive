@@ -156,7 +156,7 @@ export default function ClientProfile() {
 
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold truncate">
-              Hello, {user?.profile?.name} 👋
+              Hello, {user?.profile?.name} 
             </h1>
             <p className="text-white/80 truncate">{user?.email}</p>
           </div>

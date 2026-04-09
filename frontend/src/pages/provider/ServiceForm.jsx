@@ -15,6 +15,22 @@ import {
 } from "react-icons/hi2";
 import { isKycApproved, normalizeKycStatus } from "../../utils/kyc";
 
+function normalizePriceMode(raw = "fixed") {
+  const value = String(raw || "fixed").trim().toLowerCase();
+
+  if (
+    value === "quote_required" ||
+    value === "quote" ||
+    value === "quote_based" ||
+    value === "quotebased"
+  ) {
+    return "quote_required";
+  }
+
+  if (value === "range") return "range";
+  return "fixed";
+}
+
 export default function ServiceForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -41,21 +57,16 @@ export default function ServiceForm() {
     subcategoryId: "",
     title: "",
     description: "",
-
     priceMode: "fixed",
-
     basePrice: "",
     emergencyPrice: "",
     includedHours: "",
     hourlyRate: "",
     fixedRate: "",
-
     priceRangeMin: "",
     priceRangeMax: "",
-
     quoteDescription: "",
     visitFee: "",
-
     availability: [],
     images: [],
   });
@@ -66,6 +77,7 @@ export default function ServiceForm() {
     if (isEdit) {
       fetchService();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -74,6 +86,7 @@ export default function ServiceForm() {
       return;
     }
     fetchSubcategories(form.categoryId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.categoryId]);
 
   async function fetchKycStatus() {
@@ -99,7 +112,10 @@ export default function ServiceForm() {
       source.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload?.event === "admin_update" && payload?.action === "category_status_changed") {
+          if (
+            payload?.event === "admin_update" &&
+            payload?.action === "category_status_changed"
+          ) {
             fetchCategories();
           }
         } catch {
@@ -138,7 +154,9 @@ export default function ServiceForm() {
   async function fetchSubcategories(categoryId) {
     try {
       setLoadingSubcategories(true);
-      const res = await api.get("/providers/subcategories", { params: { categoryId } });
+      const res = await api.get("/providers/subcategories", {
+        params: { categoryId },
+      });
       setSubcategories(res.data.subcategories || []);
     } catch (err) {
       console.error("Failed to load subcategories:", err);
@@ -165,16 +183,19 @@ export default function ServiceForm() {
         subcategoryId: service.subcategoryId?._id || service.subcategoryId || "",
         title: service.title || "",
         description: service.description || "",
-        priceMode: service.priceMode || "fixed",
-        basePrice: service.basePrice || "",
-        emergencyPrice: service.emergencyPrice || "",
-        includedHours: service.includedHours || "",
-        hourlyRate: service.hourlyRate || "",
-        fixedRate: service.fixedRate || "",
-        priceRangeMin: service.priceRange?.min || "",
-        priceRangeMax: service.priceRange?.max || "",
+        priceMode: normalizePriceMode(service.priceMode || "fixed"),
+        basePrice: service.basePrice ?? "",
+        emergencyPrice:
+          service.emergencyPrice !== undefined && service.emergencyPrice !== null
+            ? service.emergencyPrice
+            : "",
+        includedHours: service.includedHours ?? "",
+        hourlyRate: service.hourlyRate ?? "",
+        fixedRate: service.fixedRate ?? "",
+        priceRangeMin: service.priceRange?.min ?? "",
+        priceRangeMax: service.priceRange?.max ?? "",
         quoteDescription: service.quoteDescription || "",
-        visitFee: service.visitFee || "",
+        visitFee: service.visitFee ?? "",
         availability: service.availability || [],
         images: service.images || [],
       });
@@ -185,12 +206,30 @@ export default function ServiceForm() {
   }
 
   function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === "priceMode") {
+      const nextMode = normalizePriceMode(value);
+      setForm((prev) => ({
+        ...prev,
+        priceMode: nextMode,
+        emergencyPrice:
+          nextMode === "quote_required" ? "" : prev.emergencyPrice,
+      }));
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   function handleCategoryChange(e) {
     const selectedId = e.target.value;
-    setForm({ ...form, categoryId: selectedId, subcategoryId: "" });
+    setForm((prev) => ({
+      ...prev,
+      categoryId: selectedId,
+      subcategoryId: "",
+      emergencyPrice: "",
+    }));
     setInactiveSubcategory(null);
   }
 
@@ -228,7 +267,9 @@ export default function ServiceForm() {
           ...prev,
           images: [...prev.images, ...uploaded].slice(0, MAX_IMAGES),
         }));
-        toast.success(`${uploaded.length} image${uploaded.length > 1 ? "s" : ""} uploaded`);
+        toast.success(
+          `${uploaded.length} image${uploaded.length > 1 ? "s" : ""} uploaded`
+        );
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to upload images");
@@ -263,13 +304,24 @@ export default function ServiceForm() {
       return;
     }
 
-    if (form.priceMode === "range" && (!form.priceRangeMin || !form.priceRangeMax)) {
+    if (
+      form.priceMode === "range" &&
+      (!form.priceRangeMin || !form.priceRangeMax)
+    ) {
       toast.error("Please enter min and max price for range pricing");
       return;
     }
 
     if (form.priceMode === "quote_required" && !form.quoteDescription) {
       toast.error("Please describe what needs quote for quote-based pricing");
+      return;
+    }
+
+    if (
+      form.priceMode === "range" &&
+      Number(form.priceRangeMax) < Number(form.priceRangeMin)
+    ) {
+      toast.error("Maximum price cannot be lower than minimum price");
       return;
     }
 
@@ -286,6 +338,19 @@ export default function ServiceForm() {
     setLoading(true);
 
     try {
+      const selectedCategory = availableCategories.find(
+        (cat) => cat._id === form.categoryId
+      );
+
+      const categoryAllowsEmergency = !!selectedCategory?.emergencyServiceAllowed;
+      const supportsEmergencyPricing =
+        form.priceMode === "fixed" || form.priceMode === "range";
+
+      const normalizedEmergencyPrice =
+        categoryAllowsEmergency && supportsEmergencyPricing
+          ? Number(form.emergencyPrice) || 0
+          : 0;
+
       const payload = {
         categoryId: form.categoryId,
         subcategoryId: form.subcategoryId || null,
@@ -297,18 +362,20 @@ export default function ServiceForm() {
 
       if (form.priceMode === "fixed") {
         payload.basePrice = Number(form.basePrice);
-        payload.emergencyPrice = Number(form.emergencyPrice) || 0;
+        payload.emergencyPrice = normalizedEmergencyPrice;
         payload.includedHours = Number(form.includedHours) || 0;
         payload.hourlyRate = Number(form.hourlyRate) || 0;
         payload.fixedRate = Number(form.fixedRate) || 0;
       } else if (form.priceMode === "range") {
         payload.basePrice = Number(form.priceRangeMin);
+        payload.emergencyPrice = normalizedEmergencyPrice;
         payload.priceRange = {
           min: Number(form.priceRangeMin),
           max: Number(form.priceRangeMax),
         };
       } else if (form.priceMode === "quote_required") {
         payload.basePrice = 0;
+        payload.emergencyPrice = 0;
         payload.quoteDescription = form.quoteDescription;
         payload.visitFee = Number(form.visitFee) || 0;
       }
@@ -334,13 +401,24 @@ export default function ServiceForm() {
     e.preventDefault();
 
     if (!categoryRequest.name || !categoryRequest.justification) {
-      toast.error("Please fill category name and justification");
+      toast.error("Please fill the name and justification");
       return;
     }
 
+    const isSubcategoryRequest = Boolean(form.categoryId && selectedCategory);
+
     try {
-      await api.post("/providers/category-requests", categoryRequest);
-      toast.success("Category request submitted. Awaiting admin approval.");
+      await api.post("/providers/category-requests", {
+        ...categoryRequest,
+        requestType: isSubcategoryRequest ? "subcategory" : "category",
+        parentCategoryId: isSubcategoryRequest ? form.categoryId : null,
+      });
+
+      toast.success(
+        isSubcategoryRequest
+          ? "Subcategory request submitted. Awaiting admin approval."
+          : "Category request submitted. Awaiting admin approval."
+      );
       setShowCategoryRequestModal(false);
       setCategoryRequest({ name: "", description: "", justification: "" });
     } catch (err) {
@@ -354,13 +432,24 @@ export default function ServiceForm() {
       : categories;
 
   const availableSubcategories =
-    inactiveSubcategory && !subcategories.find((sub) => sub._id === inactiveSubcategory._id)
+    inactiveSubcategory &&
+    !subcategories.find((sub) => sub._id === inactiveSubcategory._id)
       ? [inactiveSubcategory, ...subcategories]
       : subcategories;
 
-  const selectedCategory = availableCategories.find((cat) => cat._id === form.categoryId);
+  const selectedCategory = availableCategories.find(
+    (cat) => cat._id === form.categoryId
+  );
   const categoryInactive = selectedCategory?.status === "inactive";
-  const selectedSubcategory = availableSubcategories.find((sub) => sub._id === form.subcategoryId);
+  const selectedSubcategory = availableSubcategories.find(
+    (sub) => sub._id === form.subcategoryId
+  );
+
+  const supportsEmergencyPricing =
+    form.priceMode === "fixed" || form.priceMode === "range";
+
+  const canConfigureEmergency =
+    !!selectedCategory?.emergencyServiceAllowed && supportsEmergencyPricing;
 
   return (
     <ProviderLayout>
@@ -381,7 +470,9 @@ export default function ServiceForm() {
                 <HiShieldCheck className="w-6 h-6" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-amber-900">KYC Verification Required</h3>
+                <h3 className="font-semibold text-amber-900">
+                  KYC Verification Required
+                </h3>
                 <p className="text-sm text-amber-800 mt-1">
                   {normalizeKycStatus(kycStatus.status) === "pending_review"
                     ? "Your KYC is under review. You can create draft services, but cannot publish them until approved."
@@ -401,7 +492,10 @@ export default function ServiceForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-6 space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white rounded-2xl shadow-sm p-6 space-y-6"
+        >
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Service Title *
@@ -432,7 +526,8 @@ export default function ServiceForm() {
             />
             {categoryInactive && (
               <div className="mt-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
-                Category disabled. Existing services can be edited, but you cannot create new services under this category.
+                Category disabled. Existing services can be edited, but you cannot
+                create new services under this category.
               </div>
             )}
           </div>
@@ -452,7 +547,8 @@ export default function ServiceForm() {
                     Upload high-quality service images
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    These images can appear on your service card and the landing page popular services section.
+                    These images can appear on your service card and the landing
+                    page popular services section.
                   </p>
                   <div className="mt-4">
                     <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors cursor-pointer">
@@ -463,7 +559,9 @@ export default function ServiceForm() {
                         accept="image/*"
                         multiple
                         onChange={handleImageUpload}
-                        disabled={uploadingImages || form.images.length >= MAX_IMAGES}
+                        disabled={
+                          uploadingImages || form.images.length >= MAX_IMAGES
+                        }
                         className="hidden"
                       />
                     </label>
@@ -527,8 +625,12 @@ export default function ServiceForm() {
                     <HiFolderOpen className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900">{selectedCategory.name}</h4>
-                    <p className="text-sm text-gray-600">{selectedCategory.description}</p>
+                    <h4 className="font-semibold text-gray-900">
+                      {selectedCategory.name}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {selectedCategory.description}
+                    </p>
                   </div>
                 </div>
 
@@ -561,7 +663,7 @@ export default function ServiceForm() {
               className="mt-4 w-full px-4 py-2.5 border-2 border-dashed border-green-400 text-green-700 hover:bg-green-50 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
             >
               <HiSquares2X2 className="w-5 h-5" />
-              Don&apos;t see your category? Request one
+              {form.categoryId ? "Don\'t see your subcategory? Request one" : "Don\'t see your category? Request one"}
             </button>
           </div>
 
@@ -572,28 +674,37 @@ export default function ServiceForm() {
             <select
               name="subcategoryId"
               value={form.subcategoryId}
-              onChange={(e) => setForm({ ...form, subcategoryId: e.target.value })}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, subcategoryId: e.target.value }))
+              }
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium"
               disabled={!form.categoryId || loadingSubcategories}
             >
               <option value="">Select a subcategory</option>
               {availableSubcategories.map((sub) => (
-                <option key={sub._id} value={sub._id} disabled={sub.status === "inactive"}>
+                <option
+                  key={sub._id}
+                  value={sub._id}
+                  disabled={sub.status === "inactive"}
+                >
                   {sub.name}
                   {sub.status === "inactive" ? " (inactive)" : ""}
                 </option>
               ))}
             </select>
 
-            {form.categoryId && !loadingSubcategories && availableSubcategories.length === 0 && (
-              <div className="mt-2 text-xs text-gray-500">
-                No subcategories available for this category.
-              </div>
-            )}
+            {form.categoryId &&
+              !loadingSubcategories &&
+              availableSubcategories.length === 0 && (
+                <div className="mt-2 text-xs text-gray-500">
+                  No subcategories available for this category.
+                </div>
+              )}
 
             {selectedSubcategory?.status === "inactive" && (
               <div className="mt-2 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
-                Selected subcategory is inactive. Choose another to publish new changes.
+                Selected subcategory is inactive. Choose another to publish new
+                changes.
               </div>
             )}
           </div>
@@ -607,10 +718,13 @@ export default function ServiceForm() {
               <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-800">
                   <strong>Suggested for this category:</strong>{" "}
-                  {selectedCategory.suggestedPriceMode === "fixed" && "Fixed Pricing"}
-                  {selectedCategory.suggestedPriceMode === "range" && "Price Range"}
-                  {selectedCategory.suggestedPriceMode === "quote_required" && "Quote Required"}.
-                  You can choose any pricing model that works for you.
+                  {selectedCategory.suggestedPriceMode === "fixed" &&
+                    "Fixed Pricing"}
+                  {selectedCategory.suggestedPriceMode === "range" &&
+                    "Price Range"}
+                  {selectedCategory.suggestedPriceMode === "quote_required" &&
+                    "Quote Required"}
+                  . You can choose any pricing model that works for you.
                 </p>
               </div>
             )}
@@ -618,7 +732,9 @@ export default function ServiceForm() {
             <div className="grid md:grid-cols-3 gap-3">
               <label
                 className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                style={{ borderColor: form.priceMode === "fixed" ? "#10b981" : "#d1d5db" }}
+                style={{
+                  borderColor: form.priceMode === "fixed" ? "#10b981" : "#d1d5db",
+                }}
               >
                 <input
                   type="radio"
@@ -636,7 +752,9 @@ export default function ServiceForm() {
 
               <label
                 className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                style={{ borderColor: form.priceMode === "range" ? "#10b981" : "#d1d5db" }}
+                style={{
+                  borderColor: form.priceMode === "range" ? "#10b981" : "#d1d5db",
+                }}
               >
                 <input
                   type="radio"
@@ -655,7 +773,8 @@ export default function ServiceForm() {
               <label
                 className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
                 style={{
-                  borderColor: form.priceMode === "quote_required" ? "#10b981" : "#d1d5db",
+                  borderColor:
+                    form.priceMode === "quote_required" ? "#10b981" : "#d1d5db",
                 }}
               >
                 <input
@@ -697,20 +816,22 @@ export default function ServiceForm() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Emergency Price
-                  </label>
-                  <input
-                    type="number"
-                    name="emergencyPrice"
-                    value={form.emergencyPrice}
-                    onChange={handleChange}
-                    placeholder="1000"
-                    min="0"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
+                {canConfigureEmergency && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Emergency Price
+                    </label>
+                    <input
+                      type="number"
+                      name="emergencyPrice"
+                      value={form.emergencyPrice}
+                      onChange={handleChange}
+                      placeholder="1000"
+                      min="0"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -743,6 +864,12 @@ export default function ServiceForm() {
                   />
                 </div>
               </div>
+
+              {!selectedCategory?.emergencyServiceAllowed && form.categoryId && (
+                <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                  Emergency booking is not enabled for this category.
+                </div>
+              )}
             </div>
           )}
 
@@ -785,8 +912,36 @@ export default function ServiceForm() {
                   />
                 </div>
               </div>
+
+              {canConfigureEmergency && (
+                <div className="mt-4 max-w-sm">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Emergency Price
+                  </label>
+                  <input
+                    type="number"
+                    name="emergencyPrice"
+                    value={form.emergencyPrice}
+                    onChange={handleChange}
+                    placeholder="1000"
+                    min="0"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-gray-600 mt-2">
+                    This extra fee is added when the client chooses emergency booking.
+                  </p>
+                </div>
+              )}
+
+              {!selectedCategory?.emergencyServiceAllowed && form.categoryId && (
+                <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                  Emergency booking is not enabled for this category.
+                </div>
+              )}
+
               <p className="text-xs text-gray-600 mt-2">
-                Clients will see NPR {form.priceRangeMin || 0} - NPR {form.priceRangeMax || 0}
+                Clients will see NPR {form.priceRangeMin || 0} - NPR{" "}
+                {form.priceRangeMax || 0}
               </p>
             </div>
           )}
@@ -833,8 +988,13 @@ export default function ServiceForm() {
 
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-800">
-                  With quote-based pricing, clients request a service and you provide a custom quote.
+                  With quote-based pricing, clients request a service and you provide
+                  a custom quote.
                 </p>
+              </div>
+
+              <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                Emergency booking is not available for quote-based services.
               </div>
             </div>
           )}
@@ -858,7 +1018,8 @@ export default function ServiceForm() {
 
           {kycStatus && normalizeKycStatus(kycStatus.status) !== "approved" && (
             <div className="text-sm text-amber-700 bg-amber-50 px-4 py-2 rounded-lg border border-amber-200">
-              Service will be saved as <strong>draft</strong> until your KYC is approved.
+              Service will be saved as <strong>draft</strong> until your KYC is
+              approved.
             </div>
           )}
         </form>
@@ -869,9 +1030,13 @@ export default function ServiceForm() {
           <div className="bg-white rounded-2xl max-w-2xl w-full p-8 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-2xl font-bold text-gray-900">Request a New Category</h3>
+                <h3 className="text-2xl font-bold text-gray-900">
+                  {form.categoryId && selectedCategory ? "Request a New Subcategory" : "Request a New Category"}
+                </h3>
                 <p className="text-sm text-gray-600 mt-1">
-                  Can&apos;t find the right category? Submit a request for admin approval.
+                  {form.categoryId && selectedCategory
+                    ? `Can\'t find the right subcategory under ${selectedCategory.name}? Submit a request for admin approval.`
+                    : "Can\'t find the right category? Submit a request for admin approval."}
                 </p>
               </div>
               <button
@@ -883,7 +1048,9 @@ export default function ServiceForm() {
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-900 mb-3">Existing Categories:</p>
+              <p className="text-sm font-medium text-blue-900 mb-3">
+                Existing Categories:
+              </p>
               <div className="flex flex-wrap gap-2">
                 {categories.slice(0, 8).map((cat) => (
                   <span
@@ -894,7 +1061,9 @@ export default function ServiceForm() {
                   </span>
                 ))}
                 {categories.length > 8 && (
-                  <span className="text-xs text-blue-700">+ {categories.length - 8} more</span>
+                  <span className="text-xs text-blue-700">
+                    + {categories.length - 8} more
+                  </span>
                 )}
               </div>
             </div>
@@ -902,7 +1071,7 @@ export default function ServiceForm() {
             <form onSubmit={handleCategoryRequest} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Category Name *
+                  {form.categoryId && selectedCategory ? "Subcategory Name *" : "Category Name *"}
                 </label>
                 <input
                   type="text"
@@ -910,7 +1079,7 @@ export default function ServiceForm() {
                   onChange={(e) =>
                     setCategoryRequest({ ...categoryRequest, name: e.target.value })
                   }
-                  placeholder="e.g., Event Planning"
+                  placeholder={form.categoryId && selectedCategory ? "e.g., Sofa & Carpet Cleaning" : "e.g., Event Planning"}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 />
@@ -918,14 +1087,17 @@ export default function ServiceForm() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Brief Description
+                  {form.categoryId && selectedCategory ? "Brief Subcategory Description" : "Brief Description"}
                 </label>
                 <textarea
                   value={categoryRequest.description}
                   onChange={(e) =>
-                    setCategoryRequest({ ...categoryRequest, description: e.target.value })
+                    setCategoryRequest({
+                      ...categoryRequest,
+                      description: e.target.value,
+                    })
                   }
-                  placeholder="What does this category cover?"
+                  placeholder={form.categoryId && selectedCategory ? "What does this subcategory cover under the selected category?" : "What does this category cover?"}
                   rows={2}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                 />
@@ -933,14 +1105,17 @@ export default function ServiceForm() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Why do you need this category? *
+                  {form.categoryId && selectedCategory ? "Why do you need this subcategory? *" : "Why do you need this category? *"}
                 </label>
                 <textarea
                   value={categoryRequest.justification}
                   onChange={(e) =>
-                    setCategoryRequest({ ...categoryRequest, justification: e.target.value })
+                    setCategoryRequest({
+                      ...categoryRequest,
+                      justification: e.target.value,
+                    })
                   }
-                  placeholder="Explain how you will use this category and what services you want to offer."
+                  placeholder={form.categoryId && selectedCategory ? "Explain how this subcategory fits under the selected category and what services you want to offer." : "Explain how you will use this category and what services you want to offer."}
                   rows={4}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                   required
@@ -949,7 +1124,9 @@ export default function ServiceForm() {
 
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <p className="text-sm text-green-800">
-                  An admin will review your request and notify you after approval or rejection.
+                  {form.categoryId && selectedCategory
+                    ? `An admin will review your request and, if approved, create it under ${selectedCategory.name}.`
+                    : "An admin will review your request and notify you after approval or rejection."}
                 </p>
               </div>
 
@@ -958,7 +1135,7 @@ export default function ServiceForm() {
                   type="submit"
                   className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
                 >
-                  Submit Request
+                  {form.categoryId && selectedCategory ? "Submit Subcategory Request" : "Submit Request"}
                 </button>
                 <button
                   type="button"

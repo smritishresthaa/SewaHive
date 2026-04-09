@@ -8,6 +8,7 @@ import {
   HiChatBubbleLeftRight,
   HiCreditCard,
   HiTrophy,
+  HiCog6Tooth,
 } from "react-icons/hi2";
 import api from "../../utils/axios";
 
@@ -73,6 +74,11 @@ export default function ClientSidebar() {
             label: "My Profile",
             icon: HiUserCircle,
           },
+          {
+            to: "/client/settings",
+            label: "Settings",
+            icon: HiCog6Tooth,
+          },
         ],
       },
       {
@@ -126,7 +132,7 @@ export default function ClientSidebar() {
   }
 
   const renderNavContent = (isMobile = false) => (
-    <nav className={isMobile ? "space-y-1 p-4" : "flex-1 px-3 py-4 space-y-1"}>
+    <nav className={isMobile ? "space-y-1 p-4" : "flex-1 space-y-1 px-3 py-4"}>
       {navSections.map((section, si) => (
         <div key={si}>
           {si > 0 && <div className="my-2 h-px bg-gray-100" />}
@@ -175,7 +181,6 @@ export default function ClientSidebar() {
 
   return (
     <>
-      {/* Mobile Header Button */}
       <div className="sticky top-0 z-40 border-b bg-white px-4 py-3 lg:hidden">
         <button
           onClick={() => setMobileOpen(true)}
@@ -187,7 +192,6 @@ export default function ClientSidebar() {
         </button>
       </div>
 
-      {/* Mobile Overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/40 lg:hidden"
@@ -195,7 +199,6 @@ export default function ClientSidebar() {
         />
       )}
 
-      {/* Mobile Drawer */}
       <aside
         className={`fixed left-0 top-0 z-[60] h-full w-[85%] max-w-xs bg-[#f8fafc] shadow-xl transition-transform duration-300 lg:hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -222,7 +225,6 @@ export default function ClientSidebar() {
         </div>
       </aside>
 
-      {/* Desktop Sidebar */}
       <aside className="hidden h-screen w-60 flex-shrink-0 border-r border-gray-200 bg-[#f8fafc] lg:fixed lg:left-0 lg:top-[72px] lg:block xl:w-64">
         <div className="flex h-full flex-col overflow-y-auto">
           {renderNavContent(false)}

@@ -1,101 +1,116 @@
 // models/ProviderWallet.js
-const { Schema, model } = require('mongoose');
+const { Schema, model } = require("mongoose");
 
-const WalletTransactionSchema = new Schema({
-  type: {
-    type: String,
-    enum: ['DEPOSIT', 'WITHDRAWAL', 'REFUND', 'PLATFORM_FEE'],
+const WalletTransactionSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["DEPOSIT", "WITHDRAWAL", "REFUND", "PLATFORM_FEE"],
+      required: true,
+    },
+    amount: { type: Number, required: true, default: 0 },
+    description: { type: String, default: "" },
+    bookingId: { type: Schema.Types.ObjectId, ref: "Booking" },
+    paymentId: { type: Schema.Types.ObjectId, ref: "Payment" },
+    status: {
+      type: String,
+      enum: ["PENDING", "COMPLETED", "FAILED"],
+      default: "PENDING",
+    },
+    createdAt: { type: Date, default: Date.now },
   },
-  amount: { type: Number, required: true },
-  description: String,
-  bookingId: { type: Schema.Types.ObjectId, ref: 'Booking' },
-  paymentId: { type: Schema.Types.ObjectId, ref: 'Payment' },
-  status: {
-    type: String,
-    enum: ['PENDING', 'COMPLETED', 'FAILED'],
-    default: 'PENDING',
-  },
-  createdAt: { type: Date, default: Date.now },
-});
+  { _id: true }
+);
 
 const ProviderWalletSchema = new Schema(
   {
-    // PROVIDER
-    providerId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'User', 
+    providerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
       required: true,
       unique: true,
-      index: true
+      index: true,
     },
 
-    // BALANCE TRACKING
-    // Total earned (all completed payments)
+    // Money provider has actually earned/released
     totalEarned: { type: Number, default: 0 },
 
-    // Money held in escrow (awaiting client confirmation)
+    // Money still held in escrow
     pendingBalance: { type: Number, default: 0 },
 
-    // Money available to withdraw
+    // Money ready to withdraw
     availableBalance: { type: Number, default: 0 },
 
     // Money already withdrawn
     totalWithdrawn: { type: Number, default: 0 },
 
-    // Total refunded to clients
+    // Money refunded back to clients through disputes / refunds
     totalRefunded: { type: Number, default: 0 },
 
-    // TRANSACTION HISTORY
-    transactions: [WalletTransactionSchema],
+    transactions: {
+      type: [WalletTransactionSchema],
+      default: [],
+    },
 
-    // BANK DETAILS (for future withdrawals)
     bankDetails: {
-      accountHolderName: String,
-      accountNumber: String,
-      bankName: String,
-      bankCode: String,
+      accountHolderName: { type: String, default: "" },
+      accountNumber: { type: String, default: "" },
+      bankName: { type: String, default: "" },
+      bankCode: { type: String, default: "" },
       verified: { type: Boolean, default: false },
     },
 
-    // STATISTICS
     completedBookings: { type: Number, default: 0 },
     averageRating: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
 
-    // STATUS
     status: {
       type: String,
-      enum: ['ACTIVE', 'SUSPENDED', 'BLOCKED'],
-      default: 'ACTIVE',
+      enum: ["ACTIVE", "SUSPENDED", "BLOCKED"],
+      default: "ACTIVE",
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// Helper method to add transaction
-ProviderWalletSchema.methods.addTransaction = async function(transactionData) {
+ProviderWalletSchema.virtual("balance").get(function balanceGetter() {
+  return Number(this.availableBalance || 0);
+});
+
+ProviderWalletSchema.methods.addTransaction = async function addTransaction(
+  transactionData
+) {
   this.transactions.push(transactionData);
   return this.save();
 };
 
-// Helper method to release payment from escrow
-ProviderWalletSchema.methods.releaseEscrow = async function(amount) {
-  if (this.pendingBalance < amount) {
-    throw new Error('Insufficient pending balance');
+ProviderWalletSchema.methods.releaseEscrow = async function releaseEscrow(amount) {
+  const safeAmount = Number(amount || 0);
+  if (this.pendingBalance < safeAmount) {
+    throw new Error("Insufficient pending balance");
   }
-  this.pendingBalance -= amount;
-  this.availableBalance += amount;
-  this.totalEarned += amount;
+
+  this.pendingBalance = Number((this.pendingBalance - safeAmount).toFixed(2));
+  this.availableBalance = Number((this.availableBalance + safeAmount).toFixed(2));
+  this.totalEarned = Number((this.totalEarned + safeAmount).toFixed(2));
+
   return this.save();
 };
 
-// Helper method to refund from pending
-ProviderWalletSchema.methods.refundPending = async function(amount) {
-  if (this.pendingBalance < amount) {
-    throw new Error('Insufficient pending balance to refund');
+ProviderWalletSchema.methods.refundPending = async function refundPending(amount) {
+  const safeAmount = Number(amount || 0);
+  if (this.pendingBalance < safeAmount) {
+    throw new Error("Insufficient pending balance to refund");
   }
-  this.pendingBalance -= amount;
+
+  this.pendingBalance = Number((this.pendingBalance - safeAmount).toFixed(2));
+  this.totalRefunded = Number((this.totalRefunded + safeAmount).toFixed(2));
+
   return this.save();
 };
 
-module.exports = model('ProviderWallet', ProviderWalletSchema);
+module.exports = model("ProviderWallet", ProviderWalletSchema);

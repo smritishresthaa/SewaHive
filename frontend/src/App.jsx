@@ -26,6 +26,7 @@ import ClientBookingHistory from "./pages/client/ClientBookingHistory";
 import ClientBookingDetail from "./pages/client/ClientBookingDetail";
 import ClientTransactions from "./pages/client/ClientTransactions";
 import ClientLeaderboard from "./pages/client/ClientLeaderboard";
+import ClientSettings from "./pages/client/ClientSettings";
 import PaymentSuccess from "./pages/client/PaymentSuccess";
 import PaymentFailure from "./pages/client/PaymentFailure";
 import PaymentConfirmation from "./pages/client/PaymentConfirmation";
@@ -64,8 +65,6 @@ export default function App() {
   return (
     <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <Routes>
-
-
         {/* ================= PUBLIC ================= */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -161,24 +160,30 @@ export default function App() {
           }
         />
 
+        <Route
+          path="/client/settings"
+          element={
+            <ProtectedRoute role="client">
+              <ClientSettings />
+            </ProtectedRoute>
+          }
+        />
+
         {/* ================= PAYMENT ================= */}
         <Route path="/payment/success" element={<PaymentSuccess />} />
         <Route path="/payment/failure" element={<PaymentFailure />} />
-        <Route 
-          path="/payment/confirm/:bookingId" 
+        <Route
+          path="/payment/confirm/:bookingId"
           element={
             <ProtectedRoute role="client">
               <PaymentConfirmation />
             </ProtectedRoute>
-          } 
+          }
         />
         <Route path="/payment/processing/:bookingId" element={<PaymentProcessing />} />
 
         {/* ================= PROVIDER ================= */}
-        <Route
-          path="/provider"
-          element={<Navigate to="/provider/dashboard" replace />}
-        />
+        <Route path="/provider" element={<Navigate to="/provider/dashboard" replace />} />
 
         <Route
           path="/provider/dashboard"
@@ -383,7 +388,6 @@ export default function App() {
 
         {/* ================= FALLBACK ================= */}
         <Route path="*" element={<Navigate to="/" replace />} />
-
       </Routes>
     </BrowserRouter>
   );

@@ -1,109 +1,139 @@
-// backend/middleware/auth.js
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ----------------------------------------------
-// AUTHENTICATION GUARD
-// ----------------------------------------------
+function buildAccountMeta(user) {
+  return {
+    accountStatus: user.accountStatus,
+    isDeleted: !!user.isDeleted,
+    suspension: {
+      reason: user.suspension?.reason || "",
+      startsAt: user.suspension?.startsAt || null,
+      endsAt: user.suspension?.endsAt || null,
+    },
+  };
+}
+
+async function resolveAccountAccess(user) {
+  if (!user) {
+    return { allowed: false, status: 401, message: "Unauthorized: User no longer exists" };
+  }
+
+  if (user.isDeleted || user.accountStatus === "deleted") {
+    return {
+      allowed: false,
+      status: 403,
+      message: "Account deleted",
+      code: "ACCOUNT_DELETED",
+      meta: buildAccountMeta(user),
+    };
+  }
+
+  if (user.accountStatus === "suspended") {
+    const endsAt = user.suspension?.endsAt ? new Date(user.suspension.endsAt) : null;
+    if (endsAt && endsAt <= new Date()) {
+      user.accountStatus = "active";
+      user.suspension = {
+        reason: "",
+        startsAt: null,
+        endsAt: null,
+        imposedBy: null,
+      };
+      await user.save();
+    } else {
+      return {
+        allowed: false,
+        status: 403,
+        message: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        meta: buildAccountMeta(user),
+      };
+    }
+  }
+
+  if (user.isBlocked) {
+    return {
+      allowed: false,
+      status: 403,
+      message: "Account blocked by admin",
+      code: "ACCOUNT_BLOCKED",
+      meta: buildAccountMeta(user),
+    };
+  }
+
+  return { allowed: true };
+}
+
+async function attachUserFromToken(token) {
+  if (!token) {
+    return { error: { status: 401, message: "Unauthorized: No token provided" } };
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    const user = await User.findById(payload.sub);
+    const access = await resolveAccountAccess(user);
+
+    if (!access.allowed) {
+      return { error: access };
+    }
+
+    return {
+      user,
+      reqUser: {
+        id: String(user._id),
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        profile: user.profile,
+        location: user.location,
+        providerDetails: user.providerDetails,
+        settings: user.settings,
+        isVerified: user.isVerified,
+        kycStatus: user.kycStatus,
+        accountStatus: user.accountStatus,
+        suspension: user.suspension || {},
+        onboarding: user.onboarding || {},
+      },
+    };
+  } catch (error) {
+    return { error: { status: 401, message: "Unauthorized: Invalid or expired token" } };
+  }
+}
+
 async function authGuard(req, res, next) {
-  try {
-    const header = req.headers.authorization || "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const result = await attachUserFromToken(token);
 
-    if (!token) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized: No token provided" });
-    }
-
-    // Verify JWT
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-
-    // Fetch user from DB
-    const user = await User.findById(payload.sub);
-
-    if (!user) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized: User no longer exists" });
-    }
-
-    if (user.isDeleted) {
-      return res.status(403).json({ message: "Account deleted" });
-    }
-
-    if (user.isBlocked) {
-      return res.status(403).json({ message: "Account blocked by admin" });
-    }
-
-    // Attach normalized user object
-    req.user = {
-      id: String(user._id),
-      role: user.role,
-      email: user.email,
-      phone: user.phone,
-      profile: user.profile,
-      location: user.location,
-      providerDetails: user.providerDetails,
-      isVerified: user.isVerified,
-      kycStatus: user.kycStatus,
-    };
-
-    next();
-  } catch (error) {
-    return res
-      .status(401)
-      .json({ message: "Unauthorized: Invalid or expired token" });
+  if (result.error) {
+    return res.status(result.error.status).json({
+      message: result.error.message,
+      code: result.error.code,
+      ...(result.error.meta ? { meta: result.error.meta } : {}),
+    });
   }
+
+  req.user = result.reqUser;
+  req.userDoc = result.user;
+  next();
 }
 
-// ----------------------------------------------
-// AUTH GUARD FOR SSE (TOKEN FROM QUERY)
-// ----------------------------------------------
 async function authGuardFromQuery(req, res, next) {
-  try {
-    const token = req.query.token;
+  const result = await attachUserFromToken(req.query.token);
 
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: No token provided" });
-    }
-
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    const user = await User.findById(payload.sub);
-
-    if (!user) {
-      return res.status(401).json({ message: "Unauthorized: User no longer exists" });
-    }
-
-    if (user.isDeleted) {
-      return res.status(403).json({ message: "Account deleted" });
-    }
-
-    if (user.isBlocked) {
-      return res.status(403).json({ message: "Account blocked by admin" });
-    }
-
-    req.user = {
-      id: String(user._id),
-      role: user.role,
-      email: user.email,
-      phone: user.phone,
-      profile: user.profile,
-      location: user.location,
-      providerDetails: user.providerDetails,
-      isVerified: user.isVerified,
-      kycStatus: user.kycStatus,
-    };
-
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Unauthorized: Invalid or expired token" });
+  if (result.error) {
+    return res.status(result.error.status).json({
+      message: result.error.message,
+      code: result.error.code,
+      ...(result.error.meta ? { meta: result.error.meta } : {}),
+    });
   }
+
+  req.user = result.reqUser;
+  req.userDoc = result.user;
+  next();
 }
 
-// ----------------------------------------------
-// ROLE-BASED AUTHORIZATION (WITH ADMIN OVERRIDE)
-// ----------------------------------------------
 function roleGuard(allowedRoles = []) {
   return (req, res, next) => {
     if (!req.user) {
@@ -112,22 +142,16 @@ function roleGuard(allowedRoles = []) {
 
     const userRole = req.user.role;
 
-    // Admin has access to everything
     if (userRole === "admin") return next();
 
     if (!allowedRoles.includes(userRole)) {
-      return res
-        .status(403)
-        .json({ message: "Forbidden: Insufficient role" });
+      return res.status(403).json({ message: "Forbidden: Insufficient role" });
     }
 
     next();
   };
 }
 
-// ----------------------------------------------
-// ADMIN-ONLY GUARD
-// ----------------------------------------------
 function requireAdmin(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -140,9 +164,6 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// ----------------------------------------------
-// KYC VERIFICATION GUARD (PHASE 2A)
-// ----------------------------------------------
 async function requireVerifiedProvider(req, res, next) {
   try {
     if (!req.user) {
@@ -150,7 +171,7 @@ async function requireVerifiedProvider(req, res, next) {
     }
 
     if (req.user.role !== "provider") {
-      return next(); // Not a provider, skip KYC check
+      return next();
     }
 
     const { resolveProviderKycStatus, isKycApproved } = require("../utils/kyc");
@@ -160,11 +181,12 @@ async function requireVerifiedProvider(req, res, next) {
     });
 
     if (!isKycApproved(kycStatus)) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: "KYC verification required",
-        reason: "You must complete and get approved for KYC verification before you can accept bookings or publish services.",
+        reason:
+          "You must complete and get approved for KYC verification before you can accept bookings or publish services.",
         kycStatus,
-        needsAction: "Please complete your KYC verification in the Verification page."
+        needsAction: "Please complete your KYC verification in the Verification page.",
       });
     }
 
@@ -175,22 +197,15 @@ async function requireVerifiedProvider(req, res, next) {
   }
 }
 
-// ----------------------------------------------
-// EXPORTS (ALIASES FOR CLARITY & PROPOSAL ALIGNMENT)
-// ----------------------------------------------
 module.exports = {
   authGuard,
   roleGuard,
-
-  // aliases (same logic, clearer naming)
   requireAuth: authGuard,
   requireRole: (role) => roleGuard([role]),
-  
-  // Additional aliases for admin routes
   authenticate: authGuard,
   requireAdmin,
   authGuardFromQuery,
-  
-  // KYC verification guard (Phase 2A)
   requireVerifiedProvider,
+  resolveAccountAccess,
+  buildAccountMeta,
 };

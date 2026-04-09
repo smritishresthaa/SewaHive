@@ -6,6 +6,11 @@ const ConversationSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Booking",
       required: true,
+      index: true,
+    },
+    pairKey: {
+      type: String,
+      required: true,
       unique: true,
       index: true,
     },
@@ -15,10 +20,13 @@ const ConversationSchema = new Schema(
     lastMessageText: { type: String, default: "" },
     unreadByClient: { type: Number, default: 0 },
     unreadByProvider: { type: Number, default: 0 },
+    blockedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    blockedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
+ConversationSchema.index({ clientId: 1, providerId: 1 });
 ConversationSchema.index({ clientId: 1, lastMessageAt: -1 });
 ConversationSchema.index({ providerId: 1, lastMessageAt: -1 });
 

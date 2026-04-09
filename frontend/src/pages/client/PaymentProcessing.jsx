@@ -30,10 +30,10 @@ export default function PaymentProcessing() {
 
           {/* Main Message */}
           <h1 className="text-2xl font-bold text-gray-900 mb-3">
-            Redirecting to eSewa
+            Processing Payment
           </h1>
           <p className="text-gray-600 mb-6">
-            Please do not close this page or press the back button.
+            Please wait while we confirm your payment.
           </p>
 
           {/* Loading Dots */}
@@ -51,10 +51,10 @@ export default function PaymentProcessing() {
               </svg>
               <div className="text-left">
                 <p className="text-sm font-semibold text-emerald-800 mb-1">
-                  Secure Payment Gateway
+                  Payment Verification
                 </p>
                 <p className="text-xs text-emerald-700">
-                  You will be redirected to eSewa's secure payment portal. Your payment details are encrypted and protected.
+                  Your transaction is being verified securely. Please stay on this page.
                 </p>
               </div>
             </div>

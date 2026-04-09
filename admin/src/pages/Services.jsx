@@ -35,9 +35,9 @@ import {
   Cell,
 } from 'recharts'
 
-/* ── Collapsible accordion wrapper ─────────────────────────────────────── */
 function Accordion({ icon: Icon, title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <button
@@ -59,16 +59,17 @@ function Accordion({ icon: Icon, title, children, defaultOpen = false }) {
   )
 }
 
-/* ── Status badge chip ─────────────────────────────────────────────────── */
 function StatusBadge({ status }) {
   const map = {
     active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
     pending: 'bg-amber-50 text-amber-700 ring-amber-200',
-    flagged: 'bg-orange-50 text-orange-700 ring-orange-200',
     suspended: 'bg-red-50 text-red-700 ring-red-200',
     inactive: 'bg-gray-100 text-gray-600 ring-gray-200',
+    featured: 'bg-blue-50 text-blue-700 ring-blue-200',
   }
+
   const cls = map[status] || 'bg-gray-100 text-gray-600 ring-gray-200'
+
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ring-1 ring-inset ${cls}`}
@@ -78,13 +79,19 @@ function StatusBadge({ status }) {
   )
 }
 
-/* ── Icon-only action button with tooltip ──────────────────────────────── */
-function ActionBtn({ icon: Icon, label, color = 'text-gray-500 hover:text-gray-700', onClick }) {
+function ActionBtn({
+  icon: Icon,
+  label,
+  color = 'text-gray-500 hover:text-gray-700',
+  onClick,
+  disabled = false,
+}) {
   return (
     <button
       onClick={onClick}
       title={label}
-      className={`p-1.5 rounded-lg hover:bg-gray-100 transition ${color}`}
+      disabled={disabled}
+      className={`p-1.5 rounded-lg hover:bg-gray-100 transition ${color} disabled:opacity-50 disabled:cursor-not-allowed`}
     >
       <Icon className="w-4 h-4" />
     </button>
@@ -93,19 +100,20 @@ function ActionBtn({ icon: Icon, label, color = 'text-gray-500 hover:text-gray-7
 
 const PIE_COLORS = ['#059669', '#f59e0b', '#ef4444']
 
-/* ═════════════════════════════════════════════════════════════════════════ */
 export default function Services() {
-  /* ── state ───────────────────────────────────────────────────────────── */
   const [stats, setStats] = useState({
     activeServices: 0,
-    flaggedServices: 0,
+    pendingServices: 0,
     suspendedServices: 0,
+    flaggedServices: 0,
   })
+
   const [catStats, setCatStats] = useState({
     totalCategories: 0,
     activeCategories: 0,
     inactiveCategories: 0,
   })
+
   const [error, setError] = useState(null)
   const [serviceSearch, setServiceSearch] = useState('')
   const [serviceStatusFilter, setServiceStatusFilter] = useState('all')
@@ -117,6 +125,7 @@ export default function Services() {
     minimumServiceFee: 2.0,
     promoDiscountEnabled: true,
   })
+
   const [categories, setCategories] = useState([])
   const [categoryOverrides, setCategoryOverrides] = useState([])
   const [featuredProviders, setFeaturedProviders] = useState([])
@@ -139,15 +148,21 @@ export default function Services() {
   const [featuredLoading, setFeaturedLoading] = useState(false)
   const [moderationLoading, setModerationLoading] = useState(false)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [moderationActionId, setModerationActionId] = useState(null)
 
-  /* ── data fetchers ───────────────────────────────────────────────────── */
   const fetchStats = async () => {
     if (document.hidden) return
+
     try {
       const res = await api.get('/admin/dashboard/stats')
       if (res.data.success) {
-        setStats(res.data.data.services)
-        setCatStats(res.data.data.categories)
+        setStats({
+          activeServices: res.data.data.services?.activeServices || 0,
+          pendingServices: res.data.data.services?.pendingServices || 0,
+          suspendedServices: res.data.data.services?.suspendedServices || 0,
+          flaggedServices: res.data.data.services?.flaggedServices || 0,
+        })
+        setCatStats(res.data.data.categories || {})
         setError(null)
       }
     } catch (err) {
@@ -160,7 +175,7 @@ export default function Services() {
     try {
       setCatalogLoading(true)
       const res = await api.get('/admin/categories/summary')
-      if (res.data.success) setCategories(res.data.data)
+      if (res.data.success) setCategories(res.data.data || [])
     } catch (err) {
       console.error('Failed to load categories:', err)
       setError('Failed to load categories')
@@ -175,11 +190,11 @@ export default function Services() {
       const res = await api.get('/admin/services/pricing')
       if (res.data.success) {
         setPricing({
-          platformCommission: res.data.data.platformCommission,
-          processingFee: res.data.data.processingFee,
-          emergencySurcharge: res.data.data.emergencySurcharge,
-          minimumServiceFee: res.data.data.minimumServiceFee,
-          promoDiscountEnabled: res.data.data.promoDiscountEnabled,
+          platformCommission: res.data.data.platformCommission ?? 15,
+          processingFee: res.data.data.processingFee ?? 2.5,
+          emergencySurcharge: res.data.data.emergencySurcharge ?? 12,
+          minimumServiceFee: res.data.data.minimumServiceFee ?? 2.0,
+          promoDiscountEnabled: Boolean(res.data.data.promoDiscountEnabled),
         })
         setCategoryOverrides(res.data.data.categoryOverrides || [])
       }
@@ -194,8 +209,10 @@ export default function Services() {
   const fetchFeaturedProviders = async () => {
     try {
       setFeaturedLoading(true)
-      const res = await api.get('/admin/providers/featured', { params: { scope: 'all' } })
-      if (res.data.success) setFeaturedProviders(res.data.data)
+      const res = await api.get('/admin/providers/featured', {
+        params: { scope: 'all' },
+      })
+      if (res.data.success) setFeaturedProviders(res.data.data || [])
     } catch (err) {
       console.error('Failed to load featured providers:', err)
       setError('Failed to load featured providers')
@@ -208,10 +225,14 @@ export default function Services() {
     try {
       setModerationLoading(true)
       const params = {}
+
       if (serviceSearch.trim()) params.search = serviceSearch.trim()
       if (serviceStatusFilter !== 'all') params.status = serviceStatusFilter
+
       const res = await api.get('/admin/services/moderation', { params })
-      if (res.data.success) setModerationQueue(res.data.data)
+      if (res.data.success) {
+        setModerationQueue(res.data.data || [])
+      }
     } catch (err) {
       console.error('Failed to load moderation queue:', err)
       setError('Failed to load moderation queue')
@@ -224,7 +245,7 @@ export default function Services() {
     try {
       setAnalyticsLoading(true)
       const res = await api.get('/admin/services/analytics')
-      if (res.data.success) setAnalytics(res.data.data)
+      if (res.data.success) setAnalytics(res.data.data || {})
     } catch (err) {
       console.error('Failed to load analytics:', err)
       setError('Failed to load analytics')
@@ -233,7 +254,6 @@ export default function Services() {
     }
   }
 
-  /* ── action handlers ─────────────────────────────────────────────────── */
   const handlePricingUpdate = async () => {
     try {
       setPricingSaving(true)
@@ -246,6 +266,7 @@ export default function Services() {
         })),
       })
       await fetchPricing()
+      setError(null)
     } catch (err) {
       console.error('Failed to update pricing:', err)
       setError('Failed to update pricing')
@@ -268,21 +289,25 @@ export default function Services() {
     setModalDescription('')
     setModalSubcategories((category?.subcategories || []).join(', '))
   }
+
   const openEditCategoryModal = (category) => {
     if (!category?._id) return openCreateCategoryModal(category)
     setModalState({ type: 'edit', category })
     setModalName(category.name || '')
     setModalSubcategories((category.subcategories || []).join(', '))
   }
+
   const openAddSubcategoryModal = (category) => {
     if (!category?._id) return openCreateCategoryModal(category)
     setModalState({ type: 'add-subcategory', category })
     setModalSubcategory('')
   }
+
   const openStatusToggleModal = (category) => {
     if (!category?._id) return openCreateCategoryModal(category)
     setModalState({ type: 'toggle-status', category })
   }
+
   const openDeleteModal = (category) => {
     if (!category?._id) return openCreateCategoryModal(category)
     setModalState({ type: 'delete', category })
@@ -291,58 +316,72 @@ export default function Services() {
   const handleCategoryEditSave = async () => {
     const category = modalState.category
     if (!category?._id) return
+
     const name = modalName.trim()
     if (!name) {
       setError('Category name is required')
       return
     }
+
     const subcategories = modalSubcategories
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
+
     try {
       await api.put(`/admin/categories/${category._id}`, { name, subcategories })
       await fetchCatalog()
       closeModal()
+      setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to update category')
+      setError(err.response?.data?.message || 'Failed to update category')
     }
   }
 
   const handleCategoryCreateSave = async () => {
     const name = modalName.trim()
     const description = modalDescription.trim()
+
     if (!name || !description) {
       setError('Name and description are required')
       return
     }
+
     const subcategories = modalSubcategories
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
+
     try {
       await api.post('/admin/categories', { name, description, subcategories })
       await fetchCatalog()
       closeModal()
+      setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to create category')
+      setError(err.response?.data?.message || 'Failed to create category')
     }
   }
 
   const handleSubcategorySave = async () => {
     const category = modalState.category
     if (!category?._id) return
+
     const sub = modalSubcategory.trim()
     if (!sub) {
       setError('Subcategory name is required')
       return
     }
+
     try {
-      await api.post('/admin/subcategories', { categoryId: category._id, name: sub })
+      await api.post('/admin/subcategories', {
+        categoryId: category._id,
+        name: sub,
+      })
       await fetchCatalog()
       closeModal()
+      setError(null)
     } catch (err) {
       console.error(err)
       setError(err.response?.data?.message || 'Failed to add subcategory')
@@ -352,27 +391,31 @@ export default function Services() {
   const handleStatusToggleConfirm = async () => {
     const category = modalState.category
     if (!category?._id) return
+
     try {
       const next = category.status === 'active' ? 'inactive' : 'active'
       await api.patch(`/admin/categories/${category._id}/status`, { status: next })
       await fetchCatalog()
       closeModal()
+      setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to update category status')
+      setError(err.response?.data?.message || 'Failed to update category status')
     }
   }
 
   const handleDeleteConfirm = async () => {
     const category = modalState.category
     if (!category?._id) return
+
     try {
       await api.delete(`/admin/categories/${category._id}`)
       await fetchCatalog()
       closeModal()
+      setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to delete category')
+      setError(err.response?.data?.message || 'Failed to delete category')
     }
   }
 
@@ -382,42 +425,53 @@ export default function Services() {
         featured: !provider.featured,
       })
       await fetchFeaturedProviders()
+      setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to update featured providers')
+      setError(err.response?.data?.message || 'Failed to update featured providers')
     }
   }
 
   const handleModerationAction = async (item, action) => {
     try {
-      if (action === 'approve')
-        await api.patch(`/admin/services/${item.id}/status`, { status: 'active' })
-      else if (action === 'reject')
+      setModerationActionId(item.id)
+
+      if (action === 'approve') {
         await api.patch(`/admin/services/${item.id}/status`, {
-          status: 'inactive',
+          status: 'active',
+        })
+      } else if (action === 'reject') {
+        await api.patch(`/admin/services/${item.id}/status`, {
+          status: 'pending',
           reason: 'Rejected by admin',
         })
-      else if (action === 'suspend')
+      } else if (action === 'suspend') {
         await api.patch(`/admin/services/${item.id}/status`, {
-          status: 'inactive',
+          status: 'suspended',
           reason: 'Suspended by admin',
         })
-      await fetchModerationQueue()
-      await fetchStats()
+      }
+
+      await Promise.all([fetchModerationQueue(), fetchStats()])
+      setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to update service status')
+      setError(err.response?.data?.message || 'Failed to update service status')
+    } finally {
+      setModerationActionId(null)
     }
   }
 
-  /* ── effects ─────────────────────────────────────────────────────────── */
   useEffect(() => {
     fetchStats()
     const iv = setInterval(fetchStats, 30000)
+
     const vis = () => {
       if (!document.hidden) fetchStats()
     }
+
     document.addEventListener('visibilitychange', vis)
+
     return () => {
       clearInterval(iv)
       document.removeEventListener('visibilitychange', vis)
@@ -434,10 +488,13 @@ export default function Services() {
   useEffect(() => {
     fetchModerationQueue()
     const iv = setInterval(fetchModerationQueue, 30000)
+
     const vis = () => {
       if (!document.hidden) fetchModerationQueue()
     }
+
     document.addEventListener('visibilitychange', vis)
+
     return () => {
       clearInterval(iv)
       document.removeEventListener('visibilitychange', vis)
@@ -446,10 +503,13 @@ export default function Services() {
 
   useEffect(() => {
     const iv = setInterval(fetchPricing, 30000)
+
     const vis = () => {
       if (!document.hidden) fetchPricing()
     }
+
     document.addEventListener('visibilitychange', vis)
+
     return () => {
       clearInterval(iv)
       document.removeEventListener('visibilitychange', vis)
@@ -458,10 +518,13 @@ export default function Services() {
 
   useEffect(() => {
     const iv = setInterval(fetchAnalytics, 30000)
+
     const vis = () => {
       if (!document.hidden) fetchAnalytics()
     }
+
     document.addEventListener('visibilitychange', vis)
+
     return () => {
       clearInterval(iv)
       document.removeEventListener('visibilitychange', vis)
@@ -473,18 +536,18 @@ export default function Services() {
     return () => clearTimeout(t)
   }, [serviceSearch, serviceStatusFilter])
 
-  /* ── derived chart data ──────────────────────────────────────────────── */
   const barData = (analytics.topServices || []).slice(0, 6).map((s) => ({
-    name: s.name?.length > 12 ? s.name.slice(0, 11) + '…' : s.name,
+    name: s.name?.length > 12 ? `${s.name.slice(0, 11)}…` : s.name,
     fullName: s.name || '',
     bookings: s.bookings || 0,
   }))
 
-  /* Custom bar chart X-axis tick — horizontal, clean, no angle */
   const BarXTick = ({ x, y, payload }) => (
     <g transform={`translate(${x},${y})`}>
       <text
-        x={0} y={0} dy={12}
+        x={0}
+        y={0}
+        dy={12}
         textAnchor="middle"
         fill="#6b7280"
         fontSize={10}
@@ -497,17 +560,18 @@ export default function Services() {
   )
 
   const pieData = [
-    { name: 'Active', value: stats.activeServices },
-    { name: 'Flagged', value: stats.flaggedServices },
-    { name: 'Suspended', value: stats.suspendedServices },
+    { name: 'Active', value: stats.activeServices || 0 },
+    { name: 'Pending', value: stats.pendingServices || 0 },
+    { name: 'Suspended', value: stats.suspendedServices || 0 },
   ].filter((d) => d.value > 0)
 
-  const totalServices = stats.activeServices + stats.flaggedServices + stats.suspendedServices
+  const totalServices =
+    (stats.activeServices || 0) +
+    (stats.pendingServices || 0) +
+    (stats.suspendedServices || 0)
 
-  /* ── render ──────────────────────────────────────────────────────────── */
   return (
     <div className="space-y-3">
-      {/* Page header */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-gray-900">Service Management</h1>
         <button
@@ -536,7 +600,6 @@ export default function Services() {
         </div>
       )}
 
-      {/* ═══════ ROW 1 — KPI Cards (always 4 cols) ═══════ */}
       <div className="grid grid-cols-4 gap-3">
         {[
           {
@@ -548,8 +611,8 @@ export default function Services() {
             border: 'border-emerald-500',
           },
           {
-            label: 'Flagged',
-            value: stats.flaggedServices,
+            label: 'Pending',
+            value: stats.pendingServices,
             Icon: HiExclamationTriangle,
             color: 'text-amber-600',
             bg: 'bg-amber-50',
@@ -581,23 +644,26 @@ export default function Services() {
             </div>
             <div>
               <p className="text-[10px] text-gray-500">{kpi.label}</p>
-              <p className="text-xl font-bold text-gray-900 leading-tight">{kpi.value}</p>
+              <p className="text-xl font-bold text-gray-900 leading-tight">{kpi.value || 0}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ═══════ ROW 2 — Charts side-by-side (always 2 cols) ═══════ */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Bar chart — top services by booking count */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
             <HiChartBar className="w-4 h-4 text-gray-400" />
             Top Services by Bookings
           </h3>
+
           {barData.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barData} barSize={28} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+              <BarChart
+                data={barData}
+                barSize={28}
+                margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
+              >
                 <defs>
                   <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#34d399" stopOpacity={1} />
@@ -613,13 +679,29 @@ export default function Services() {
                   interval={0}
                   height={32}
                 />
-                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={28} allowDecimals={false} />
+                <YAxis
+                  tick={{ fontSize: 9, fill: '#9ca3af' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={28}
+                  allowDecimals={false}
+                />
                 <Tooltip
-                  contentStyle={{ fontSize: 11, borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: '8px 12px' }}
+                  contentStyle={{
+                    fontSize: 11,
+                    borderRadius: 10,
+                    border: '1px solid #e5e7eb',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    padding: '8px 12px',
+                  }}
                   cursor={{ fill: 'rgba(16,185,129,0.06)' }}
                   formatter={(value) => [`${value} bookings`, '']}
                   labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-                  labelStyle={{ fontWeight: 600, color: '#111827', marginBottom: 2 }}
+                  labelStyle={{
+                    fontWeight: 600,
+                    color: '#111827',
+                    marginBottom: 2,
+                  }}
                 />
                 <Bar dataKey="bookings" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -631,12 +713,12 @@ export default function Services() {
           )}
         </div>
 
-        {/* Donut chart — service status distribution */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
             <HiSquares2X2 className="w-4 h-4 text-gray-400" />
             Service Status Distribution
           </h3>
+
           {totalServices > 0 ? (
             <div className="flex items-center justify-center gap-5">
               <div className="relative flex-shrink-0">
@@ -653,21 +735,35 @@ export default function Services() {
                       strokeWidth={0}
                     >
                       {pieData.map((_, idx) => (
-                        <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                        <Cell
+                          key={idx}
+                          fill={PIE_COLORS[idx % PIE_COLORS.length]}
+                        />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                    <Tooltip
+                      contentStyle={{
+                        fontSize: 11,
+                        borderRadius: 8,
+                        border: '1px solid #e5e7eb',
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
+
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <p className="text-base font-bold text-gray-900 leading-none">{totalServices}</p>
                   <p className="text-[8px] text-gray-400 mt-0.5">Total</p>
                 </div>
               </div>
+
               <div className="space-y-2">
                 {pieData.map((item, idx) => (
                   <div key={item.name} className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                    <div
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}
+                    />
                     <span className="text-xs text-gray-500">{item.name}</span>
                     <span className="text-sm font-bold text-gray-900 ml-auto">{item.value}</span>
                   </div>
@@ -682,13 +778,13 @@ export default function Services() {
         </div>
       </div>
 
-      {/* ═══════ ROW 3 — Moderation Table ═══════ */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
             <HiShieldCheck className="w-4 h-4 text-gray-400" />
             Service Moderation
           </h3>
+
           <div className="flex items-center gap-2">
             <div className="relative">
               <HiMagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -700,6 +796,7 @@ export default function Services() {
                 className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs w-52 focus:outline-none focus:ring-1 focus:ring-emerald-400"
               />
             </div>
+
             <select
               value={serviceStatusFilter}
               onChange={(e) => setServiceStatusFilter(e.target.value)}
@@ -708,7 +805,6 @@ export default function Services() {
               <option value="all">All Status</option>
               <option value="active">Active</option>
               <option value="pending">Pending</option>
-              <option value="flagged">Flagged</option>
               <option value="suspended">Suspended</option>
             </select>
           </div>
@@ -722,49 +818,58 @@ export default function Services() {
                 <th className="px-4 py-2.5">Provider</th>
                 <th className="px-4 py-2.5">Category</th>
                 <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Flag Reason</th>
+                <th className="px-4 py-2.5">Reason</th>
                 <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
+
             <tbody>
-              {moderationQueue.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-b border-gray-50 hover:bg-emerald-50/30 transition"
-                >
-                  <td className="px-4 py-2.5 font-medium text-gray-900">{item.service}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{item.provider}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{item.category}</td>
-                  <td className="px-4 py-2.5">
-                    <StatusBadge status={item.status} />
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-500 max-w-[160px] truncate">
-                    {item.flagReason || '-'}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center justify-end gap-0.5">
-                      <ActionBtn
-                        icon={HiCheckCircle}
-                        label="Approve"
-                        color="text-emerald-500 hover:text-emerald-700"
-                        onClick={() => handleModerationAction(item, 'approve')}
-                      />
-                      <ActionBtn
-                        icon={HiXCircle}
-                        label="Reject"
-                        color="text-red-400 hover:text-red-600"
-                        onClick={() => handleModerationAction(item, 'reject')}
-                      />
-                      <ActionBtn
-                        icon={HiPauseCircle}
-                        label="Suspend"
-                        color="text-amber-500 hover:text-amber-700"
-                        onClick={() => handleModerationAction(item, 'suspend')}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {moderationQueue.map((item) => {
+                const isUpdating = moderationActionId === item.id
+
+                return (
+                  <tr
+                    key={item.id}
+                    className="border-b border-gray-50 hover:bg-emerald-50/30 transition"
+                  >
+                    <td className="px-4 py-2.5 font-medium text-gray-900">{item.service}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{item.provider}</td>
+                    <td className="px-4 py-2.5 text-gray-600">{item.category}</td>
+                    <td className="px-4 py-2.5">
+                      <StatusBadge status={item.status} />
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 max-w-[200px] truncate">
+                      {item.flagReason || '-'}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-0.5">
+                        <ActionBtn
+                          icon={HiCheckCircle}
+                          label="Approve"
+                          color="text-emerald-500 hover:text-emerald-700"
+                          onClick={() => handleModerationAction(item, 'approve')}
+                          disabled={isUpdating || item.status === 'active'}
+                        />
+                        <ActionBtn
+                          icon={HiXCircle}
+                          label="Move to Pending"
+                          color="text-amber-500 hover:text-amber-700"
+                          onClick={() => handleModerationAction(item, 'reject')}
+                          disabled={isUpdating || item.status === 'pending'}
+                        />
+                        <ActionBtn
+                          icon={HiPauseCircle}
+                          label="Suspend"
+                          color="text-red-500 hover:text-red-700"
+                          onClick={() => handleModerationAction(item, 'suspend')}
+                          disabled={isUpdating || item.status === 'suspended'}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+
               {moderationLoading && (
                 <tr>
                   <td colSpan="6" className="px-4 py-6 text-center text-xs text-gray-400">
@@ -772,6 +877,7 @@ export default function Services() {
                   </td>
                 </tr>
               )}
+
               {!moderationLoading && moderationQueue.length === 0 && (
                 <tr>
                   <td colSpan="6" className="px-4 py-6 text-center text-xs text-gray-400">
@@ -784,9 +890,7 @@ export default function Services() {
         </div>
       </div>
 
-      {/* ═══════ ROW 4 — Collapsible: Category Catalog + Pricing ═══════ */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Category Catalog */}
         <Accordion icon={HiSquares2X2} title="Category Catalog" defaultOpen={false}>
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] text-gray-500">Manage categories and subcategories</p>
@@ -797,6 +901,7 @@ export default function Services() {
               <HiPlusCircle className="w-3.5 h-3.5" /> New
             </button>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -808,6 +913,7 @@ export default function Services() {
                   <th className="px-2 py-2 text-right">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {categories.map((cat) => (
                   <tr
@@ -850,6 +956,7 @@ export default function Services() {
                     </td>
                   </tr>
                 ))}
+
                 {catalogLoading && (
                   <tr>
                     <td colSpan="5" className="px-2 py-4 text-center text-[11px] text-gray-400">
@@ -857,6 +964,7 @@ export default function Services() {
                     </td>
                   </tr>
                 )}
+
                 {!catalogLoading && categories.length === 0 && (
                   <tr>
                     <td colSpan="5" className="px-2 py-4 text-center text-[11px] text-gray-400">
@@ -869,7 +977,6 @@ export default function Services() {
           </div>
         </Accordion>
 
-        {/* Pricing & Commission Config */}
         <Accordion icon={HiCurrencyDollar} title="Pricing & Commission" defaultOpen={false}>
           <div className="grid grid-cols-2 gap-3 mb-3">
             {[
@@ -896,12 +1003,16 @@ export default function Services() {
               </div>
             ))}
           </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-medium text-gray-600">Promo Discount</span>
               <button
                 onClick={() =>
-                  setPricing({ ...pricing, promoDiscountEnabled: !pricing.promoDiscountEnabled })
+                  setPricing({
+                    ...pricing,
+                    promoDiscountEnabled: !pricing.promoDiscountEnabled,
+                  })
                 }
                 className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                   pricing.promoDiscountEnabled
@@ -912,6 +1023,7 @@ export default function Services() {
                 {pricing.promoDiscountEnabled ? 'On' : 'Off'}
               </button>
             </div>
+
             <button
               onClick={handlePricingUpdate}
               disabled={pricingSaving}
@@ -921,7 +1033,6 @@ export default function Services() {
             </button>
           </div>
 
-          {/* Category overrides — compact */}
           {categoryOverrides.length > 0 && (
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">
@@ -942,10 +1053,13 @@ export default function Services() {
               </div>
             </div>
           )}
+
+          {pricingLoading && (
+            <p className="mt-3 text-[11px] text-gray-400">Loading pricing settings...</p>
+          )}
         </Accordion>
       </div>
 
-      {/* ═══════ ROW 5 — Featured Providers (accordion) ═══════ */}
       <Accordion icon={HiStar} title="Featured Providers" defaultOpen={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -958,9 +1072,13 @@ export default function Services() {
                 <th className="px-3 py-2 text-right">Action</th>
               </tr>
             </thead>
+
             <tbody>
               {featuredProviders.map((p) => (
-                <tr key={p.id} className="border-b border-gray-50 hover:bg-emerald-50/30 transition">
+                <tr
+                  key={p.id}
+                  className="border-b border-gray-50 hover:bg-emerald-50/30 transition"
+                >
                   <td className="px-3 py-2 font-medium text-gray-900">{p.name}</td>
                   <td className="px-3 py-2 text-gray-600">{p.category}</td>
                   <td className="px-3 py-2 text-gray-600">{p.rating}</td>
@@ -981,6 +1099,7 @@ export default function Services() {
                   </td>
                 </tr>
               ))}
+
               {featuredLoading && (
                 <tr>
                   <td colSpan="5" className="px-3 py-4 text-center text-[11px] text-gray-400">
@@ -988,6 +1107,7 @@ export default function Services() {
                   </td>
                 </tr>
               )}
+
               {!featuredLoading && featuredProviders.length === 0 && (
                 <tr>
                   <td colSpan="5" className="px-3 py-4 text-center text-[11px] text-gray-400">
@@ -1000,7 +1120,6 @@ export default function Services() {
         </div>
       </Accordion>
 
-      {/* ═══════ ROW 6 — Analytics (accordion) ═══════ */}
       <Accordion icon={HiChartBar} title="Service Analytics" defaultOpen={false}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {[
@@ -1045,7 +1164,6 @@ export default function Services() {
         </div>
       </Accordion>
 
-      {/* ═══════ MODAL ═══════ */}
       {modalState.type && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200">
@@ -1100,7 +1218,9 @@ export default function Services() {
                     Create a managed category for this service group.
                   </p>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Name</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Name
+                    </label>
                     <input
                       type="text"
                       value={modalName}
@@ -1187,6 +1307,7 @@ export default function Services() {
               >
                 Cancel
               </button>
+
               {modalState.type === 'edit' && (
                 <button
                   onClick={handleCategoryEditSave}
@@ -1195,6 +1316,7 @@ export default function Services() {
                   Save
                 </button>
               )}
+
               {modalState.type === 'create' && (
                 <button
                   onClick={handleCategoryCreateSave}
@@ -1203,6 +1325,7 @@ export default function Services() {
                   Create
                 </button>
               )}
+
               {modalState.type === 'add-subcategory' && (
                 <button
                   onClick={handleSubcategorySave}
@@ -1211,6 +1334,7 @@ export default function Services() {
                   Add
                 </button>
               )}
+
               {modalState.type === 'toggle-status' && (
                 <button
                   onClick={handleStatusToggleConfirm}
@@ -1219,6 +1343,7 @@ export default function Services() {
                   {modalState.category?.status === 'active' ? 'Disable' : 'Enable'}
                 </button>
               )}
+
               {modalState.type === 'delete' && (
                 <button
                   onClick={handleDeleteConfirm}

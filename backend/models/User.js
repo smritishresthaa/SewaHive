@@ -1,4 +1,3 @@
-// models/User.js
 const { Schema, model } = require("mongoose");
 
 const UserSchema = new Schema(
@@ -29,8 +28,7 @@ const UserSchema = new Schema(
     smsEnabled: { type: Boolean, default: true },
     isPhoneVerified: { type: Boolean, default: false },
 
-    // Terms & Conditions acceptance
-    termsAcceptedVersion: { type: String, default: null }, // Version string
+    termsAcceptedVersion: { type: String, default: null },
     termsAcceptedAt: { type: Date },
 
     passwordHash: {
@@ -53,12 +51,11 @@ const UserSchema = new Schema(
       dob: { type: Date },
       bio: { type: String, default: "" },
 
-      // ✅ STRUCTURED ADDRESS (FIXED)
       address: {
         country: { type: String, default: "" },
         city: { type: String, default: "" },
         postalCode: { type: String, default: "" },
-        area: { type: String, default: "" }, // ✅ ADD THIS LINE
+        area: { type: String, default: "" },
       },
     },
 
@@ -73,6 +70,19 @@ const UserSchema = new Schema(
     notificationsToken: String,
 
     // -----------------------------------
+    // SHARED USER SETTINGS
+    // -----------------------------------
+    settings: {
+      notifications: {
+        bookingUpdates: { type: Boolean, default: true },
+        messages: { type: Boolean, default: true },
+        reviews: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+        emergencyAlerts: { type: Boolean, default: false },
+      },
+    },
+
+    // -----------------------------------
     // PROVIDER DETAILS
     // -----------------------------------
     providerStatus: {
@@ -81,7 +91,6 @@ const UserSchema = new Schema(
       default: "pending",
     },
 
-    // Provider KYC status (normalized for fast checks)
     kycStatus: {
       type: String,
       enum: [
@@ -96,7 +105,9 @@ const UserSchema = new Schema(
 
     providerDetails: {
       categories: [{ type: String }],
-      approvedCategories: [{ type: Schema.Types.ObjectId, ref: "Category" }], // Strict list of categories this provider is allowed to operate in
+      approvedCategories: [{ type: Schema.Types.ObjectId, ref: "Category" }],
+      experienceDescription: { type: String, default: "" },
+      tools: { type: [String], default: [] },
       skillProofs: [
         {
           categoryId: { type: Schema.Types.ObjectId, ref: "Category", required: true },
@@ -136,30 +147,24 @@ const UserSchema = new Schema(
       notificationsEnabled: { type: Boolean, default: true },
       featured: { type: Boolean, default: false },
 
-      // --- Phase 3: Performance Trust Metrics ---
       metrics: {
-        ratingQuality: { type: Number, default: 0 }, // 0-5
+        ratingQuality: { type: Number, default: 0 },
         completedJobs: { type: Number, default: 0 },
-        responseSpeed: { type: Number, default: 0 }, // minutes
-        cancellationRate: { type: Number, default: 0 }, // percentage
+        responseSpeed: { type: Number, default: 0 },
+        cancellationRate: { type: Number, default: 0 },
         repeatClients: { type: Number, default: 0 },
-        profileCompleteness: { type: Number, default: 0 } // percentage
+        profileCompleteness: { type: Number, default: 0 }
       },
 
-      // --- Phase 3: Badges & Trust Score ---
-      badges: [{ type: String }], // e.g., 'Verified Provider', 'Top Rated', 'Fast Responder', 'Experienced', 'Elite'
-      trustScore: { type: Number, default: 0 }, // 0-100
+      badges: [{ type: String }],
+      trustScore: { type: Number, default: 0 },
 
-      // Coverage area for emergency services
       coverage: {
         lat: Number,
         lng: Number,
         radiusKm: { type: Number, default: 5 },
       },
 
-      // -----------------------------------
-      // METRICS FOR BADGES
-      // -----------------------------------
       metrics: {
         ratingQuality: { type: Number, default: 0 },
         completedJobs: { type: Number, default: 0 },
@@ -234,6 +239,20 @@ const UserSchema = new Schema(
       enum: ["active", "suspended", "deleted"],
       default: "active",
     },
+    suspension: {
+      reason: { type: String, default: "" },
+      startsAt: { type: Date, default: null },
+      endsAt: { type: Date, default: null },
+      imposedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    },
+    onboarding: {
+      profileCompleted: { type: Boolean, default: false },
+      kycCompleted: { type: Boolean, default: false },
+      skillProfileCompleted: { type: Boolean, default: false },
+      lastSuggestedStep: { type: String, default: "profile" },
+    },
+    deactivatedAt: Date,
+    deletedAt: Date,
     isBlocked: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     lastLogin: Date,
@@ -241,19 +260,14 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
-// -----------------------------------
-// INDEXES
-// -----------------------------------
 UserSchema.index({ location: "2dsphere" });
 UserSchema.index({ role: 1 });
 
 UserSchema.pre("save", function normalizeData(next) {
-  // Normalize KYC status
   if (this.kycStatus === "submitted" || this.kycStatus === "under_review") {
     this.kycStatus = "pending_review";
   }
-  
-  // Ensure providerDetails is initialized
+
   if (!this.providerDetails) {
     this.providerDetails = {
       categories: [],
@@ -268,18 +282,32 @@ UserSchema.pre("save", function normalizeData(next) {
       },
     };
   }
-  
-  // Ensure badges is always a clean array
+
+  if (!this.settings) {
+    this.settings = {};
+  }
+
+  if (!this.settings.notifications) {
+    this.settings.notifications = {
+      bookingUpdates: true,
+      messages: true,
+      reviews: true,
+      email: true,
+      emergencyAlerts: this.role === "provider",
+    };
+  }
+
   if (!Array.isArray(this.providerDetails.badges)) {
     this.providerDetails.badges = [];
   } else {
-    // Filter out any invalid badge values
     this.providerDetails.badges = this.providerDetails.badges.filter(
-      badge => badge && typeof badge === 'string' && 
-      ["verified", "pro", "top-rated"].includes(badge)
+      (badge) =>
+        badge &&
+        typeof badge === "string" &&
+        ["verified", "pro", "top-rated"].includes(badge)
     );
   }
-  
+
   next();
 });
 

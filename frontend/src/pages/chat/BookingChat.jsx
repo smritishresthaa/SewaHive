@@ -339,6 +339,15 @@ export default function BookingChat() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const Layout = user?.role === "provider" ? ProviderLayout : ClientLayout;
+  const selfId = String(user?._id || user?.id || "");
+
+  /* ── Sidebar state ── */
+  const [conversations, setConversations] = useState([]);
+  const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [activePairKey, setActivePairKey] = useState("");
+
   /* ── Core chat state ── */
   const [booking, setBooking] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -349,10 +358,12 @@ export default function BookingChat() {
   const [text, setText] = useState("");
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [blockState, setBlockState] = useState({ isBlocked: false, blockedByMe: false, blockedByOther: false });
+  const [blockLoading, setBlockLoading] = useState(false);
 
   /* ── Media state ── */
-  const [imagePreview, setImagePreview] = useState(null); // { file, dataUrl }
-  const [videoPreview, setVideoPreview] = useState(null); // { file, dataUrl }
+  const [imagePreview, setImagePreview] = useState(null);
+  const [videoPreview, setVideoPreview] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
@@ -362,102 +373,159 @@ export default function BookingChat() {
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
 
-  // Video handlers
-  function handleVideoSelect(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const ALLOWED = ["video/mp4", "video/webm", "video/ogg"];
-    if (!ALLOWED.includes(file.type)) {
-      toast.error("Only MP4, WebM, and Ogg videos are allowed");
-      return;
-    }
-    if (file.size > 200 * 1024 * 1024) {
-      toast.error("Video must be under 200 MB");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => setVideoPreview({ file, dataUrl: reader.result });
-    reader.readAsDataURL(file);
-
-    e.target.value = "";
-  }
-
-  function cancelVideoPreview() {
-    setVideoPreview(null);
-    setUploadProgress(0);
-  }
-
-  async function sendVideo() {
-    if (!videoPreview?.file || sending) return;
-
-    const tempId = makeTempId();
-    const optimistic = {
-      _id: tempId,
-      bookingId,
-      senderId: selfId,
-      type: "video",
-      text: "",
-      attachment: { url: videoPreview.dataUrl },
-      status: "sending",
-      createdAt: new Date().toISOString(),
-    };
-
-    setSending(true);
-    setMessages((prev) => [...prev, optimistic]);
-    setVideoPreview(null);
-    setTimeout(() => scrollToBottom(true), 0);
-
-    try {
-      const fd = new FormData();
-      fd.append("video", videoPreview.file);
-
-      const res = await api.post(`/chat/booking/${bookingId}/upload-video`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (p) => {
-          if (p.total) setUploadProgress(Math.round((p.loaded / p.total) * 100));
-        },
-      });
-
-      setMessages((prev) => {
-        const realId = res.data.message._id;
-        const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
-        return filtered.map((m) => (m._id === tempId ? res.data.message : m));
-      });
-
-      notifyUnreadSidebarRefresh();
-    } catch (err) {
-      setMessages((prev) =>
-        prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
-      );
-      toast.error(err?.response?.data?.message || "Video upload failed");
-    } finally {
-      setSending(false);
-      setUploadProgress(0);
-    }
-  }
-
-  const Layout = user?.role === "provider" ? ProviderLayout : ClientLayout;
-  const selfId = String(user?._id || user?.id || "");
-
+  const currentBookingId = String(booking?._id || bookingId || "");
   const pricingType = useMemo(() => resolvePricingType(booking), [booking]);
   const showPricingGuidance =
     pricingType === PRICING_TYPES.RANGE || pricingType === PRICING_TYPES.QUOTE;
 
+  const messagesRoute =
+    user?.role === "provider" ? "/provider/messages" : "/client/messages";
+
   const backRoute =
     user?.role === "provider"
-      ? `/provider/bookings/${bookingId}`
-      : `/client/bookings/${bookingId}`;
+      ? `/provider/bookings/${booking?._id || bookingId}`
+      : `/client/bookings/${booking?._id || bookingId}`;
 
   const voice = useVoiceRecorder();
+  const canSendMessages = !blockState?.isBlocked;
+
+  const filteredConversations = useMemo(() => {
+    const query = conversationSearch.trim().toLowerCase();
+    if (!query) return conversations;
+    return conversations.filter((conversation) => {
+      const peer = String(conversation?.peer?.name || "").toLowerCase();
+      const service = String(conversation?.serviceTitle || "").toLowerCase();
+      const preview = String(conversation?.lastMessageText || "").toLowerCase();
+      return peer.includes(query) || service.includes(query) || preview.includes(query);
+    });
+  }, [conversations, conversationSearch]);
+
+  const activeConversation = useMemo(() => {
+    return (
+      conversations.find((conv) => activePairKey && conv.pairKey === activePairKey) ||
+      conversations.find((conv) => String(conv.bookingId) === String(currentBookingId)) ||
+      null
+    );
+  }, [conversations, activePairKey, currentBookingId]);
+
+  const fetchConversations = useCallback(async (preferredPairKey = "") => {
+    try {
+      setSidebarLoading(true);
+      const res = await api.get("/chat/conversations");
+      const nextConversations = res.data?.conversations || [];
+      setConversations(nextConversations);
+
+      const totalUnread = nextConversations.reduce(
+        (sum, conv) => sum + Number(conv?.unreadCount || 0),
+        0
+      );
+      window.dispatchEvent(new Event("chat-unread-updated"));
+      window.dispatchEvent(
+        new CustomEvent("chat-unread-updated-total", {
+          detail: { totalUnread },
+        })
+      );
+
+      if (preferredPairKey) {
+        const matched = nextConversations.find((conv) => conv.pairKey === preferredPairKey);
+        if (matched) setActivePairKey(matched.pairKey || "");
+      }
+    } catch (err) {
+      console.error("Failed to fetch conversations:", err);
+      setConversations([]);
+    } finally {
+      setSidebarLoading(false);
+    }
+  }, []);
 
   function scrollToBottom(smooth = false) {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
   }
 
+  async function markChatAsReadAndRefreshSidebar(targetBookingId = currentBookingId) {
+    if (!targetBookingId) return;
+
+    try {
+      await api.post(`/chat/booking/${targetBookingId}/read`);
+    } catch (_) {}
+
+    try {
+      await api.post(`/chat/booking/${targetBookingId}/read-notifications`);
+    } catch (_) {}
+
+    window.dispatchEvent(new Event("chat-unread-updated"));
+  }
+
+  const loadChatForBooking = useCallback(
+    async (targetBookingId, { skipSpinner = false } = {}) => {
+      if (!targetBookingId) return;
+      try {
+        if (!skipSpinner) setLoading(true);
+        const chatRes = await api.get(`/chat/booking/${targetBookingId}?limit=30`);
+        const nextBooking = chatRes.data?.booking || null;
+        const nextConversation = chatRes.data?.conversation || {};
+
+        setBooking(nextBooking);
+        setMessages(chatRes.data?.messages || []);
+        setPagination(chatRes.data?.pagination || { hasMore: false, nextBefore: null });
+        setBlockState(
+          nextConversation?.block || { isBlocked: false, blockedByMe: false, blockedByOther: false }
+        );
+        setActivePairKey(nextConversation?.pairKey || "");
+
+        await markChatAsReadAndRefreshSidebar(targetBookingId);
+        await fetchConversations(nextConversation?.pairKey || "");
+      } catch (err) {
+        toast.error(err?.response?.data?.message || "Failed to load chat");
+        navigate(messagesRoute);
+      } finally {
+        if (!skipSpinner) {
+          setLoading(false);
+          setTimeout(() => scrollToBottom(false), 0);
+        }
+      }
+    },
+    [fetchConversations, messagesRoute, navigate]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (cancelled) return;
+      await loadChatForBooking(bookingId);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId, loadChatForBooking]);
+
+  async function handleToggleBlock() {
+    if (blockLoading || !currentBookingId) return;
+    try {
+      setBlockLoading(true);
+      if (blockState?.blockedByMe) {
+        const res = await api.delete(`/chat/booking/${currentBookingId}/block`);
+        setBlockState(res.data?.block || { isBlocked: false, blockedByMe: false, blockedByOther: false });
+        toast.success("Chat unblocked");
+      } else {
+        const confirmed = window.confirm(
+          "Block this chat? Existing history will stay visible, but both sides will not be able to send new messages until you unblock."
+        );
+        if (!confirmed) return;
+        const res = await api.post(`/chat/booking/${currentBookingId}/block`);
+        setBlockState(res.data?.block || { isBlocked: true, blockedByMe: true, blockedByOther: false });
+        toast.success("Chat blocked");
+      }
+      await fetchConversations(activePairKey);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to update chat block status");
+    } finally {
+      setBlockLoading(false);
+    }
+  }
+
   async function loadOlderMessages() {
-    if (!pagination?.hasMore || !messages.length || loadingMore) return;
+    if (!pagination?.hasMore || !messages.length || loadingMore || !currentBookingId) return;
     const oldest = messages[0]?.createdAt;
     if (!oldest) return;
     try {
@@ -465,7 +533,7 @@ export default function BookingChat() {
       const listNode = listRef.current;
       const prevH = listNode?.scrollHeight || 0;
       const res = await api.get(
-        `/chat/booking/${bookingId}?limit=30&before=${encodeURIComponent(oldest)}`
+        `/chat/booking/${currentBookingId}?limit=30&before=${encodeURIComponent(oldest)}`
       );
       setMessages((prev) => [...(res.data.messages || []), ...prev]);
       setPagination(res.data.pagination || { hasMore: false, nextBefore: null });
@@ -479,26 +547,27 @@ export default function BookingChat() {
     }
   }
 
-  async function markChatAsReadAndRefreshSidebar() {
-    try {
-      await api.post(`/chat/booking/${bookingId}/read`);
-    } catch (_) {}
-
-    try {
-      await api.post(`/chat/booking/${bookingId}/read-notifications`);
-    } catch (_) {}
-
-    notifyUnreadSidebarRefresh();
+  function handleOpenConversation(conversation) {
+    if (!conversation?.bookingId) return;
+    const route =
+      user?.role === "client"
+        ? `/client/bookings/${conversation.bookingId}/chat`
+        : `/provider/bookings/${conversation.bookingId}/chat`;
+    navigate(route);
   }
 
   async function handleSend() {
+    if (!canSendMessages) {
+      toast.error(blockState?.blockedByMe ? "You blocked this chat" : "This chat is currently blocked");
+      return;
+    }
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || !currentBookingId) return;
 
     const tempId = makeTempId();
     const optimistic = {
       _id: tempId,
-      bookingId,
+      bookingId: currentBookingId,
       senderId: selfId,
       type: "text",
       text: trimmed,
@@ -516,13 +585,13 @@ export default function BookingChat() {
       let created;
       if (socket?.connected) {
         created = await new Promise((resolve, reject) => {
-          socket.emit("send_message", { bookingId, text: trimmed }, (res) => {
+          socket.emit("send_message", { bookingId: currentBookingId, text: trimmed }, (res) => {
             if (res?.ok && res?.message) resolve(res.message);
             else reject(new Error(res?.error?.message || "Failed"));
           });
         });
       } else {
-        const res = await api.post(`/chat/booking/${bookingId}/message`, { text: trimmed });
+        const res = await api.post(`/chat/booking/${currentBookingId}/message`, { text: trimmed });
         created = res.data.message;
       }
 
@@ -532,7 +601,8 @@ export default function BookingChat() {
         return filtered.map((m) => (m._id === tempId ? created : m));
       });
 
-      notifyUnreadSidebarRefresh();
+      await fetchConversations(activePairKey);
+      window.dispatchEvent(new Event("chat-unread-updated"));
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -565,18 +635,48 @@ export default function BookingChat() {
     e.target.value = "";
   }
 
+  function handleVideoSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ALLOWED = ["video/mp4", "video/webm", "video/ogg"];
+    if (!ALLOWED.includes(file.type)) {
+      toast.error("Only MP4, WebM, and Ogg videos are allowed");
+      return;
+    }
+    if (file.size > 200 * 1024 * 1024) {
+      toast.error("Video must be under 200 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setVideoPreview({ file, dataUrl: reader.result });
+    reader.readAsDataURL(file);
+
+    e.target.value = "";
+  }
+
   function cancelImagePreview() {
     setImagePreview(null);
     setUploadProgress(0);
   }
 
+  function cancelVideoPreview() {
+    setVideoPreview(null);
+    setUploadProgress(0);
+  }
+
   async function sendImage() {
-    if (!imagePreview?.file || sending) return;
+    if (!canSendMessages) {
+      toast.error(blockState?.blockedByMe ? "You blocked this chat" : "This chat is currently blocked");
+      return;
+    }
+    if (!imagePreview?.file || sending || !currentBookingId) return;
 
     const tempId = makeTempId();
     const optimistic = {
       _id: tempId,
-      bookingId,
+      bookingId: currentBookingId,
       senderId: selfId,
       type: "image",
       text: "",
@@ -594,7 +694,7 @@ export default function BookingChat() {
       const fd = new FormData();
       fd.append("image", imagePreview.file);
 
-      const res = await api.post(`/chat/booking/${bookingId}/upload-image`, fd, {
+      const res = await api.post(`/chat/booking/${currentBookingId}/upload-image`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (p) => {
           if (p.total) setUploadProgress(Math.round((p.loaded / p.total) * 100));
@@ -607,7 +707,8 @@ export default function BookingChat() {
         return filtered.map((m) => (m._id === tempId ? res.data.message : m));
       });
 
-      notifyUnreadSidebarRefresh();
+      await fetchConversations(activePairKey);
+      window.dispatchEvent(new Event("chat-unread-updated"));
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -619,8 +720,62 @@ export default function BookingChat() {
     }
   }
 
+  async function sendVideo() {
+    if (!canSendMessages) {
+      toast.error(blockState?.blockedByMe ? "You blocked this chat" : "This chat is currently blocked");
+      return;
+    }
+    if (!videoPreview?.file || sending || !currentBookingId) return;
+
+    const tempId = makeTempId();
+    const optimistic = {
+      _id: tempId,
+      bookingId: currentBookingId,
+      senderId: selfId,
+      type: "video",
+      text: "",
+      attachment: { url: videoPreview.dataUrl },
+      status: "sending",
+      createdAt: new Date().toISOString(),
+    };
+
+    setSending(true);
+    setMessages((prev) => [...prev, optimistic]);
+    setVideoPreview(null);
+    setTimeout(() => scrollToBottom(true), 0);
+
+    try {
+      const fd = new FormData();
+      fd.append("video", videoPreview.file);
+
+      const res = await api.post(`/chat/booking/${currentBookingId}/upload-video`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (p) => {
+          if (p.total) setUploadProgress(Math.round((p.loaded / p.total) * 100));
+        },
+      });
+
+      setMessages((prev) => {
+        const realId = res.data.message._id;
+        const filtered = prev.filter((m) => m._id !== realId || m._id === tempId);
+        return filtered.map((m) => (m._id === tempId ? res.data.message : m));
+      });
+
+      await fetchConversations(activePairKey);
+      window.dispatchEvent(new Event("chat-unread-updated"));
+    } catch (err) {
+      setMessages((prev) =>
+        prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
+      );
+      toast.error(err?.response?.data?.message || "Video upload failed");
+    } finally {
+      setSending(false);
+      setUploadProgress(0);
+    }
+  }
+
   async function handleSendVoice() {
-    if (!voice.blob || sending) return;
+    if (!voice.blob || sending || !currentBookingId) return;
 
     const capturedBlob = voice.blob;
     const capturedDuration = voice.elapsed;
@@ -634,7 +789,7 @@ export default function BookingChat() {
     const tempId = makeTempId();
     const optimistic = {
       _id: tempId,
-      bookingId,
+      bookingId: currentBookingId,
       senderId: selfId,
       type: "voice",
       text: "",
@@ -653,7 +808,7 @@ export default function BookingChat() {
       fd.append("voice", capturedBlob, `voice.${ext}`);
       fd.append("durationSec", String(capturedDuration));
 
-      const res = await api.post(`/chat/booking/${bookingId}/upload-voice`, fd, {
+      const res = await api.post(`/chat/booking/${currentBookingId}/upload-voice`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (p) => {
           if (p.total) setUploadProgress(Math.round((p.loaded / p.total) * 100));
@@ -666,7 +821,8 @@ export default function BookingChat() {
         return filtered.map((m) => (m._id === tempId ? res.data.message : m));
       });
 
-      notifyUnreadSidebarRefresh();
+      await fetchConversations(activePairKey);
+      window.dispatchEvent(new Event("chat-unread-updated"));
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
@@ -689,49 +845,19 @@ export default function BookingChat() {
   }
 
   useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      try {
-        setLoading(true);
-        const [bookingRes, chatRes] = await Promise.all([
-          api.get(`/bookings/${bookingId}`),
-          api.get(`/chat/booking/${bookingId}?limit=30`),
-        ]);
-        if (cancelled) return;
-        setBooking(bookingRes.data.booking);
-        setMessages(chatRes.data.messages || []);
-        setPagination(chatRes.data.pagination || { hasMore: false, nextBefore: null });
-        await markChatAsReadAndRefreshSidebar();
-      } catch (err) {
-        if (cancelled) return;
-        toast.error(err?.response?.data?.message || "Failed to load chat");
-        navigate(backRoute);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setTimeout(() => scrollToBottom(false), 0);
-        }
-      }
-    }
-    init();
-    return () => { cancelled = true; };
-  }, [bookingId]);
-
-  useEffect(() => {
     if (!user?._id && !user?.id) return;
     const token = localStorage.getItem("accessToken");
-    if (!token) return;
+    if (!token || !currentBookingId) return;
 
     const socket = connectChatSocket(token);
     socketRef.current = socket;
 
-    socket.on("connect", () => socket.emit("join_booking_chat", { bookingId }));
+    socket.on("connect", () => socket.emit("join_booking_chat", { bookingId: currentBookingId }));
 
     socket.on("new_message", async (incoming) => {
-      if (String(incoming?.bookingId) !== String(bookingId)) return;
+      if (String(incoming?.bookingId) !== String(currentBookingId)) return;
 
       const mine = String(incoming?.senderId) === selfId;
-
       if (mine) return;
 
       setMessages((prev) => {
@@ -739,20 +865,21 @@ export default function BookingChat() {
         return [...prev, incoming];
       });
 
-      await markChatAsReadAndRefreshSidebar();
+      await markChatAsReadAndRefreshSidebar(currentBookingId);
+      await fetchConversations(activePairKey);
 
       if (isNearBottom) setTimeout(() => scrollToBottom(true), 0);
       else setNewMessageCount((c) => c + 1);
     });
 
     socket.on("messages_read", ({ bookingId: bid, userId: readerId }) => {
-      if (String(bid) !== String(bookingId) || String(readerId) === selfId) return;
+      if (String(bid) !== String(currentBookingId) || String(readerId) === selfId) return;
       setMessages((prev) =>
         prev.map((m) =>
           String(m.senderId) === selfId ? { ...m, status: "read" } : m
         )
       );
-      notifyUnreadSidebarRefresh();
+      window.dispatchEvent(new Event("chat-unread-updated"));
     });
 
     return () => {
@@ -761,7 +888,7 @@ export default function BookingChat() {
       socket.off("messages_read");
       releaseChatSocket();
     };
-  }, [bookingId, selfId, isNearBottom, user]);
+  }, [currentBookingId, selfId, isNearBottom, user, activePairKey, fetchConversations]);
 
   useEffect(() => {
     if (isNearBottom) setNewMessageCount(0);
@@ -798,323 +925,470 @@ export default function BookingChat() {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto flex flex-col" style={{ height: "calc(100vh - 80px)" }}>
-        {/* ── Header ── */}
-        <div className="flex-shrink-0 mb-3 rounded-xl border bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <button onClick={() => navigate(backRoute)} className="rounded-lg p-2 hover:bg-gray-100" aria-label="Back">
-                <HiArrowLeft className="h-5 w-5 text-gray-600" />
-              </button>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">Booking Chat</h1>
-                <p className="text-sm text-gray-600">
-                  {booking?.serviceId?.title || "Service"} • #{booking?._id?.slice(-6)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Status: {String(booking?.status || "").replace(/_/g, " ")}
-                </p>
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4 lg:px-6">
+        <div className="grid min-h-[calc(100vh-110px)] grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="flex min-h-[240px] flex-col overflow-hidden rounded-3xl border bg-white shadow-sm">
+            <div className="border-b px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Chats</h2>
+                  <p className="text-xs text-gray-500">
+                    One shared thread per {user?.role === "provider" ? "client" : "provider"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(messagesRoute)}
+                  className="rounded-xl border px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  All chats
+                </button>
+              </div>
+              <div className="mt-4">
+                <input
+                  value={conversationSearch}
+                  onChange={(e) => setConversationSearch(e.target.value)}
+                  placeholder="Search chats..."
+                  className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+                />
               </div>
             </div>
-            {booking?.scheduledAt && (
-              <p className="text-xs text-gray-500 whitespace-nowrap">
-                {new Date(booking.scheduledAt).toLocaleString("en-US", {
-                  month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-                })}
-              </p>
-            )}
-          </div>
-          {showPricingGuidance && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              For pricing changes, use "Request Additional Charges" so it is recorded and approved.
-            </div>
-          )}
-          {booking?.status === "disputed" && (
-            <div className="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
-              Dispute in progress — messages are recorded.
-            </div>
-          )}
-        </div>
 
-        {/* ── Messages area ── */}
-        <div className="flex-1 flex flex-col rounded-2xl border bg-white shadow-sm overflow-hidden min-h-0">
-          <div ref={listRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto px-4 py-4">
-            {pagination?.hasMore && (
-              <div className="mb-4 text-center">
-                <button
-                  onClick={loadOlderMessages}
-                  disabled={loadingMore}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+              {sidebarLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="h-8 w-8 rounded-full border-4 border-emerald-600 border-t-transparent animate-spin" />
+                </div>
+              ) : filteredConversations.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+                  No conversations found.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredConversations.map((conversation) => {
+                    const active =
+                      (activePairKey && conversation.pairKey === activePairKey) ||
+                      String(conversation.bookingId) === String(currentBookingId);
+                    const unreadCount = Number(conversation.unreadCount || 0);
+                    const peerName = conversation?.peer?.name || "Unknown";
+                    const avatarUrl = conversation?.peer?.avatarUrl || null;
+                    const statusLabel = String(conversation?.bookingStatus || "")
+                      .replace(/[_-]+/g, " ")
+                      .toLowerCase()
+                      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+                    return (
+                      <button
+                        key={`${conversation.pairKey || conversation._id}`}
+                        type="button"
+                        onClick={() => handleOpenConversation(conversation)}
+                        className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
+                          active
+                            ? "border-emerald-200 bg-emerald-50 shadow-sm"
+                            : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={peerName} className="h-12 w-12 rounded-full object-cover" />
+                          ) : (
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-sm font-semibold text-white">
+                              {peerName
+                                .split(" ")
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((part) => part[0]?.toUpperCase())
+                                .join("") || "U"}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="truncate text-base font-semibold text-gray-900">{peerName}</p>
+                              <span className="shrink-0 text-[11px] text-gray-500">
+                                {conversation.lastMessageAt
+                                  ? new Date(conversation.lastMessageAt).toLocaleDateString()
+                                  : "—"}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                                {statusLabel || "Unknown"}
+                              </span>
+                              <span className="truncate text-xs text-gray-500">
+                                {conversation.serviceTitle || "Service"}
+                              </span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <p className="min-w-0 flex-1 truncate text-sm text-gray-600">
+                                {conversation.lastMessageText || "No messages yet. Start the conversation!"}
+                              </p>
+                              {unreadCount > 0 && (
+                                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                  {unreadCount > 99 ? "99+" : unreadCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+
+          <section className="flex min-h-[calc(100vh-110px)] flex-col overflow-hidden rounded-3xl border bg-white shadow-sm">
+            <div className="border-b px-4 py-4 sm:px-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => navigate(backRoute)}
+                    className="rounded-xl p-2 hover:bg-gray-100"
+                    aria-label="Back"
+                  >
+                    <HiArrowLeft className="h-5 w-5 text-gray-600" />
+                  </button>
+                  <div>
+                    <h1 className="text-lg font-semibold text-gray-900">
+                      {activeConversation?.peer?.name || booking?.serviceTitle || "Booking Chat"}
+                    </h1>
+                    <p className="text-sm text-gray-600">
+                      {booking?.serviceTitle || activeConversation?.serviceTitle || "Service"} • #{String(currentBookingId).slice(-6)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      Status: {String(booking?.status || activeConversation?.bookingStatus || "").replace(/_/g, " ")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fetchConversations(activePairKey)}
+                    className="rounded-xl border px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleBlock}
+                    disabled={blockLoading}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+                      blockState?.blockedByMe
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        : "bg-red-50 text-red-700 hover:bg-red-100"
+                    } disabled:opacity-50`}
+                  >
+                    {blockState?.blockedByMe ? "Unblock" : "Block"}
+                  </button>
+                </div>
+              </div>
+
+              {showPricingGuidance && (
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  For pricing changes, use "Request Additional Charges" so it is recorded and approved.
+                </div>
+              )}
+              {booking?.status === "disputed" && (
+                <div className="mt-2 rounded-2xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+                  Dispute in progress — messages are recorded.
+                </div>
+              )}
+              {blockState?.isBlocked && (
+                <div
+                  className={`mt-2 rounded-2xl border px-3 py-2 text-xs ${
+                    blockState?.blockedByMe
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}
                 >
-                  {loadingMore ? "Loading…" : "Load older messages"}
+                  {blockState?.blockedByMe
+                    ? "You blocked this chat. Previous messages stay visible, but sending is disabled until you unblock it."
+                    : "This chat is currently blocked by the other user. Previous messages remain visible, but new messages are disabled."}
+                </div>
+              )}
+            </div>
+
+            <div ref={listRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto bg-[#f8fafc] px-4 py-4 sm:px-5">
+              {pagination?.hasMore && (
+                <div className="mb-4 text-center">
+                  <button
+                    onClick={loadOlderMessages}
+                    disabled={loadingMore}
+                    className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {loadingMore ? "Loading..." : "Load older messages"}
+                  </button>
+                </div>
+              )}
+
+              {!messages.length && (
+                <div className="flex h-full items-center justify-center text-center text-gray-500">
+                  <div>
+                    <HiChatBubbleLeftRight className="mx-auto mb-2 h-7 w-7 text-gray-400" />
+                    <p className="text-sm font-medium">No messages yet</p>
+                    <p className="text-xs">Ask about timing, location, or details.</p>
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg, idx) => {
+                const prev = messages[idx - 1];
+                const showDate = !prev || !isSameDay(prev.createdAt, msg.createdAt);
+                const mine = String(msg.senderId) === selfId;
+
+                return (
+                  <div key={msg._id || `${msg.createdAt}-${idx}`}>
+                    {showDate && (
+                      <div className="my-4 flex items-center gap-3">
+                        <div className="flex-1 border-t border-gray-200" />
+                        <span className="whitespace-nowrap text-[11px] font-medium text-gray-400">
+                          {formatDateHeading(msg.createdAt)}
+                        </span>
+                        <div className="flex-1 border-t border-gray-200" />
+                      </div>
+                    )}
+                    <MessageBubble
+                      message={msg}
+                      mine={mine}
+                      onImageClick={(src) => setLightboxSrc(src)}
+                      onRetry={handleRetry}
+                    />
+                  </div>
+                );
+              })}
+
+              <div ref={bottomRef} />
+            </div>
+
+            {!isNearBottom && newMessageCount > 0 && (
+              <div className="flex justify-center py-1">
+                <button
+                  onClick={() => {
+                    scrollToBottom(true);
+                    setNewMessageCount(0);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                >
+                  <HiChevronDown className="h-3.5 w-3.5" />
+                  {newMessageCount} new message{newMessageCount > 1 ? "s" : ""}
                 </button>
               </div>
             )}
 
-            {!messages.length && (
-              <div className="flex h-full items-center justify-center text-center text-gray-500">
-                <div>
-                  <HiChatBubbleLeftRight className="mx-auto mb-2 h-7 w-7 text-gray-400" />
-                  <p className="text-sm font-medium">No messages yet</p>
-                  <p className="text-xs">Ask about timing, location, or details.</p>
-                </div>
-              </div>
-            )}
-
-            {messages.map((msg, idx) => {
-              const prev = messages[idx - 1];
-              const showDate = !prev || !isSameDay(prev.createdAt, msg.createdAt);
-              const mine = String(msg.senderId) === selfId;
-
-              return (
-                <div key={msg._id || `${msg.createdAt}-${idx}`}>
-                  {showDate && (
-                    <div className="my-4 flex items-center gap-3">
-                      <div className="flex-1 border-t border-gray-200" />
-                      <span className="text-[11px] font-medium text-gray-400 whitespace-nowrap">
-                        {formatDateHeading(msg.createdAt)}
-                      </span>
-                      <div className="flex-1 border-t border-gray-200" />
-                    </div>
-                  )}
-                  <MessageBubble
-                    message={msg}
-                    mine={mine}
-                    onImageClick={(src) => setLightboxSrc(src)}
-                    onRetry={handleRetry}
+            {sending && uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="px-4">
+                <div className="overflow-hidden rounded-full bg-gray-200 h-1">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
-              );
-            })}
-
-            <div ref={bottomRef} />
-          </div>
-
-          {!isNearBottom && newMessageCount > 0 && (
-            <div className="flex justify-center py-1">
-              <button
-                onClick={() => { scrollToBottom(true); setNewMessageCount(0); }}
-                className="inline-flex items-center gap-1 rounded-full border bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                <HiChevronDown className="h-3.5 w-3.5" />
-                {newMessageCount} new message{newMessageCount > 1 ? "s" : ""}
-              </button>
-            </div>
-          )}
-
-          {sending && uploadProgress > 0 && uploadProgress < 100 && (
-            <div className="px-4">
-              <div className="h-1 rounded-full bg-gray-200 overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-200"
-                  style={{ width: `${uploadProgress}%` }}
-                />
               </div>
-            </div>
-          )}
+            )}
 
-          {imagePreview && (
-            <div className="border-t bg-gray-50 px-4 py-3">
-              <div className="relative inline-block">
-                <img
-                  src={imagePreview.dataUrl}
-                  alt="Preview"
-                  className="h-28 w-28 rounded-lg object-cover border shadow-sm"
-                />
-                <button
-                  onClick={cancelImagePreview}
-                  className="absolute -top-2 -right-2 rounded-full bg-gray-800 p-0.5 text-white shadow hover:bg-red-600 transition"
-                  aria-label="Remove image"
-                >
-                  <HiXMark className="h-4 w-4" />
-                </button>
+            {imagePreview && (
+              <div className="border-t bg-gray-50 px-4 py-3">
+                <div className="relative inline-block">
+                  <img
+                    src={imagePreview.dataUrl}
+                    alt="Preview"
+                    className="h-28 w-28 rounded-lg object-cover border shadow-sm"
+                  />
+                  <button
+                    onClick={cancelImagePreview}
+                    className="absolute -top-2 -right-2 rounded-full bg-gray-800 p-0.5 text-white shadow hover:bg-red-600 transition"
+                    aria-label="Remove image"
+                  >
+                    <HiXMark className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={sendImage}
+                    disabled={sending}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <HiPaperAirplane className="h-4 w-4" /> Send Photo
+                  </button>
+                  <button
+                    onClick={cancelImagePreview}
+                    className="rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={sendImage}
-                  disabled={sending}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  <HiPaperAirplane className="h-4 w-4" /> Send Photo
-                </button>
-                <button
-                  onClick={cancelImagePreview}
-                  className="rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
+            )}
+
+            {videoPreview && (
+              <div className="border-t bg-gray-50 px-4 py-3">
+                <div className="relative inline-block">
+                  <video
+                    src={videoPreview.dataUrl}
+                    controls
+                    className="h-28 w-28 rounded-lg object-cover border shadow-sm bg-black"
+                  />
+                  <button
+                    onClick={cancelVideoPreview}
+                    className="absolute -top-2 -right-2 rounded-full bg-gray-800 p-0.5 text-white shadow hover:bg-red-600 transition"
+                    aria-label="Remove video"
+                  >
+                    <HiXMark className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={sendVideo}
+                    disabled={sending}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <HiPaperAirplane className="h-4 w-4" /> Send Video
+                  </button>
+                  <button
+                    onClick={cancelVideoPreview}
+                    className="rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {videoPreview && (
-            <div className="border-t bg-gray-50 px-4 py-3">
-              <div className="relative inline-block">
-                <video
-                  src={videoPreview.dataUrl}
-                  controls
-                  className="h-28 w-28 rounded-lg object-cover border shadow-sm bg-black"
-                />
-                <button
-                  onClick={cancelVideoPreview}
-                  className="absolute -top-2 -right-2 rounded-full bg-gray-800 p-0.5 text-white shadow hover:bg-red-600 transition"
-                  aria-label="Remove video"
-                >
-                  <HiXMark className="h-4 w-4" />
-                </button>
+            {isRecording && (
+              <div className="border-t bg-red-50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                  </span>
+                  <span className="text-sm font-medium text-red-700">Recording…</span>
+                  <span className="text-sm font-mono font-semibold text-red-600">{formatDuration(voice.elapsed)}</span>
+                  <span className="text-xs text-red-400">/ 2:00 max</span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={voice.cancel}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={voice.stop}
+                    className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    <HiStopCircle className="h-4 w-4" /> Stop
+                  </button>
+                </div>
               </div>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={sendVideo}
-                  disabled={sending}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  <HiPaperAirplane className="h-4 w-4" /> Send Video
-                </button>
-                <button
-                  onClick={cancelVideoPreview}
-                  className="rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
+            )}
+
+            {hasVoicePreview && (
+              <div className="border-t bg-emerald-50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <audio src={voice.previewUrl} controls preload="metadata" className="h-8 max-w-[220px]" />
+                  <span className="text-sm text-gray-600">{formatDuration(voice.elapsed)}</span>
+                  <div className="flex-1" />
+                  <button onClick={voice.cancel} className="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
+                    Discard
+                  </button>
+                  <button
+                    onClick={handleSendVoice}
+                    disabled={sending}
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <HiPaperAirplane className="h-4 w-4" /> Send
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {isRecording && (
-            <div className="border-t bg-red-50 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
-                </span>
-                <span className="text-sm font-medium text-red-700">Recording…</span>
-                <span className="text-sm font-mono font-semibold text-red-600">{formatDuration(voice.elapsed)}</span>
-                <span className="text-xs text-red-400">/ 2:00 max</span>
-                <div className="flex-1" />
-                <button
-                  onClick={voice.cancel}
-                  className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={voice.stop}
-                  className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-                >
-                  <HiStopCircle className="h-4 w-4" /> Stop
-                </button>
+            {hasVoiceError && (
+              <div className="border-t bg-red-50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <HiXCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
+                  <p className="flex-1 text-sm text-red-700">{voice.errorMsg}</p>
+                  <button onClick={voice.dismissError} className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100">
+                    Dismiss
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {hasVoicePreview && (
-            <div className="border-t bg-emerald-50 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <audio src={voice.previewUrl} controls preload="metadata" className="h-8 max-w-[220px]" />
-                <span className="text-sm text-gray-600">{formatDuration(voice.elapsed)}</span>
-                <div className="flex-1" />
-                <button onClick={voice.cancel} className="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
-                  Discard
-                </button>
-                <button
-                  onClick={handleSendVoice}
-                  disabled={sending}
-                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  <HiPaperAirplane className="h-4 w-4" /> Send
-                </button>
+            {!isMediaActive && (
+              <div className="border-t bg-white px-3 py-3">
+                <div className="flex items-end gap-2">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    aria-label="Attach image"
+                  />
+                  <button
+                    onClick={() => canSendMessages && imageInputRef.current?.click()}
+                    disabled={sending}
+                    className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-emerald-600 disabled:opacity-40"
+                    aria-label="Attach photo"
+                    title="Send a photo"
+                  >
+                    <HiPhoto className="h-5 w-5" />
+                  </button>
+
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/ogg"
+                    onChange={handleVideoSelect}
+                    className="hidden"
+                    aria-label="Attach video"
+                  />
+                  <button
+                    onClick={() => canSendMessages && videoInputRef.current?.click()}
+                    disabled={sending}
+                    className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-emerald-600 disabled:opacity-40"
+                    aria-label="Attach video"
+                    title="Send a video"
+                  >
+                    <HiFilm className="h-5 w-5" />
+                  </button>
+
+                  <button
+                    onClick={() => canSendMessages && voice.start()}
+                    disabled={sending}
+                    className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-emerald-600 disabled:opacity-40"
+                    aria-label="Record voice note"
+                    title="Record a voice note"
+                  >
+                    <HiMicrophone className="h-5 w-5" />
+                  </button>
+
+                  <textarea
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={handleComposerKeyDown}
+                    placeholder={canSendMessages ? "Type a message..." : "Sending is disabled while this chat is blocked"}
+                    rows={1}
+                    disabled={!canSendMessages}
+                    className="min-h-[40px] max-h-24 flex-1 resize-none rounded-2xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  />
+
+                  <button
+                    onClick={handleSend}
+                    disabled={sending || !text.trim() || !canSendMessages}
+                    className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:opacity-40"
+                    aria-label="Send message"
+                  >
+                    <HiPaperAirplane className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-          {hasVoiceError && (
-            <div className="border-t bg-red-50 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <HiXCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                <p className="text-sm text-red-700 flex-1">{voice.errorMsg}</p>
-                <button onClick={voice.dismissError} className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100">
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!isMediaActive && (
-            <div className="border-t px-3 py-3">
-              <div className="flex items-end gap-2">
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  aria-label="Attach image"
-                />
-                <button
-                  onClick={() => imageInputRef.current?.click()}
-                  disabled={sending}
-                  className="flex-shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-emerald-600 transition disabled:opacity-40"
-                  aria-label="Attach photo"
-                  title="Send a photo"
-                >
-                  <HiPhoto className="h-5 w-5" />
-                </button>
-
-                <input
-                  ref={videoInputRef}
-                  type="file"
-                  accept="video/mp4,video/webm,video/ogg"
-                  onChange={handleVideoSelect}
-                  className="hidden"
-                  aria-label="Attach video"
-                />
-                <button
-                  onClick={() => videoInputRef.current?.click()}
-                  disabled={sending}
-                  className="flex-shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-emerald-600 transition disabled:opacity-40"
-                  aria-label="Attach video"
-                  title="Send a video"
-                >
-                  <HiFilm className="h-5 w-5" />
-                </button>
-
-                <button
-                  onClick={voice.start}
-                  disabled={sending}
-                  className="flex-shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-emerald-600 transition disabled:opacity-40"
-                  aria-label="Record voice note"
-                  title="Record a voice note"
-                >
-                  <HiMicrophone className="h-5 w-5" />
-                </button>
-
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleComposerKeyDown}
-                  placeholder="Type a message…"
-                  rows={1}
-                  className="flex-1 min-h-[40px] max-h-24 resize-none rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-
-                <button
-                  onClick={handleSend}
-                  disabled={sending || !text.trim()}
-                  className="flex-shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition"
-                  aria-label="Send message"
-                >
-                  <HiPaperAirplane className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </section>
         </div>
       </div>
 
-      {lightboxSrc && (
-        <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
-      )}
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </Layout>
   );
 }

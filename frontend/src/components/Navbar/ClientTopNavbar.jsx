@@ -37,13 +37,6 @@ export default function ClientTopNavbar() {
 
         {/* Desktop Right */}
         <div className="hidden items-center gap-3 sm:flex md:gap-4">
-          <Link
-            to="/provider"
-            className="hidden rounded-full border bg-brand-100 px-4 py-2 text-sm font-medium text-brand-700 md:inline-flex lg:px-5"
-          >
-            Become a Tasker
-          </Link>
-
           <NotificationBell />
 
           <button
@@ -170,14 +163,6 @@ export default function ClientTopNavbar() {
                 className="block rounded-xl px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100"
               >
                 Leaderboard
-              </Link>
-
-              <Link
-                to="/provider"
-                onClick={() => setMobileOpen(false)}
-                className="mt-2 block rounded-xl bg-brand-100 px-4 py-3 text-sm font-medium text-brand-700"
-              >
-                Become a Tasker
               </Link>
             </div>
           </div>

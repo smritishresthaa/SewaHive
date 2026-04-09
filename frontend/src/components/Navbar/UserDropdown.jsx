@@ -1,5 +1,4 @@
-// src/components/Navbar/UserDropdown.jsx
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -27,63 +26,97 @@ export default function UserDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (!user) return null;
+  const links = useMemo(() => {
+    if (!user) return null;
+
+    const role = user.role || "client";
+
+    if (role === "provider") {
+      return {
+        profile: "/provider/profile",
+        messages: "/provider/messages",
+        bookings: "/provider/bookings",
+        settings: "/provider/settings",
+        help: "/provider/help",
+      };
+    }
+
+    if (role === "client") {
+      return {
+        profile: "/client/profile",
+        messages: "/client/messages",
+        bookings: "/client/bookings",
+        settings: "/client/settings",
+        help: "/help",
+      };
+    }
+
+    return {
+      profile: "/",
+      messages: "/",
+      bookings: "/",
+      settings: "/",
+      help: "/help",
+    };
+  }, [user]);
+
+  if (!user || !links) return null;
 
   return (
     <div ref={ref} className="relative">
-      {/* HAMBURGER BUTTON */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:shadow transition"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition hover:shadow"
         aria-label="Menu"
       >
         <div className="space-y-[3px]">
-          <span className="block w-4 h-[2px] bg-gray-800" />
-          <span className="block w-4 h-[2px] bg-gray-800" />
-          <span className="block w-4 h-[2px] bg-gray-800" />
+          <span className="block h-[2px] w-4 bg-gray-800" />
+          <span className="block h-[2px] w-4 bg-gray-800" />
+          <span className="block h-[2px] w-4 bg-gray-800" />
         </div>
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-50">
-          {/* USER INFO */}
+        <div className="absolute right-0 z-50 mt-3 w-64 rounded-2xl border border-gray-200 bg-white p-3 shadow-xl">
           <div className="px-3 py-2">
-            <p className="font-semibold text-gray-900 text-sm capitalize">
+            <p className="text-sm font-semibold capitalize text-gray-900">
               {user.profile?.name || "User"}
             </p>
-            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            <p className="truncate text-xs text-gray-500">{user.email}</p>
           </div>
 
           <hr className="my-2" />
 
-          {/* MAIN LINKS */}
-          <DropdownLink to="/profile" icon={<HiUser />}>Profile</DropdownLink>
-          <DropdownLink to="/client/messages" icon={<HiChatBubbleLeftRight />}>
+          <DropdownLink to={links.profile} icon={<HiUser />}>
+            Profile
+          </DropdownLink>
+
+          <DropdownLink to={links.messages} icon={<HiChatBubbleLeftRight />}>
             Messages
           </DropdownLink>
-          <DropdownLink to="/client/bookings" icon={<HiClipboardDocumentList />}>
+
+          <DropdownLink to={links.bookings} icon={<HiClipboardDocumentList />}>
             Bookings
           </DropdownLink>
 
           <hr className="my-2" />
 
-          {/* SETTINGS */}
-          <DropdownLink to="/client/settings" icon={<HiCog />}>
+          <DropdownLink to={links.settings} icon={<HiCog />}>
             Account Settings
           </DropdownLink>
-          <DropdownLink to="/help" icon={<HiQuestionMarkCircle />}>
+
+          <DropdownLink to={links.help} icon={<HiQuestionMarkCircle />}>
             Help Center
           </DropdownLink>
 
           <hr className="my-2" />
 
-          {/* LOGOUT */}
           <button
             onClick={async () => {
               await logout();
               navigate("/");
             }}
-            className="w-full text-left px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition"
+            className="w-full rounded-lg px-3 py-2 text-left text-red-600 transition hover:bg-red-50"
           >
             Logout
           </button>
@@ -97,7 +130,7 @@ function DropdownLink({ to, icon, children }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-800 hover:bg-gray-100 transition"
+      className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-800 transition hover:bg-gray-100"
     >
       <span className="text-lg text-gray-600">{icon}</span>
       <span className="text-sm">{children}</span>

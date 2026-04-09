@@ -1,4 +1,3 @@
-// routes/leaderboard.js
 const express = require("express");
 const { authGuard } = require("../middleware/auth");
 const Leaderboard = require("../models/Leaderboard");
@@ -15,32 +14,102 @@ const {
 
 const router = express.Router();
 
-/**
- * Current month leaderboard
- */
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function getLeaderboardDateWindow({ range, month, from, to }) {
+  const now = new Date();
+  const normalizedRange = String(range || "").trim();
+  const requestedMonth = String(month || "").trim();
+  const monthMatch = requestedMonth.match(/^(\d{4})-(\d{2})$/);
+
+  let startDate;
+  let endDate;
+  let rangeLabel;
+
+  if (normalizedRange === "today" || normalizedRange === "1d") {
+    startDate = startOfDay(now);
+    endDate = addDays(startDate, 1);
+    rangeLabel = "daily";
+    return { startDate, endDate, rangeLabel };
+  }
+
+  if (normalizedRange === "week" || normalizedRange === "7d") {
+    const current = startOfDay(now);
+    const day = current.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    startDate = addDays(current, -diffToMonday);
+    endDate = addDays(startDate, 7);
+    rangeLabel = "weekly";
+    return { startDate, endDate, rangeLabel };
+  }
+
+  if (normalizedRange === "month" || normalizedRange === "30d") {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    rangeLabel = "monthly";
+    return { startDate, endDate, rangeLabel };
+  }
+
+  if (normalizedRange === "year" || normalizedRange === "365d") {
+    startDate = new Date(now.getFullYear(), 0, 1);
+    endDate = new Date(now.getFullYear() + 1, 0, 1);
+    rangeLabel = "yearly";
+    return { startDate, endDate, rangeLabel };
+  }
+
+  if (normalizedRange === "custom" && from && to) {
+    startDate = startOfDay(new Date(from));
+    endDate = addDays(startOfDay(new Date(to)), 1);
+
+    if (
+      !Number.isNaN(startDate.getTime()) &&
+      !Number.isNaN(endDate.getTime()) &&
+      startDate < endDate
+    ) {
+      rangeLabel = `custom-${from}-${to}`;
+      return { startDate, endDate, rangeLabel };
+    }
+  }
+
+  if (monthMatch) {
+    const year = Number(monthMatch[1]);
+    const monthIndex = Number(monthMatch[2]) - 1;
+    startDate = new Date(year, monthIndex, 1);
+    endDate = new Date(year, monthIndex + 1, 1);
+    rangeLabel = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+    return { startDate, endDate, rangeLabel };
+  }
+
+  startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  rangeLabel = "monthly";
+
+  return { startDate, endDate, rangeLabel };
+}
+
 router.get("/current", authGuard, async (req, res, next) => {
   try {
     const range = String(req.query.range || "").trim();
-    const requestedMonth = String(req.query.month || "").trim();
-    const monthMatch = requestedMonth.match(/^(\d{4})-(\d{2})$/);
-    const now = new Date();
+    const month = String(req.query.month || "").trim();
+    const from = String(req.query.from || "").trim();
+    const to = String(req.query.to || "").trim();
 
-    let startDate;
-    let endDate;
-    let rangeLabel;
-
-    if (range === "30d") {
-      endDate = now;
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 30);
-      rangeLabel = "rolling-30d";
-    } else {
-      const year = monthMatch ? Number(monthMatch[1]) : now.getFullYear();
-      const monthIndex = monthMatch ? Number(monthMatch[2]) - 1 : now.getMonth();
-      rangeLabel = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-      startDate = new Date(year, monthIndex, 1);
-      endDate = new Date(year, monthIndex + 1, 1);
-    }
+    const { startDate, endDate, rangeLabel } = getLeaderboardDateWindow({
+      range,
+      month,
+      from,
+      to,
+    });
 
     const bookingsAgg = await Booking.aggregate([
       {
@@ -233,7 +302,10 @@ router.get("/current", authGuard, async (req, res, next) => {
         completedBookings: 0,
         monthlyEarnings: 0,
       };
-      const reviewData = reviewMap.get(providerId) || { avgRating: 0, reviewCount: 0 };
+      const reviewData = reviewMap.get(providerId) || {
+        avgRating: 0,
+        reviewCount: 0,
+      };
       const responseMinutes = responseMap.get(providerId) || 0;
       const emergencyData = emergencyMap.get(providerId) || {
         totalEmergency: 0,
@@ -268,7 +340,6 @@ router.get("/current", authGuard, async (req, res, next) => {
       const category = categoryMap.get(providerId);
       const qualifies = qualifiesForLeaderboard(metrics);
 
-      // Add trust score to total points (e.g., 1 trust score point = 1 leaderboard point)
       const trustScore = user?.providerDetails?.trustScore || 0;
       const finalPoints = totalScore + trustScore;
 
@@ -293,6 +364,7 @@ router.get("/current", authGuard, async (req, res, next) => {
     });
 
     entries.sort((a, b) => b.points - a.points);
+
     const ranked = entries.slice(0, 100).map((entry, index) => ({
       ...entry,
       rank: index + 1,
@@ -304,9 +376,6 @@ router.get("/current", authGuard, async (req, res, next) => {
   }
 });
 
-/**
- * Leaderboard history
- */
 router.get("/history", authGuard, async (req, res, next) => {
   try {
     const data = await Leaderboard.find()

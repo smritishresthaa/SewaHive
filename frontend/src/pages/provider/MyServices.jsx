@@ -37,7 +37,10 @@ export default function MyServices() {
       source.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          if (payload?.event === "admin_update" && payload?.action === "category_status_changed") {
+          if (
+            payload?.event === "admin_update" &&
+            payload?.action === "category_status_changed"
+          ) {
             fetchServices();
             return;
           }
@@ -138,14 +141,17 @@ export default function MyServices() {
       <div className="max-w-6xl mx-auto">
         {normalizeKycStatus(kycStatus?.status) !== "approved" && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            KYC approval is required to activate services. You can still create and edit draft services.
+            KYC approval is required to activate services. You can still create and
+            edit draft services.
           </div>
         )}
 
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">My Services</h1>
-            <p className="text-sm text-gray-600 mt-1">Manage your service offerings</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage your service offerings
+            </p>
           </div>
 
           <button
@@ -162,9 +168,12 @@ export default function MyServices() {
             <div className="mx-auto w-16 h-16 rounded-2xl bg-green-50 text-green-700 flex items-center justify-center mb-4">
               <HiWrenchScrewdriver className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">No services yet</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              No services yet
+            </h2>
             <p className="text-gray-600 mb-6">
-              Create your first service and upload strong images so it can look better in the platform.
+              Create your first service and upload strong images so it can look
+              better in the platform.
             </p>
             <button
               onClick={() => navigate("/provider/services/create")}
@@ -175,142 +184,169 @@ export default function MyServices() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map((service) => (
-              <div
-                key={service._id}
-                className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition-shadow overflow-hidden"
-              >
-                <div className="h-48 bg-gray-100 overflow-hidden">
-                  {service.images?.[0] ? (
-                    <img
-                      src={service.images[0]}
-                      alt={service.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                      <HiPhoto className="w-10 h-10 mb-2" />
-                      <span className="text-sm">No image uploaded</span>
-                    </div>
-                  )}
-                </div>
+            {services.map((service) => {
+              const emergencyFee = Number(service.emergencyPrice || 0);
+              const categoryAllowsEmergency =
+                service?.categoryId?.emergencyServiceAllowed === true;
 
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-2 gap-3">
-                    <h3 className="font-semibold text-gray-900 line-clamp-2">{service.title}</h3>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                        service.adminDisabled
-                          ? "bg-red-100 text-red-700"
-                          : service.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {service.adminDisabled
-                        ? "Restricted"
-                        : service.isActive
-                        ? "Active"
-                        : "Inactive"}
-                    </span>
-                  </div>
-
-                  {service.categoryId?.status === "inactive" && (
-                    <div className="mb-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
-                      Category disabled. You can edit this service, but new services under this category are blocked.
-                    </div>
-                  )}
-
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {service.description || "No description"}
-                  </p>
-
-                  <div className="flex items-center justify-between mb-4 gap-3">
-                    <div>
-                      <span className="text-xs text-gray-500">Category</span>
-                      <p className="text-sm font-medium text-brand-700">
-                        {service.categoryId?.name || service.category || "Uncategorized"}
-                      </p>
-                      {service.subcategoryId?.name ? (
-                        <p className="text-xs text-gray-500 mt-0.5">{service.subcategoryId.name}</p>
-                      ) : null}
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs text-gray-500">
-                        {service.priceMode === "fixed"
-                          ? "Fixed price"
-                          : service.priceMode === "range"
-                          ? "Range"
-                          : "Quote required"}
-                      </span>
-                      <p className="text-lg font-bold text-gray-900">
-                        {service.priceMode === "quote_required"
-                          ? "Custom quote"
-                          : service.priceMode === "range"
-                          ? `NPR ${service.priceRange?.min || service.basePrice} - NPR ${
-                              service.priceRange?.max || service.basePrice
-                            }`
-                          : `NPR ${service.basePrice}`}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
-                    <HiEye className="text-sm" />
-                    <span>{service.views || 0} views</span>
-                    <span className="mx-1">•</span>
-                    <span>{service.bookingsCount || 0} bookings</span>
-                    {service.ratingAvg > 0 && (
-                      <>
-                        <span className="mx-1">•</span>
-                        <span>{service.ratingAvg.toFixed(1)} rating</span>
-                      </>
+              return (
+                <div
+                  key={service._id}
+                  className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition-shadow overflow-hidden"
+                >
+                  <div className="h-48 bg-gray-100 overflow-hidden">
+                    {service.images?.[0] ? (
+                      <img
+                        src={service.images[0]}
+                        alt={service.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                        <HiPhoto className="w-10 h-10 mb-2" />
+                        <span className="text-sm">No image uploaded</span>
+                      </div>
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => navigate(`/provider/services/edit/${service._id}`)}
-                      className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
-                    >
-                      <HiPencil />
-                      Edit
-                    </button>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2 gap-3">
+                      <h3 className="font-semibold text-gray-900 line-clamp-2">
+                        {service.title}
+                      </h3>
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                          service.adminDisabled
+                            ? "bg-red-100 text-red-700"
+                            : service.isActive
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {service.adminDisabled
+                          ? "Restricted"
+                          : service.isActive
+                          ? "Active"
+                          : "Inactive"}
+                      </span>
+                    </div>
 
-                    <button
-                      onClick={() => toggleActive(service._id, service.isActive)}
-                      disabled={
-                        service.adminDisabled ||
-                        (!service.isActive &&
-                          !isKycApproved(normalizeKycStatus(kycStatus?.status)))
-                      }
-                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        service.adminDisabled
-                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          : !service.isActive &&
-                            !isKycApproved(normalizeKycStatus(kycStatus?.status))
-                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          : "bg-brand-100 text-brand-700 hover:bg-brand-200"
-                      }`}
-                    >
-                      {service.adminDisabled
-                        ? "Restricted"
-                        : service.isActive
-                        ? "Deactivate"
-                        : "Activate"}
-                    </button>
+                    {service.categoryId?.status === "inactive" && (
+                      <div className="mb-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
+                        Category disabled. You can edit this service, but new services
+                        under this category are blocked.
+                      </div>
+                    )}
 
-                    <button
-                      onClick={() => handleDelete(service._id)}
-                      className="bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
-                    >
-                      <HiTrash />
-                    </button>
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                      {service.description || "No description"}
+                    </p>
+
+                    <div className="flex items-center justify-between mb-4 gap-3">
+                      <div>
+                        <span className="text-xs text-gray-500">Category</span>
+                        <p className="text-sm font-medium text-brand-700">
+                          {service.categoryId?.name ||
+                            service.category ||
+                            "Uncategorized"}
+                        </p>
+                        {service.subcategoryId?.name ? (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {service.subcategoryId.name}
+                          </p>
+                        ) : null}
+
+                        {categoryAllowsEmergency && emergencyFee > 0 && (
+                          <p className="text-xs text-orange-600 mt-1 font-medium">
+                            Emergency fee: NPR {emergencyFee.toLocaleString()}
+                          </p>
+                        )}
+
+                        {categoryAllowsEmergency && emergencyFee <= 0 && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Emergency not configured
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-xs text-gray-500">
+                          {service.priceMode === "fixed"
+                            ? "Fixed price"
+                            : service.priceMode === "range"
+                            ? "Range"
+                            : "Quote required"}
+                        </span>
+                        <p className="text-lg font-bold text-gray-900">
+                          {service.priceMode === "quote_required"
+                            ? "Custom quote"
+                            : service.priceMode === "range"
+                            ? `NPR ${service.priceRange?.min || service.basePrice} - NPR ${
+                                service.priceRange?.max || service.basePrice
+                              }`
+                            : `NPR ${service.basePrice}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
+                      <HiEye className="text-sm" />
+                      <span>{service.views || 0} views</span>
+                      <span className="mx-1">•</span>
+                      <span>{service.bookingsCount || 0} bookings</span>
+                      {service.ratingAvg > 0 && (
+                        <>
+                          <span className="mx-1">•</span>
+                          <span>{service.ratingAvg.toFixed(1)} rating</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          navigate(`/provider/services/edit/${service._id}`)
+                        }
+                        className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <HiPencil />
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => toggleActive(service._id, service.isActive)}
+                        disabled={
+                          service.adminDisabled ||
+                          (!service.isActive &&
+                            !isKycApproved(normalizeKycStatus(kycStatus?.status)))
+                        }
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          service.adminDisabled
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : !service.isActive &&
+                              !isKycApproved(normalizeKycStatus(kycStatus?.status))
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-brand-100 text-brand-700 hover:bg-brand-200"
+                        }`}
+                      >
+                        {service.adminDisabled
+                          ? "Restricted"
+                          : service.isActive
+                          ? "Deactivate"
+                          : "Activate"}
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(service._id)}
+                        className="bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                      >
+                        <HiTrash />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

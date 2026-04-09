@@ -1,4 +1,3 @@
-// routes/reviews.js
 const express = require("express");
 const Review = require("../models/Review");
 const Booking = require("../models/Booking");
@@ -8,7 +7,79 @@ const { createNotification } = require("../utils/createNotification");
 
 const router = express.Router();
 
-// ─── Shared populate helper ───────────────────────────────────────────────────
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function getRangeBounds(range, from, to) {
+  const now = new Date();
+
+  if (range === "today") {
+    const start = startOfDay(now);
+    const end = addDays(start, 1);
+    return { start, end };
+  }
+
+  if (range === "week") {
+    const current = startOfDay(now);
+    const day = current.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    const start = addDays(current, -diffToMonday);
+    const end = addDays(start, 7);
+    return { start, end };
+  }
+
+  if (range === "month") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return { start, end };
+  }
+
+  if (range === "year") {
+    const start = new Date(now.getFullYear(), 0, 1);
+    const end = new Date(now.getFullYear() + 1, 0, 1);
+    return { start, end };
+  }
+
+  if (range === "custom" && from && to) {
+    const start = startOfDay(new Date(from));
+    const end = addDays(startOfDay(new Date(to)), 1);
+
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      start >= end
+    ) {
+      return null;
+    }
+
+    return { start, end };
+  }
+
+  return null;
+}
+
+function applyRangeFilterToQuery(query, range, from, to) {
+  const bounds = getRangeBounds(range, from, to);
+  if (!bounds) return query;
+
+  return {
+    ...query,
+    createdAt: {
+      $gte: bounds.start,
+      $lt: bounds.end,
+    },
+  };
+}
+
 async function populateReviews(query) {
   return query
     .populate(
@@ -84,13 +155,13 @@ function formatReview(r) {
       avatar: r.providerId?.profile?.avatarUrl || null,
       badges: providerBadges,
       level: getProviderLevel(r.providerId),
-      isVerified: r.providerId?.kycStatus === "approved" || providerBadges.includes("verified"),
+      isVerified:
+        r.providerId?.kycStatus === "approved" || providerBadges.includes("verified"),
     },
     serviceTitle: r.bookingId?.serviceId?.title || "Home Service",
   };
 }
 
-// ─── PUBLIC: Top 8 platform reviews (4-5★) for landing page social proof ─────
 router.get("/public/top", async (req, res, next) => {
   try {
     const base = Review.find({
@@ -108,7 +179,6 @@ router.get("/public/top", async (req, res, next) => {
   }
 });
 
-// ─── PUBLIC: Paginated all-reviews browser ────────────────────────────────────
 router.get("/public/all", async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -154,41 +224,35 @@ router.get("/public/all", async (req, res, next) => {
   }
 });
 
-// Create a review for a completed booking
 router.post("/", authGuard, async (req, res, next) => {
   try {
     const { bookingId, rating, comment } = req.body;
     const clientId = req.user.id;
 
-    // Validate rating
     if (!rating || rating < 1 || rating > 5) {
       return res
         .status(400)
         .json({ message: "Rating must be between 1 and 5 stars" });
     }
 
-    // Find the booking
     const booking = await Booking.findById(bookingId).populate("providerId");
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    // Verify client owns this booking
     if (booking.clientId.toString() !== clientId.toString()) {
       return res
         .status(403)
         .json({ message: "You can only review your own bookings" });
     }
 
-    // Verify booking is completed
     if (booking.status !== "completed") {
       return res
         .status(400)
         .json({ message: "You can only review completed bookings" });
     }
 
-    // Check if review already exists
     const existingReview = await Review.findOne({ bookingId, clientId });
     if (existingReview) {
       return res
@@ -196,7 +260,6 @@ router.post("/", authGuard, async (req, res, next) => {
         .json({ message: "You have already reviewed this booking" });
     }
 
-    // Create the review
     const review = await Review.create({
       bookingId,
       clientId,
@@ -205,10 +268,8 @@ router.post("/", authGuard, async (req, res, next) => {
       comment: comment || "",
     });
 
-    // Populate client details for the notification
     await review.populate("clientId", "profile.name email");
 
-    // Create notification for provider
     const ratingStars = "⭐".repeat(rating);
     await createNotification({
       userId: booking.providerId._id,
@@ -218,9 +279,7 @@ router.post("/", authGuard, async (req, res, next) => {
         review.clientId.profile?.name || "A client"
       } rated you ${ratingStars} (${rating}/5)${
         comment
-          ? ': "' +
-            comment.substring(0, 50) +
-            (comment.length > 50 ? '..."' : '"')
+          ? ': "' + comment.substring(0, 50) + (comment.length > 50 ? '..."' : '"')
           : ""
       }`,
       category: "review",
@@ -242,14 +301,19 @@ router.post("/", authGuard, async (req, res, next) => {
   }
 });
 
-// Get reviews for a specific provider (visible to provider)
 router.get("/provider/:providerId", authGuard, async (req, res, next) => {
   try {
     const { providerId } = req.params;
+    const { range, from, to } = req.query;
 
-    const reviews = await Review.find({ providerId })
+    const reviewFilter = applyRangeFilterToQuery({ providerId }, range, from, to);
+
+    const reviews = await Review.find(reviewFilter)
       .populate("clientId", "profile.name profile.avatarUrl email")
-      .populate("providerId", "profile.name profile.avatarUrl kycStatus providerDetails.badges")
+      .populate(
+        "providerId",
+        "profile.name profile.avatarUrl kycStatus providerDetails.badges"
+      )
       .populate("bookingId", "serviceId status completedAt")
       .populate({
         path: "bookingId",
@@ -260,12 +324,10 @@ router.get("/provider/:providerId", authGuard, async (req, res, next) => {
       })
       .sort({ createdAt: -1 });
 
-    // Calculate average rating
     const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
     const averageRating =
       reviews.length > 0 ? (totalRating / reviews.length).toFixed(1) : 0;
 
-    // Rating distribution
     const ratingDistribution = {
       5: reviews.filter((r) => r.rating === 5).length,
       4: reviews.filter((r) => r.rating === 4).length,
@@ -287,7 +349,6 @@ router.get("/provider/:providerId", authGuard, async (req, res, next) => {
   }
 });
 
-// Get review for a specific booking (check if client has reviewed)
 router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
   try {
     const { bookingId } = req.params;
@@ -307,7 +368,6 @@ router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
   }
 });
 
-// Update a review (optional - allow clients to edit their reviews)
 router.patch("/:reviewId", authGuard, async (req, res, next) => {
   try {
     const { reviewId } = req.params;
@@ -320,14 +380,12 @@ router.patch("/:reviewId", authGuard, async (req, res, next) => {
       return res.status(404).json({ message: "Review not found" });
     }
 
-    // Verify client owns this review
     if (review.clientId.toString() !== clientId.toString()) {
       return res
         .status(403)
         .json({ message: "You can only update your own reviews" });
     }
 
-    // Update review
     if (rating) review.rating = rating;
     if (comment !== undefined) review.comment = comment;
 
@@ -342,7 +400,6 @@ router.patch("/:reviewId", authGuard, async (req, res, next) => {
   }
 });
 
-// Delete a review (optional)
 router.delete("/:reviewId", authGuard, async (req, res, next) => {
   try {
     const { reviewId } = req.params;
@@ -354,7 +411,6 @@ router.delete("/:reviewId", authGuard, async (req, res, next) => {
       return res.status(404).json({ message: "Review not found" });
     }
 
-    // Verify client owns this review
     if (review.clientId.toString() !== clientId.toString()) {
       return res
         .status(403)

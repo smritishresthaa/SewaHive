@@ -22,14 +22,37 @@ function parseDateOnly(value) {
 
 function parseSlotTime(slot) {
   if (typeof slot !== "string") return null;
-  const match = slot.trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
 
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  const trimmed = slot.trim();
 
-  return { hours, minutes };
+  // 24-hour format: 15:45
+  let match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (match) {
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return { hours, minutes };
+  }
+
+  // 12-hour format: 3:45 PM / 03:45 am
+  match = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (match) {
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const meridiem = match[3].toUpperCase();
+
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+
+    if (meridiem === "AM") {
+      if (hours === 12) hours = 0;
+    } else if (meridiem === "PM") {
+      if (hours !== 12) hours += 12;
+    }
+
+    return { hours, minutes };
+  }
+
+  return null;
 }
 
 function resolveScheduledStartAt(booking) {
@@ -51,7 +74,9 @@ function resolveScheduledStartAt(booking) {
   return dateOnly;
 }
 
-const DEFAULT_STALE_GRACE_HOURS = Number(process.env.BOOKING_STALE_GRACE_HOURS || 24);
+const DEFAULT_STALE_GRACE_HOURS = Number(
+  process.env.BOOKING_STALE_GRACE_HOURS || 24
+);
 
 function isActionBlockedByStaleness(booking, now = new Date()) {
   if (!booking || booking.type !== "normal") return false;
@@ -64,6 +89,16 @@ function isActionBlockedByStaleness(booking, now = new Date()) {
   );
 
   return now > staleCutoff;
+}
+
+function shouldExpireUnansweredRequest(booking, now = new Date()) {
+  if (!booking || booking.type !== "normal") return false;
+  if (booking.status !== "requested") return false;
+
+  const scheduledStart = resolveScheduledStartAt(booking);
+  if (!scheduledStart) return false;
+
+  return now > scheduledStart;
 }
 
 function shouldAutoExpireUnstartedBooking(booking, now = new Date()) {
@@ -79,5 +114,6 @@ module.exports = {
   DEFAULT_STALE_GRACE_HOURS,
   resolveScheduledStartAt,
   isActionBlockedByStaleness,
+  shouldExpireUnansweredRequest,
   shouldAutoExpireUnstartedBooking,
 };

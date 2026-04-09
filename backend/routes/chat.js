@@ -4,20 +4,43 @@ const Conversation = require("../models/Conversation");
 const Notification = require("../models/Notification");
 const { chatImageUpload, chatVoiceUpload, chatVideoUpload } = require("../middleware/chatUpload");
 
-
-
-
 const {
   ensureBookingForChat,
   getOrCreateConversationForBooking,
   getBookingChatHistory,
   sendBookingMessage,
   markBookingAsRead,
+  buildPairKey,
+  buildBlockState,
 } = require("../utils/chatService");
 
 const router = express.Router();
 
-// ─── Video Upload ─────────────────────────────────────────────────────
+async function getConversationSummaryForUser({ booking, role }) {
+  const conversation = await getOrCreateConversationForBooking(booking);
+  const unreadCount =
+    role === "client"
+      ? Number(conversation.unreadByClient || 0)
+      : Number(conversation.unreadByProvider || 0);
+
+  return {
+    conversation,
+    unreadCount,
+    peer:
+      role === "client"
+        ? {
+            id: booking.providerId?._id,
+            name: booking.providerId?.profile?.name || booking.providerId?.email || "Provider",
+            avatarUrl: booking.providerId?.profile?.avatarUrl || null,
+          }
+        : {
+            id: booking.clientId?._id,
+            name: booking.clientId?.profile?.name || booking.clientId?.email || "Client",
+            avatarUrl: booking.clientId?.profile?.avatarUrl || null,
+          },
+  };
+}
+
 router.post(
   "/booking/:bookingId/upload-video",
   authGuard,
@@ -25,18 +48,11 @@ router.post(
   async (req, res, next) => {
     try {
       const { bookingId } = req.params;
-
-      // Verify booking participant
-      const { booking } = await ensureBookingForChat({
-        bookingId,
-        user: req.user,
-      });
+      const { booking } = await ensureBookingForChat({ bookingId, user: req.user });
 
       if (!req.file) {
         return res.status(400).json({ message: "No video file provided" });
       }
-
-      console.log(`[ChatUpload] Video uploaded by user ${req.user.id} for booking ${bookingId}`);
 
       const attachment = {
         url: req.file.path,
@@ -47,7 +63,6 @@ router.post(
         height: null,
       };
 
-      // Send as message
       const { message } = await sendBookingMessage({
         booking,
         senderId: req.user.id,
@@ -56,13 +71,10 @@ router.post(
         attachment,
       });
 
-      // Emit via socket
       try {
         const { getIO } = require("../utils/socket");
         const io = getIO();
-        if (io) {
-          io.to(`booking:${booking._id}`).emit("new_message", message);
-        }
+        if (io) io.to(`booking:${booking._id}`).emit("new_message", message);
       } catch (_) {}
 
       res.status(201).json({ message });
@@ -83,8 +95,8 @@ router.get("/conversations", authGuard, async (req, res, next) => {
 
     const query = role === "client" ? { clientId: userId } : { providerId: userId };
 
-    const conversations = await Conversation.find(query)
-      .sort({ lastMessageAt: -1, updatedAt: -1 })
+    const rawConversations = await Conversation.find(query)
+      .sort({ lastMessageAt: -1, updatedAt: -1, createdAt: -1 })
       .populate({
         path: "bookingId",
         select: "_id status scheduledAt requestedAt serviceId clientId providerId",
@@ -96,46 +108,87 @@ router.get("/conversations", authGuard, async (req, res, next) => {
       })
       .lean();
 
-    // Deduplicate by peer (show only latest conversation per unique peer)
-    const seenPeers = new Set();
-    const data = [];
-    for (const conversation of conversations) {
-      if (!conversation.bookingId) continue;
-      const booking = conversation.bookingId;
-      const peerId = role === "client"
-        ? String(booking.providerId?._id || booking.providerId)
-        : String(booking.clientId?._id || booking.clientId);
-      if (seenPeers.has(peerId)) continue;
-      seenPeers.add(peerId);
-      const unreadCount = role === "client"
-        ? Number(conversation.unreadByClient || 0)
-        : Number(conversation.unreadByProvider || 0);
-      data.push({
-        _id: conversation._id,
-        bookingId: booking._id,
-        bookingStatus: booking.status,
-        serviceTitle: booking.serviceId?.title || "Service",
-        peer:
-          role === "client"
-            ? {
-                id: booking.providerId?._id,
-                name: booking.providerId?.profile?.name || booking.providerId?.email || "Provider",
-                avatarUrl: booking.providerId?.profile?.avatarUrl || null,
-              }
-            : {
-                id: booking.clientId?._id,
-                name: booking.clientId?.profile?.name || booking.clientId?.email || "Client",
-                avatarUrl: booking.clientId?.profile?.avatarUrl || null,
-              },
-        lastMessageAt: conversation.lastMessageAt,
-        lastMessageText: conversation.lastMessageText,
-        unreadCount,
-        route:
-          role === "client"
-            ? `/client/bookings/${booking._id}/chat`
-            : `/provider/bookings/${booking._id}/chat`,
-      });
+    const dedupedByPair = new Map();
+
+    for (const conversation of rawConversations) {
+      const pairKey =
+        conversation.pairKey ||
+        buildPairKey(conversation.clientId, conversation.providerId);
+
+      const existing = dedupedByPair.get(pairKey);
+      if (!existing) {
+        dedupedByPair.set(pairKey, {
+          ...conversation,
+          unreadByClient: Number(conversation.unreadByClient || 0),
+          unreadByProvider: Number(conversation.unreadByProvider || 0),
+        });
+        continue;
+      }
+
+      existing.unreadByClient += Number(conversation.unreadByClient || 0);
+      existing.unreadByProvider += Number(conversation.unreadByProvider || 0);
+
+      const existingLast = existing.lastMessageAt ? new Date(existing.lastMessageAt).getTime() : 0;
+      const currentLast = conversation.lastMessageAt ? new Date(conversation.lastMessageAt).getTime() : 0;
+
+      if (currentLast > existingLast) {
+        existing.lastMessageAt = conversation.lastMessageAt;
+        existing.lastMessageText = conversation.lastMessageText;
+        existing.bookingId = conversation.bookingId;
+        existing.updatedAt = conversation.updatedAt;
+      }
+
+      if (!existing.blockedBy && conversation.blockedBy) {
+        existing.blockedBy = conversation.blockedBy;
+        existing.blockedAt = conversation.blockedAt;
+      }
     }
+
+    const data = Array.from(dedupedByPair.values())
+      .sort((a, b) => {
+        const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+        const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+        return bTime - aTime;
+      })
+      .map((conversation) => {
+        const booking = conversation.bookingId || {};
+        const unreadCount =
+          role === "client"
+            ? Number(conversation.unreadByClient || 0)
+            : Number(conversation.unreadByProvider || 0);
+
+        const block = buildBlockState(conversation, userId);
+        const resolvedBookingId = booking?._id || conversation.bookingId;
+
+        return {
+          _id: conversation._id,
+          conversationId: conversation._id,
+          pairKey: conversation.pairKey,
+          bookingId: resolvedBookingId,
+          bookingStatus: booking?.status || "unknown",
+          serviceTitle: booking?.serviceId?.title || "Service",
+          peer:
+            role === "client"
+              ? {
+                  id: booking?.providerId?._id || conversation.providerId,
+                  name: booking?.providerId?.profile?.name || booking?.providerId?.email || "Provider",
+                  avatarUrl: booking?.providerId?.profile?.avatarUrl || null,
+                }
+              : {
+                  id: booking?.clientId?._id || conversation.clientId,
+                  name: booking?.clientId?.profile?.name || booking?.clientId?.email || "Client",
+                  avatarUrl: booking?.clientId?.profile?.avatarUrl || null,
+                },
+          lastMessageAt: conversation.lastMessageAt,
+          lastMessageText: conversation.lastMessageText,
+          unreadCount,
+          blocked: block,
+          route:
+            role === "client"
+              ? `/client/bookings/${resolvedBookingId}/chat`
+              : `/provider/bookings/${resolvedBookingId}/chat`,
+        };
+      });
 
     res.json({ conversations: data });
   } catch (e) {
@@ -155,7 +208,7 @@ router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
 
     const conversation = await getOrCreateConversationForBooking(booking);
     const history = await getBookingChatHistory({
-      bookingId: booking._id,
+      booking,
       before,
       limit,
     });
@@ -166,7 +219,10 @@ router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
         : Number(conversation.unreadByProvider || 0);
 
     res.json({
-      conversation,
+      conversation: {
+        ...conversation.toObject(),
+        block: buildBlockState(conversation, req.user.id),
+      },
       booking: {
         _id: booking._id,
         status: booking.status,
@@ -186,6 +242,50 @@ router.get("/booking/:bookingId", authGuard, async (req, res, next) => {
   }
 });
 
+router.post("/booking/:bookingId/block", authGuard, async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const { booking } = await ensureBookingForChat({ bookingId, user: req.user });
+    const conversation = await getOrCreateConversationForBooking(booking);
+
+    conversation.blockedBy = req.user.id;
+    conversation.blockedAt = new Date();
+    await conversation.save();
+
+    res.json({
+      success: true,
+      block: buildBlockState(conversation, req.user.id),
+      message: "Chat blocked. Existing history remains visible, but new messages are disabled until you unblock.",
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete("/booking/:bookingId/block", authGuard, async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const { booking } = await ensureBookingForChat({ bookingId, user: req.user });
+    const conversation = await getOrCreateConversationForBooking(booking);
+
+    if (conversation.blockedBy && String(conversation.blockedBy) !== String(req.user.id)) {
+      return res.status(403).json({ message: "Only the user who blocked the chat can unblock it" });
+    }
+
+    conversation.blockedBy = null;
+    conversation.blockedAt = null;
+    await conversation.save();
+
+    res.json({
+      success: true,
+      block: buildBlockState(conversation, req.user.id),
+      message: "Chat unblocked",
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post("/booking/:bookingId/message", authGuard, async (req, res, next) => {
   try {
     const { bookingId } = req.params;
@@ -196,7 +296,7 @@ router.post("/booking/:bookingId/message", authGuard, async (req, res, next) => 
       user: req.user,
     });
 
-    const { message } = await sendBookingMessage({
+    const { message, conversation } = await sendBookingMessage({
       booking,
       senderId: req.user.id,
       text,
@@ -209,21 +309,17 @@ router.post("/booking/:bookingId/message", authGuard, async (req, res, next) => 
       const { getIO } = require("../utils/socket");
       const io = getIO();
       if (io) {
-        const room = `booking:${booking._id}`;
-        io.to(room).emit("new_message", message);
+        io.to(`booking:${booking._id}`).emit("new_message", message);
         emitted = true;
       }
-    } catch (socketErr) {
-      emitted = false;
-    }
+    } catch (_) {}
 
-    res.status(201).json({ message, emitted });
+    res.status(201).json({ message, emitted, block: buildBlockState(conversation, req.user.id) });
   } catch (e) {
     next(e);
   }
 });
 
-// ─── Image Upload ──────────────────────────────────────
 router.post(
   "/booking/:bookingId/upload-image",
   authGuard,
@@ -231,18 +327,11 @@ router.post(
   async (req, res, next) => {
     try {
       const { bookingId } = req.params;
-
-      // Verify booking participant
-      const { booking } = await ensureBookingForChat({
-        bookingId,
-        user: req.user,
-      });
+      const { booking } = await ensureBookingForChat({ bookingId, user: req.user });
 
       if (!req.file) {
         return res.status(400).json({ message: "No image file provided" });
       }
-
-      console.log(`[ChatUpload] Image uploaded by user ${req.user.id} for booking ${bookingId}`);
 
       const attachment = {
         url: req.file.path,
@@ -253,7 +342,6 @@ router.post(
         height: null,
       };
 
-      // Send as message
       const { message } = await sendBookingMessage({
         booking,
         senderId: req.user.id,
@@ -262,13 +350,10 @@ router.post(
         attachment,
       });
 
-      // Emit via socket
       try {
         const { getIO } = require("../utils/socket");
         const io = getIO();
-        if (io) {
-          io.to(`booking:${booking._id}`).emit("new_message", message);
-        }
+        if (io) io.to(`booking:${booking._id}`).emit("new_message", message);
       } catch (_) {}
 
       res.status(201).json({ message });
@@ -278,7 +363,6 @@ router.post(
   }
 );
 
-// ─── Voice Upload ──────────────────────────────────────
 router.post(
   "/booking/:bookingId/upload-voice",
   authGuard,
@@ -286,23 +370,16 @@ router.post(
   async (req, res, next) => {
     try {
       const { bookingId } = req.params;
-
-      const { booking } = await ensureBookingForChat({
-        bookingId,
-        user: req.user,
-      });
+      const { booking } = await ensureBookingForChat({ bookingId, user: req.user });
 
       if (!req.file) {
         return res.status(400).json({ message: "No voice file provided" });
       }
 
-      // Parse optional duration from client
       let durationSec = null;
       if (req.body.durationSec) {
         durationSec = Math.min(Number(req.body.durationSec) || 0, 120);
       }
-
-      console.log(`[ChatUpload] Voice uploaded by user ${req.user.id} for booking ${bookingId}, duration: ${durationSec}s`);
 
       const attachment = {
         url: req.file.path,
@@ -323,9 +400,7 @@ router.post(
       try {
         const { getIO } = require("../utils/socket");
         const io = getIO();
-        if (io) {
-          io.to(`booking:${booking._id}`).emit("new_message", message);
-        }
+        if (io) io.to(`booking:${booking._id}`).emit("new_message", message);
       } catch (_) {}
 
       res.status(201).json({ message });
@@ -354,21 +429,15 @@ router.post("/booking/:bookingId/read", authGuard, async (req, res, next) => {
       const { getIO } = require("../utils/socket");
       const io = getIO();
       if (io) {
-        const room = `booking:${booking._id}`;
-        io.to(room).emit("messages_read", {
+        io.to(`booking:${booking._id}`).emit("messages_read", {
           bookingId: String(booking._id),
           userId: String(req.user.id),
           readAt: new Date().toISOString(),
         });
       }
-    } catch (socketErr) {
-      // no-op
-    }
+    } catch (_) {}
 
-    res.json({
-      ok: true,
-      updatedCount: readResult.updatedCount,
-    });
+    res.json({ ok: true, updatedCount: readResult.updatedCount });
   } catch (e) {
     next(e);
   }

@@ -5,7 +5,7 @@ const { OAuth2Client } = require("google-auth-library");
 const axios = require("axios");
 const User = require("../models/User");
 const sendEmail = require("../utils/sendEmail");
-const { authGuard } = require("../middleware/auth");
+const { authGuard, resolveAccountAccess, buildAccountMeta } = require("../middleware/auth");
 const upload = require("../middleware/upload");
 const cloudinary = require("../utils/cloudinary");
 const { normalizeNepalPhone, isValidNepalMobile } = require("../utils/phone");
@@ -43,6 +43,60 @@ function generatePasswordResetToken(user) {
   return jwt.sign({ sub: user._id }, RESET_SECRET, {
     expiresIn: RESET_EXPIRES,
   });
+}
+
+function buildOnboarding(user) {
+  const profileCompleted = Boolean(
+    user?.profile?.name?.trim() &&
+      user?.phone?.trim() &&
+      user?.profile?.address?.city?.trim() &&
+      user?.profile?.address?.area?.trim()
+  );
+
+  const skillProfileCompleted =
+    user?.role !== "provider"
+      ? true
+      : Boolean(
+          Number(user?.providerDetails?.experienceYears || 0) > 0 ||
+            user?.providerDetails?.experienceDescription?.trim() ||
+            (user?.providerDetails?.tools || []).length > 0 ||
+            (user?.providerDetails?.skillProofs || []).length > 0
+        );
+
+  const kycCompleted =
+    user?.role !== "provider" ? true : user?.kycStatus === "approved";
+
+  let nextStep = null;
+  if (!profileCompleted) nextStep = user?.role === "provider" ? "/provider/profile" : "/client/profile/edit";
+  else if (user?.role === "provider" && !kycCompleted) nextStep = "/provider/verification";
+  else if (user?.role === "provider" && !skillProfileCompleted) nextStep = "/provider/profile";
+
+  return {
+    profileCompleted,
+    kycCompleted,
+    skillProfileCompleted,
+    lastSuggestedStep: nextStep ? nextStep.split("/").pop() : "done",
+    nextStep,
+    completed: !nextStep,
+  };
+}
+
+function sanitizeAuthUser(user) {
+  const onboarding = buildOnboarding(user);
+  return {
+    id: user._id,
+    role: user.role,
+    email: user.email,
+    phone: user.phone,
+    profile: user.profile,
+    location: user.location,
+    isVerified: user.isVerified,
+    kycStatus: user.kycStatus,
+    providerDetails: user.providerDetails,
+    accountStatus: user.accountStatus,
+    suspension: user.suspension || {},
+    onboarding,
+  };
 }
 
 // ----------------------------------------------
@@ -125,9 +179,16 @@ router.post("/register", async (req, res, next) => {
       `<a href="${verifyUrl}">${verifyUrl}</a>`
     );
 
+    user.onboarding = {
+      ...(user.onboarding || {}),
+      ...buildOnboarding(user),
+    };
+    await user.save();
+
     res.json({
       message:
         "Registration successful. Please check your email to verify your account.",
+      onboarding: buildOnboarding(user),
     });
   } catch (e) {
     next(e);
@@ -141,15 +202,34 @@ router.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user) {
+    const user = await User.findOne({ email }).select("+passwordHash");
+    if (!user || !user.passwordHash) {
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const access = await resolveAccountAccess(user);
+    if (!access.allowed) {
+      return res.status(access.status).json({
+        message: access.message,
+        code: access.code,
+        ...(access.meta ? { meta: access.meta } : {}),
+      });
+    }
+
+    if (!user.isVerified) {
+      return res
+        .status(403)
+        .json({ message: "Please verify your email before logging in." });
     }
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+
+    user.lastLogin = new Date();
+    user.onboarding = { ...(user.onboarding || {}), ...buildOnboarding(user) };
+    await user.save();
 
     const { accessToken, refreshToken } = generateTokens(user);
 
@@ -162,15 +242,7 @@ router.post("/login", async (req, res, next) => {
 
     res.json({
       accessToken,
-      user: {
-        id: user._id,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        profile: user.profile,
-        location: user.location,
-        isVerified: user.isVerified,
-      },
+      user: sanitizeAuthUser(user),
     });
   } catch (e) {
     next(e);
@@ -194,7 +266,6 @@ router.post("/google", async (req, res) => {
     let user = await User.findOne({ email: payload.email });
     let avatarUrl = "";
 
-    // If this is a NEW user, respect registrationOpen
     if (!user) {
       const AdminServiceConfig = require("../models/AdminServiceConfig");
       const settings = await AdminServiceConfig.findOne({});
@@ -205,7 +276,6 @@ router.post("/google", async (req, res) => {
       }
     }
 
-    // Fetch and upload Google profile picture to Cloudinary (if configured)
     const hasCloudinary = !!(
       process.env.CLOUDINARY_CLOUD_NAME &&
       process.env.CLOUDINARY_API_KEY &&
@@ -243,11 +313,11 @@ router.post("/google", async (req, res) => {
     if (!user) {
       user = await User.create({
         email: payload.email,
-        role: role,
+        role,
         googleId: payload.sub,
         profile: {
           name: payload.name || "",
-          avatarUrl: avatarUrl,
+          avatarUrl,
           gender: "",
           bio: "",
           address: {
@@ -257,14 +327,24 @@ router.post("/google", async (req, res) => {
             area: "",
           },
         },
-        location: {
-          type: "Point",
-          coordinates: [0, 0],
-        },
+        location: { type: "Point", coordinates: [0, 0] },
         isVerified: true,
         verifiedAt: new Date(),
       });
     }
+
+    const access = await resolveAccountAccess(user);
+    if (!access.allowed) {
+      return res.status(access.status).json({
+        message: access.message,
+        code: access.code,
+        ...(access.meta ? { meta: access.meta } : {}),
+      });
+    }
+
+    user.lastLogin = new Date();
+    user.onboarding = { ...(user.onboarding || {}), ...buildOnboarding(user) };
+    await user.save();
 
     const { accessToken, refreshToken } = generateTokens(user);
 
@@ -277,15 +357,7 @@ router.post("/google", async (req, res) => {
 
     res.json({
       accessToken,
-      user: {
-        id: user._id,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        profile: user.profile,
-        location: user.location,
-        isVerified: user.isVerified,
-      },
+      user: sanitizeAuthUser(user),
     });
   } catch (err) {
     console.error("Google login error:", err);
@@ -305,17 +377,7 @@ router.get("/me", authGuard, async (req, res, next) => {
     }
 
     res.json({
-      user: {
-        id: user.id,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        profile: user.profile,
-        location: user.location,
-        isVerified: user.isVerified,
-        kycStatus: user.kycStatus,
-        providerDetails: user.providerDetails,
-      },
+      user: sanitizeAuthUser(user),
     });
   } catch (err) {
     next(err);
@@ -390,19 +452,12 @@ router.put(
         }
       }
 
+      user.onboarding = { ...(user.onboarding || {}), ...buildOnboarding(user) };
       await user.save();
 
       res.json({
         message: "Profile updated successfully",
-        user: {
-          id: user._id,
-          role: user.role,
-          email: user.email,
-          phone: user.phone,
-          profile: user.profile,
-          location: user.location,
-          isVerified: user.isVerified,
-        },
+        user: sanitizeAuthUser(user),
       });
     } catch (err) {
       console.error("Profile update error:", err.message);

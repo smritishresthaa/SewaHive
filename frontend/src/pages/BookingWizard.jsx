@@ -3,11 +3,32 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/axios";
 import toast from "react-hot-toast";
-import { HiSparkles, HiMapPin, HiClock, HiCalendarDays, HiCheckCircle } from "react-icons/hi2";
+import {
+  HiSparkles,
+  HiMapPin,
+  HiClock,
+  HiCalendarDays,
+  HiCheckCircle,
+} from "react-icons/hi2";
 import LocationPicker from "../components/UI/LocationPicker";
 import { isKycApproved, normalizeKycStatus } from "../utils/kyc";
 
-// Booking page with auto-filled client info (no re-typing profile details)
+function normalizePriceMode(raw = "fixed") {
+  const value = String(raw || "fixed").trim().toLowerCase();
+
+  if (
+    value === "quote_required" ||
+    value === "quote" ||
+    value === "quote_based" ||
+    value === "quotebased"
+  ) {
+    return "quote_required";
+  }
+
+  if (value === "range") return "range";
+  return "fixed";
+}
+
 export default function BookingWizard() {
   const { serviceId } = useParams();
   const navigate = useNavigate();
@@ -17,35 +38,34 @@ export default function BookingWizard() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Booking form state
   const [bookingType, setBookingType] = useState("normal");
   const [date, setDate] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Prefilled contact + address from profile
   const [contact, setContact] = useState({
     name: user?.profile?.name || "",
     email: user?.email || "",
     phone: user?.phone || "",
   });
 
-  // Location: use profile coordinates if available, else fallback to Kathmandu center
   const [location, setLocation] = useState({
     coordinates:
       user?.location?.coordinates?.length === 2
         ? user.location.coordinates
-        : [85.3240, 27.7172],
+        : [85.324, 27.7172],
     addressText: "",
     landmark: "",
   });
 
   useEffect(() => {
     fetchService();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId]);
 
   async function fetchService() {
     try {
+      setLoading(true);
       const res = await api.get(`/services/${serviceId}`);
       setService(res.data.service);
     } catch (err) {
@@ -56,23 +76,130 @@ export default function BookingWizard() {
     }
   }
 
+  const servicePriceMode = useMemo(
+    () => normalizePriceMode(service?.priceMode),
+    [service]
+  );
+
+  const isProviderVerified = useMemo(() => {
+    const kycStatus = service?.providerKycStatus || service?.providerId?.kycStatus;
+    const normalized = normalizeKycStatus(kycStatus);
+    return isKycApproved(normalized);
+  }, [service]);
+
+  const emergencyEligibility = useMemo(() => {
+    if (!service) {
+      return {
+        emergencyPrice: 0,
+        categoryAllowsEmergency: false,
+        allowedByCategory: false,
+        supportsEmergencyPricing: false,
+        serviceAvailable: false,
+        canRequestEmergency: false,
+        blockingReason: "",
+      };
+    }
+
+    const normalizedMode = normalizePriceMode(service?.priceMode);
+    const supportsEmergencyPricing =
+      normalizedMode === "fixed" || normalizedMode === "range";
+
+    if (service?.emergencyMeta) {
+      const categoryAllowsEmergency =
+        typeof service.emergencyMeta.categoryAllowsEmergency === "boolean"
+          ? service.emergencyMeta.categoryAllowsEmergency
+          : !!service.emergencyMeta.allowedByCategory;
+
+      const serviceAvailable =
+        typeof service.emergencyMeta.serviceAvailable === "boolean"
+          ? service.emergencyMeta.serviceAvailable
+          : service?.isActive === true && service?.adminDisabled !== true;
+
+      return {
+        emergencyPrice: Number(service.emergencyMeta.emergencyPrice || 0),
+        categoryAllowsEmergency,
+        allowedByCategory: categoryAllowsEmergency,
+        supportsEmergencyPricing:
+          typeof service.emergencyMeta.supportsEmergencyPricing === "boolean"
+            ? service.emergencyMeta.supportsEmergencyPricing
+            : supportsEmergencyPricing,
+        serviceAvailable,
+        canRequestEmergency: !!service.emergencyMeta.canRequestEmergency,
+        blockingReason: service.emergencyMeta.blockingReason || "",
+      };
+    }
+
+    const category = service?.categoryId;
+    const emergencyPrice = Number(service?.emergencyPrice || 0);
+    const categoryAllowsEmergency =
+      category?.emergencyServiceAllowed === true && category?.status === "active";
+    const serviceAvailable =
+      service?.isActive === true && service?.adminDisabled !== true;
+
+    const canRequestEmergency =
+      serviceAvailable &&
+      categoryAllowsEmergency &&
+      supportsEmergencyPricing &&
+      emergencyPrice > 0;
+
+    let blockingReason = "";
+    if (!serviceAvailable) {
+      blockingReason = "This service is currently unavailable for emergency booking.";
+    } else if (!supportsEmergencyPricing) {
+      blockingReason =
+        "Emergency booking is only supported for fixed and range services.";
+    } else if (!categoryAllowsEmergency) {
+      blockingReason = "Emergency booking is not enabled for this service category.";
+    } else if (emergencyPrice <= 0) {
+      blockingReason =
+        "This service does not currently have an emergency fee configured.";
+    }
+
+    return {
+      emergencyPrice,
+      categoryAllowsEmergency,
+      allowedByCategory: categoryAllowsEmergency,
+      supportsEmergencyPricing,
+      serviceAvailable,
+      canRequestEmergency,
+      blockingReason,
+    };
+  }, [service]);
+
+  useEffect(() => {
+    if (
+      service &&
+      bookingType === "emergency" &&
+      !emergencyEligibility.canRequestEmergency
+    ) {
+      setBookingType("normal");
+    }
+  }, [service, bookingType, emergencyEligibility.canRequestEmergency]);
+
   const priceBreakdown = useMemo(() => {
-    if (!service) return { base: 0, emergencyFee: 0, total: 0 };
-    const mode = service.priceMode || "fixed";
+    if (!service) {
+      return { base: 0, emergencyFee: 0, platformFee: 0, total: 0 };
+    }
+
+    const mode = normalizePriceMode(service.priceMode);
+
     const base =
       mode === "range"
         ? Number(service.priceRange?.min || service.basePrice || 0)
         : mode === "quote_required"
         ? 0
         : Number(service.basePrice || 0);
+
     const emergencyFee =
-      bookingType === "emergency" && mode !== "quote_required"
-        ? Number(service.emergencyPrice || 0)
+      bookingType === "emergency" && emergencyEligibility.canRequestEmergency
+        ? Number(emergencyEligibility.emergencyPrice || 0)
         : 0;
-    const platformFee = 0; // set later if needed
+
+    const platformFee = 0;
     const total = base + emergencyFee + platformFee;
+
     return { base, emergencyFee, platformFee, total };
-  }, [service, bookingType]);
+  }, [service, bookingType, emergencyEligibility]);
 
   const pricingDisplay = useMemo(() => {
     if (!service) {
@@ -84,14 +211,15 @@ export default function BookingWizard() {
       };
     }
 
-    const mode = service.priceMode || "fixed";
+    const mode = normalizePriceMode(service.priceMode);
+
     if (mode === "range") {
       const min = Number(service.priceRange?.min || service.basePrice || 0);
       const max = Number(service.priceRange?.max || min);
       return {
         headerLabel: "Estimated Range",
         summaryLabel: "Starting from",
-        summaryValue: `NPR ${min} - NPR ${max}`,
+        summaryValue: `NPR ${min.toLocaleString()} - NPR ${max.toLocaleString()}`,
         disclaimer:
           "The minimum service fee is collected upfront. Extra charges only apply if you approve them during the job.",
       };
@@ -114,17 +242,32 @@ export default function BookingWizard() {
     return {
       headerLabel: isHourlyStyle ? "Minimum Service Charge" : "Fixed Service Price",
       summaryLabel: isHourlyStyle ? "Minimum Service Charge" : "Fixed Service Price",
-      summaryValue: `NPR ${Number(service.basePrice || 0)}`,
+      summaryValue: `NPR ${Number(service.basePrice || 0).toLocaleString()}`,
       disclaimer: "Full amount is collected into escrow at booking.",
     };
   }, [service]);
 
-  const isProviderVerified = useMemo(() => {
-    // Check KYC status from backend response (normalized)
-    const kycStatus = service?.providerKycStatus || service?.providerId?.kycStatus;
-    const normalized = normalizeKycStatus(kycStatus);
-    return isKycApproved(normalized);
-  }, [service]);
+  const emergencyReasonMessage = useMemo(() => {
+    if (!service) return "";
+
+    if (!emergencyEligibility.serviceAvailable) {
+      return "This service is currently unavailable for emergency booking.";
+    }
+
+    if (!emergencyEligibility.supportsEmergencyPricing) {
+      return "Emergency booking is only supported for fixed and range services.";
+    }
+
+    if (!emergencyEligibility.categoryAllowsEmergency) {
+      return "Emergency booking is not enabled for this service category.";
+    }
+
+    if (Number(emergencyEligibility.emergencyPrice || 0) <= 0) {
+      return "This service does not currently have an emergency fee configured.";
+    }
+
+    return emergencyEligibility.blockingReason || "";
+  }, [service, emergencyEligibility]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -135,14 +278,23 @@ export default function BookingWizard() {
       return;
     }
 
-    // For normal booking, require date/time
+    if (bookingType === "emergency" && !emergencyEligibility.canRequestEmergency) {
+      toast.error(
+        emergencyReasonMessage || "Emergency booking is not available for this service."
+      );
+      return;
+    }
+
     if (bookingType === "normal" && (!date || !timeSlot)) {
       toast.error("Please select date and time");
       return;
     }
 
-    // Validate coordinates
-    if (!location.coordinates || !Array.isArray(location.coordinates) || location.coordinates.length !== 2) {
+    if (
+      !location.coordinates ||
+      !Array.isArray(location.coordinates) ||
+      location.coordinates.length !== 2
+    ) {
       toast.error("Invalid location coordinates. Please set your location.");
       return;
     }
@@ -154,14 +306,18 @@ export default function BookingWizard() {
         providerId: service.providerId?._id || service.providerId,
         location: {
           type: "Point",
-          coordinates: location.coordinates, // [lng, lat]
+          coordinates: location.coordinates,
         },
         addressText: location.addressText || "",
         landmark: location.landmark || "",
         notes,
       };
 
-      const endpoint = bookingType === "normal" ? "/bookings/create" : "/bookings/emergency-request";
+      const endpoint =
+        bookingType === "normal"
+          ? "/bookings/create"
+          : "/bookings/emergency-request";
+
       const requestBody = {
         ...payloadBase,
         type: bookingType,
@@ -175,7 +331,7 @@ export default function BookingWizard() {
       }
 
       const res = await api.post(endpoint, requestBody);
-        
+
       const bookingId = res.data.booking?._id || res.data.id;
       if (!bookingId) {
         throw new Error("No booking ID returned from server");
@@ -183,7 +339,7 @@ export default function BookingWizard() {
 
       toast.success("Booking created successfully!");
 
-      if ((service.priceMode || "fixed") === "quote_required") {
+      if (servicePriceMode === "quote_required") {
         navigate(`/client/bookings/${bookingId}`);
       } else {
         const redirectUrl = `/payment/confirm/${bookingId}`;
@@ -192,18 +348,17 @@ export default function BookingWizard() {
       }
     } catch (err) {
       console.error("Booking error:", err?.response?.data);
-      
-      // Show detailed error message
+
       const errorMsg = err?.response?.data?.message || "Failed to create booking";
       const errors = err?.response?.data?.errors;
-      
+
       if (errors && Array.isArray(errors)) {
         toast.error(
           <div>
             <p className="font-semibold">{errorMsg}</p>
             <ul className="mt-2 text-sm">
-              {errors.map((e, i) => (
-                <li key={i}>• {e}</li>
+              {errors.map((entry, i) => (
+                <li key={i}>• {entry}</li>
               ))}
             </ul>
           </div>,
@@ -225,24 +380,27 @@ export default function BookingWizard() {
     );
   }
 
+  const isQuoteRequired = servicePriceMode === "quote_required";
+  const showEmergencyPriceInHeader =
+    emergencyEligibility.canRequestEmergency &&
+    Number(emergencyEligibility.emergencyPrice || 0) > 0;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-6 py-10">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <p className="text-sm text-gray-500">Booking</p>
-            <h1 className="text-3xl font-bold text-gray-900 mt-1">
-              {service.title}
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900 mt-1">{service.title}</h1>
             <p className="text-gray-600 mt-2 max-w-3xl">{service.description}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-500">{pricingDisplay.headerLabel}</p>
             <p className="text-3xl font-bold text-gray-900">{pricingDisplay.summaryValue}</p>
-            {service.emergencyPrice > 0 && (
+            {showEmergencyPriceInHeader && (
               <p className="text-sm text-orange-600 font-medium">
-                Emergency: NPR {service.emergencyPrice}
+                Emergency: NPR{" "}
+                {Number(emergencyEligibility.emergencyPrice).toLocaleString()}
               </p>
             )}
           </div>
@@ -258,39 +416,73 @@ export default function BookingWizard() {
           onSubmit={handleSubmit}
           className="grid lg:grid-cols-3 gap-6 items-start"
         >
-          {/* Left column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Booking Type */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border">
               <h3 className="font-semibold text-gray-900 mb-4">Booking Type</h3>
+
               <div className="grid sm:grid-cols-2 gap-3">
-                {["normal", "emergency"].map((type) => (
-                  <button
-                    type="button"
-                    key={type}
-                    onClick={() => setBookingType(type)}
-                    disabled={!isProviderVerified}
-                    className={`p-4 rounded-xl border text-left transition-all ${
-                      bookingType === type
-                        ? "border-emerald-600 bg-emerald-50"
-                        : "border-gray-200 hover:border-emerald-200"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold capitalize">{type}</div>
-                      {type === "emergency" && <HiSparkles className="text-orange-500" />}
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {type === "normal"
-                        ? "Pick a date & time"
-                        : "Immediate request to providers"}
+                <button
+                  type="button"
+                  onClick={() => setBookingType("normal")}
+                  disabled={!isProviderVerified}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    bookingType === "normal"
+                      ? "border-emerald-600 bg-emerald-50"
+                      : "border-gray-200 hover:border-emerald-200"
+                  } ${!isProviderVerified ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold capitalize">Normal</div>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">Pick a date & time</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!emergencyEligibility.canRequestEmergency) {
+                      toast.error(
+                        emergencyReasonMessage ||
+                          "Emergency booking is not available for this service."
+                      );
+                      return;
+                    }
+                    setBookingType("emergency");
+                  }}
+                  disabled={!isProviderVerified || !emergencyEligibility.canRequestEmergency}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    bookingType === "emergency"
+                      ? "border-orange-500 bg-orange-50"
+                      : "border-gray-200 hover:border-orange-200"
+                  } ${
+                    !isProviderVerified || !emergencyEligibility.canRequestEmergency
+                      ? "opacity-60 cursor-not-allowed"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold capitalize">Emergency</div>
+                    <HiSparkles className="text-orange-500" />
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Immediate request to provider
+                  </p>
+                  {emergencyEligibility.canRequestEmergency ? (
+                    <p className="text-xs text-orange-600 font-medium mt-2">
+                      Emergency fee: NPR{" "}
+                      {Number(
+                        emergencyEligibility.emergencyPrice || 0
+                      ).toLocaleString()}
                     </p>
-                  </button>
-                ))}
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-2">
+                      {emergencyReasonMessage || "Emergency not available"}
+                    </p>
+                  )}
+                </button>
               </div>
             </div>
 
-            {/* Schedule (only for normal) */}
             {bookingType === "normal" && (
               <div className="bg-white p-5 rounded-2xl shadow-sm border">
                 <h3 className="font-semibold text-gray-900 mb-4">Schedule</h3>
@@ -323,7 +515,6 @@ export default function BookingWizard() {
               </div>
             )}
 
-            {/* Address & Notes */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <div className="flex items-center gap-2 text-sm text-gray-600 font-semibold">
                 <HiMapPin className="text-emerald-600" /> Service Location
@@ -338,7 +529,9 @@ export default function BookingWizard() {
               />
 
               <div>
-                <label className="text-sm text-gray-600 mb-1 block">Notes (optional)</label>
+                <label className="text-sm text-gray-600 mb-1 block">
+                  Notes (optional)
+                </label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -350,9 +543,7 @@ export default function BookingWizard() {
             </div>
           </div>
 
-          {/* Right column: summary & contact */}
           <div className="space-y-4">
-            {/* Provider Trust Panel */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border">
               <h3 className="font-semibold text-gray-900 mb-4">Provider Details</h3>
               <div className="flex items-center gap-3 mb-4">
@@ -362,33 +553,41 @@ export default function BookingWizard() {
                 <div>
                   <p className="font-semibold text-gray-900 flex items-center gap-1">
                     {service.providerId?.profile?.name || "Provider"}
-                    {service.providerId?.providerDetails?.badges?.includes('Verified Provider') && (
+                    {service.providerId?.providerDetails?.badges?.includes("Verified Provider") && (
                       <HiCheckCircle className="w-4 h-4 text-emerald-500" />
                     )}
                   </p>
                   {service.providerId?.providerDetails?.trustScore > 0 && (
                     <p className="text-xs text-gray-500">
-                      Trust Score: <span className="font-medium text-emerald-600">{service.providerId.providerDetails.trustScore}/100</span>
+                      Trust Score:{" "}
+                      <span className="font-medium text-emerald-600">
+                        {service.providerId.providerDetails.trustScore}/100
+                      </span>
                     </p>
                   )}
                 </div>
               </div>
-              
-              {service.providerId?.providerDetails?.badges && service.providerId.providerDetails.badges.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {service.providerId.providerDetails.badges.map((badge, idx) => (
-                    <span key={idx} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-medium">
-                      {badge}
-                    </span>
-                  ))}
-                </div>
-              )}
+
+              {service.providerId?.providerDetails?.badges &&
+                service.providerId.providerDetails.badges.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {service.providerId.providerDetails.badges.map((badge, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-medium"
+                      >
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex justify-between">
                   <span>Rating</span>
                   <span className="font-medium text-gray-900">
-                    {service.providerId?.providerDetails?.metrics?.ratingQuality?.toFixed(1) || "New"}
+                    {service.providerId?.providerDetails?.metrics?.ratingQuality?.toFixed(1) ||
+                      "New"}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -436,74 +635,106 @@ export default function BookingWizard() {
                 <div className="flex justify-between">
                   <span>{pricingDisplay.summaryLabel}</span>
                   <span>
-                    {(service.priceMode || "fixed") === "quote_required"
+                    {isQuoteRequired
                       ? "Pay after quote"
-                      : `NPR ${priceBreakdown.base}`}
+                      : `NPR ${Number(priceBreakdown.base || 0).toLocaleString()}`}
                   </span>
                 </div>
-                {bookingType === "emergency" && (
+
+                {bookingType === "emergency" && emergencyEligibility.canRequestEmergency && (
                   <div className="flex justify-between text-orange-600 font-medium">
                     <span>Emergency fee</span>
-                    <span>NPR {priceBreakdown.emergencyFee}</span>
+                    <span>
+                      NPR {Number(priceBreakdown.emergencyFee || 0).toLocaleString()}
+                    </span>
                   </div>
                 )}
+
                 {priceBreakdown.platformFee > 0 && (
                   <div className="flex justify-between">
                     <span>Platform fee</span>
-                    <span>NPR {priceBreakdown.platformFee}</span>
+                    <span>NPR {Number(priceBreakdown.platformFee).toLocaleString()}</span>
                   </div>
                 )}
+
                 <div className="flex justify-between font-semibold text-gray-900 pt-2 border-t">
+                  <span>{isQuoteRequired ? "Payable now" : "Total Amount"}</span>
                   <span>
-                    {(service.priceMode || "fixed") === "quote_required"
-                      ? "Payable now"
-                      : "Total Amount"}
-                  </span>
-                  <span>
-                    {(service.priceMode || "fixed") === "quote_required"
+                    {isQuoteRequired
                       ? "NPR 0"
-                      : `NPR ${priceBreakdown.total}`}
+                      : `NPR ${Number(priceBreakdown.total || 0).toLocaleString()}`}
                   </span>
                 </div>
               </div>
 
               <p className="mt-3 text-xs text-gray-600">{pricingDisplay.disclaimer}</p>
 
-              {/* Escrow Protection Message */}
               <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                 <p className="text-xs text-emerald-800 flex items-start gap-2">
-                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg
+                    className="w-4 h-4 mt-0.5 flex-shrink-0"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                   <span>
-                    <strong>Payment Protection:</strong> Your payment will be held securely and released to the provider only after you confirm service completion.
+                    <strong>Payment Protection:</strong> Your payment will be held
+                    securely and released to the provider only after you confirm service
+                    completion.
                   </span>
                 </p>
               </div>
 
               <button
                 type="submit"
-                disabled={submitting || !isProviderVerified}
+                disabled={
+                  submitting ||
+                  !isProviderVerified ||
+                  (bookingType === "emergency" && !emergencyEligibility.canRequestEmergency)
+                }
                 className="w-full mt-4 bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   "Submitting..."
                 ) : (
                   <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
-                    {(service.priceMode || "fixed") === "quote_required"
+                    {isQuoteRequired
                       ? "Submit Quote Request"
                       : "Confirm Booking & Proceed to Payment"}
                   </>
                 )}
               </button>
+
               {!isProviderVerified && (
                 <p className="text-xs text-center text-amber-700 mt-2">
                   Provider verification required before booking.
                 </p>
               )}
+
+              {bookingType === "emergency" && !emergencyEligibility.canRequestEmergency && (
+                <p className="text-xs text-center text-amber-700 mt-2">
+                  {emergencyReasonMessage || "Emergency booking is not available."}
+                </p>
+              )}
+
               <p className="text-xs text-center text-gray-500 mt-3">
                 You'll review payment details on the next step.
               </p>

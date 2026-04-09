@@ -94,6 +94,18 @@ async function start() {
     await mongoose.connect(MONGO_URI, { autoIndex: true });
     console.log("Connected to MongoDB");
 
+    try {
+      const conversations = mongoose.connection.collection('conversations');
+      const indexes = await conversations.indexes();
+      const legacyBookingIndex = indexes.find((index) => index.name === 'bookingId_1' && index.unique);
+      if (legacyBookingIndex) {
+        await conversations.dropIndex('bookingId_1');
+        console.log('Dropped legacy unique conversations bookingId index');
+      }
+    } catch (indexError) {
+      console.error('Failed to validate conversation indexes', indexError);
+    }
+
     initSocket(server, corsOrigins);
 
     server.listen(PORT, () => {

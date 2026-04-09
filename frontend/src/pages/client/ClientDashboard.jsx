@@ -89,6 +89,14 @@ const QUICK_SERVICES = [
   },
 ];
 
+const DASHBOARD_RANGES = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "year", label: "This Year" },
+  { value: "custom", label: "Custom Range" },
+];
+
 function getRankBadgeClass(idx) {
   if (idx === 0) {
     return "bg-amber-500 text-white ring-4 ring-amber-100 shadow-sm";
@@ -103,9 +111,101 @@ function getRankBadgeClass(idx) {
   return "bg-brand-700 text-white ring-4 ring-brand-100 shadow-sm";
 }
 
+function getLeaderboardRange(range, customFrom, customTo) {
+  if (range === "today") return "week";
+  if (range === "week") return "week";
+  if (range === "month") return "month";
+  if (range === "year") return "year";
+  if (range === "custom" && customFrom && customTo) return "custom";
+  return "month";
+}
+
+function formatSelectedRangeLabel(range, customFrom, customTo) {
+  if (range === "today") return "today";
+  if (range === "week") return "this week";
+  if (range === "month") return "this month";
+  if (range === "year") return "this year";
+  if (range === "custom" && customFrom && customTo) {
+    return `${customFrom} to ${customTo}`;
+  }
+  return "this month";
+}
+
+function getLeaderboardHeadingLabel(range, customFrom, customTo) {
+  if (range === "today") return "This Week";
+  if (range === "week") return "This Week";
+  if (range === "month") return "This Month";
+  if (range === "year") return "This Year";
+  if (range === "custom" && customFrom && customTo) return "Custom Range";
+  return "This Month";
+}
+
+function isStrictUpcomingBooking(booking) {
+  return ["accepted", "confirmed"].includes(String(booking?.status || ""));
+}
+
+function getBookingDisplayDate(booking) {
+  const rawDate =
+    booking?.schedule?.date || booking?.scheduledAt || booking?.createdAt;
+
+  if (!rawDate) return "Date not available";
+
+  const date = new Date(rawDate);
+  if (Number.isNaN(date.getTime())) return "Date not available";
+
+  return date.toLocaleDateString();
+}
+
+function getStatCardStyles(type) {
+  if (type === "upcoming") {
+    return {
+      iconWrap: "bg-blue-100 text-blue-600",
+      ring: "group-hover:ring-blue-100",
+      border: "group-hover:border-blue-200",
+      icon: HiCalendar,
+      valueColor: "text-gray-900",
+      label: "Upcoming Bookings",
+      subtext: "Accepted and confirmed bookings",
+      glow: "bg-blue-100/80",
+    };
+  }
+
+  if (type === "completed") {
+    return {
+      iconWrap: "bg-emerald-100 text-emerald-600",
+      ring: "group-hover:ring-emerald-100",
+      border: "group-hover:border-emerald-200",
+      icon: HiCheckCircle,
+      valueColor: "text-gray-900",
+      label: "Completed Services",
+      subtext: "Finished bookings in selected range",
+      glow: "bg-emerald-100/80",
+    };
+  }
+
+  return {
+    iconWrap: "bg-orange-100 text-orange-600",
+    ring: "group-hover:ring-orange-100",
+    border: "group-hover:border-orange-200",
+    icon: HiClock,
+    valueColor: "text-gray-900",
+    label: "Pending Requests",
+    subtext: "Requests waiting for provider action",
+    glow: "bg-orange-100/80",
+  };
+}
+
 export default function ClientDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const [selectedRange, setSelectedRange] = useState("month");
+  const [appliedRange, setAppliedRange] = useState("month");
+
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [appliedCustomFrom, setAppliedCustomFrom] = useState("");
+  const [appliedCustomTo, setAppliedCustomTo] = useState("");
 
   const [stats, setStats] = useState({
     upcomingBookings: 0,
@@ -119,41 +219,120 @@ export default function ClientDashboard() {
   const [loadingRank, setLoadingRank] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (selectedRange !== "custom") {
+      setAppliedRange(selectedRange);
+    }
+  }, [selectedRange]);
 
   useEffect(() => {
-    fetchUserRank();
-  }, []);
+    fetchDashboardData(appliedRange, appliedCustomFrom, appliedCustomTo);
+    fetchUserRank(appliedRange, appliedCustomFrom, appliedCustomTo);
 
-  async function fetchDashboardData() {
+    const iv = setInterval(() => {
+      if (!document.hidden) {
+        fetchDashboardData(appliedRange, appliedCustomFrom, appliedCustomTo);
+        fetchUserRank(appliedRange, appliedCustomFrom, appliedCustomTo);
+      }
+    }, 30000);
+
+    const vis = () => {
+      if (!document.hidden) {
+        fetchDashboardData(appliedRange, appliedCustomFrom, appliedCustomTo);
+        fetchUserRank(appliedRange, appliedCustomFrom, appliedCustomTo);
+      }
+    };
+
+    document.addEventListener("visibilitychange", vis);
+
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", vis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedRange, appliedCustomFrom, appliedCustomTo]);
+
+  function buildRangeParams(range, fromDate, toDate, limit) {
+    const params = {};
+    if (limit != null) params.limit = limit;
+
+    if (range === "custom" && fromDate && toDate) {
+      params.range = "custom";
+      params.from = fromDate;
+      params.to = toDate;
+    } else {
+      params.range = range;
+    }
+
+    return params;
+  }
+
+  async function fetchDashboardData(
+    range = appliedRange,
+    fromDate = appliedCustomFrom,
+    toDate = appliedCustomTo
+  ) {
     try {
+      setLoading(true);
+
+      const upcomingParams = buildRangeParams(range, fromDate, toDate);
+      const pastParams = buildRangeParams(range, fromDate, toDate, 5);
+
       const [upcomingRes, pastRes] = await Promise.all([
-        api.get("/bookings/upcoming"),
-        api.get("/bookings/past?limit=5"),
+        api.get("/bookings/upcoming", {
+          params: upcomingParams,
+        }),
+        api.get("/bookings/past", {
+          params: pastParams,
+        }),
       ]);
 
       const upcoming = upcomingRes.data?.bookings || [];
       const past = pastRes.data?.bookings || [];
+      const strictUpcoming = upcoming.filter(isStrictUpcomingBooking);
 
       setStats({
-        upcomingBookings: upcoming.length,
+        upcomingBookings: strictUpcoming.length,
         completedBookings: past.filter((b) => b.status === "completed").length,
         pendingBookings: upcoming.filter((b) => b.status === "requested").length,
       });
 
-      setRecentBookings(upcoming.slice(0, 3));
+      setRecentBookings(strictUpcoming.slice(0, 3));
     } catch (err) {
       console.error("Failed to load dashboard", err);
+      setStats({
+        upcomingBookings: 0,
+        completedBookings: 0,
+        pendingBookings: 0,
+      });
+      setRecentBookings([]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function fetchUserRank() {
+  async function fetchUserRank(
+    range = appliedRange,
+    fromDate = appliedCustomFrom,
+    toDate = appliedCustomTo
+  ) {
     try {
       setLoadingRank(true);
-      const res = await api.get("/leaderboard/current?range=30d");
+
+      const leaderboardRange = getLeaderboardRange(range, fromDate, toDate);
+      const params = {};
+
+      if (leaderboardRange === "custom" && fromDate && toDate) {
+        params.range = "custom";
+        params.from = fromDate;
+        params.to = toDate;
+      } else {
+        params.range = leaderboardRange;
+      }
+
+      const res = await api.get("/leaderboard/current", {
+        params,
+      });
+
       const leaderboardData = res.data?.data || [];
       setUserRankData(leaderboardData.slice(0, 5));
     } catch (err) {
@@ -162,6 +341,41 @@ export default function ClientDashboard() {
     } finally {
       setLoadingRank(false);
     }
+  }
+
+  function handleRangeSelect(rangeValue) {
+    setSelectedRange(rangeValue);
+
+    if (rangeValue !== "custom") {
+      setAppliedRange(rangeValue);
+    }
+  }
+
+  function handleApplyCustomRange() {
+    if (!customFrom || !customTo) return;
+    if (customFrom > customTo) return;
+
+    setAppliedCustomFrom(customFrom);
+    setAppliedCustomTo(customTo);
+    setAppliedRange("custom");
+  }
+
+  function handleResetCustomRange() {
+    setCustomFrom("");
+    setCustomTo("");
+    setAppliedCustomFrom("");
+    setAppliedCustomTo("");
+    setSelectedRange("month");
+    setAppliedRange("month");
+  }
+
+  function goToBookingHistoryTab(filterValue, bookingId = null) {
+    navigate("/client/bookings", {
+      state: {
+        initialFilter: filterValue,
+        highlightBookingId: bookingId || null,
+      },
+    });
   }
 
   if (loading) {
@@ -174,48 +388,196 @@ export default function ClientDashboard() {
     );
   }
 
+  const upcomingCard = getStatCardStyles("upcoming");
+  const completedCard = getStatCardStyles("completed");
+  const pendingCard = getStatCardStyles("pending");
+
   return (
     <ClientLayout>
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Welcome back, {user?.profile?.name || "there"}! 👋
-          </h1>
-          <p className="mt-1 text-sm text-gray-600 sm:text-base">
-            Manage your bookings and discover new services
-          </p>
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+              Welcome back, {user?.profile?.name || "there"}
+            </h1>
+            <p className="mt-1 text-sm text-gray-600 sm:text-base">
+              Manage your bookings and discover new services
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              {DASHBOARD_RANGES.map((item) => {
+                const active = selectedRange === item.value;
+
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => handleRangeSelect(item.value)}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                      active
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedRange === "custom" && (
+              <div className="flex w-full flex-col gap-2 rounded-2xl border bg-white p-3 shadow-sm sm:flex-row sm:items-end lg:w-auto">
+                <div className="flex flex-col">
+                  <label className="mb-1 text-xs font-medium text-gray-600">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="mb-1 text-xs font-medium text-gray-600">
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyCustomRange}
+                    disabled={!customFrom || !customTo || customFrom > customTo}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResetCustomRange}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <HiCalendar className="text-3xl text-blue-500" />
-            </div>
-            <p className="text-sm text-gray-600">Upcoming Bookings</p>
-            <p className="mt-1 text-3xl font-bold text-gray-900">
-              {stats.upcomingBookings}
-            </p>
-          </div>
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => goToBookingHistoryTab("confirmed")}
+            className={`group relative overflow-hidden rounded-3xl border bg-white p-5 text-left shadow-sm ring-0 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${upcomingCard.border} ${upcomingCard.ring} sm:p-6`}
+          >
+            <div className={`absolute -right-12 -top-12 h-36 w-36 rounded-full ${upcomingCard.glow} blur-3xl transition-all duration-300 group-hover:scale-110`} />
+            <div className={`absolute right-8 top-10 h-28 w-28 rounded-full ${upcomingCard.glow} opacity-60 blur-3xl transition-all duration-300 group-hover:scale-110`} />
+            <div className="relative z-10 flex h-full flex-col justify-between">
+              <div className="mb-6 flex items-start justify-between">
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-2xl ${upcomingCard.iconWrap}`}
+                >
+                  <upcomingCard.icon className="text-2xl" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-brand-700">
+                  View
+                  <HiArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </div>
 
-          <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <HiCheckCircle className="text-3xl text-green-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {upcomingCard.label}
+                </p>
+                <p className={`mt-2 text-4xl font-bold ${upcomingCard.valueColor}`}>
+                  {stats.upcomingBookings}
+                </p>
+                <p className="mt-2 text-xs text-gray-500">
+                  {upcomingCard.subtext}
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-gray-600">Completed Services</p>
-            <p className="mt-1 text-3xl font-bold text-gray-900">
-              {stats.completedBookings}
-            </p>
-          </div>
+          </button>
 
-          <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <HiClock className="text-3xl text-orange-500" />
+          <button
+            type="button"
+            onClick={() => goToBookingHistoryTab("completed")}
+            className={`group relative overflow-hidden rounded-3xl border bg-white p-5 text-left shadow-sm ring-0 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${completedCard.border} ${completedCard.ring} sm:p-6`}
+          >
+            <div className={`absolute -right-12 -top-12 h-36 w-36 rounded-full ${completedCard.glow} blur-3xl transition-all duration-300 group-hover:scale-110`} />
+            <div className={`absolute right-8 top-10 h-28 w-28 rounded-full ${completedCard.glow} opacity-60 blur-3xl transition-all duration-300 group-hover:scale-110`} />
+            <div className="relative z-10 flex h-full flex-col justify-between">
+              <div className="mb-6 flex items-start justify-between">
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-2xl ${completedCard.iconWrap}`}
+                >
+                  <completedCard.icon className="text-2xl" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-brand-700">
+                  View
+                  <HiArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {completedCard.label}
+                </p>
+                <p className={`mt-2 text-4xl font-bold ${completedCard.valueColor}`}>
+                  {stats.completedBookings}
+                </p>
+                <p className="mt-2 text-xs text-gray-500">
+                  {completedCard.subtext}
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-gray-600">Pending Requests</p>
-            <p className="mt-1 text-3xl font-bold text-gray-900">
-              {stats.pendingBookings}
-            </p>
-          </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => goToBookingHistoryTab("requested")}
+            className={`group relative overflow-hidden rounded-3xl border bg-white p-5 text-left shadow-sm ring-0 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${pendingCard.border} ${pendingCard.ring} sm:p-6 sm:col-span-2 xl:col-span-1`}
+          >
+            <div className={`absolute -right-12 -top-12 h-36 w-36 rounded-full ${pendingCard.glow} blur-3xl transition-all duration-300 group-hover:scale-110`} />
+            <div className={`absolute right-8 top-10 h-28 w-28 rounded-full ${pendingCard.glow} opacity-60 blur-3xl transition-all duration-300 group-hover:scale-110`} />
+            <div className="relative z-10 flex h-full flex-col justify-between">
+              <div className="mb-6 flex items-start justify-between">
+                <div
+                  className={`flex h-14 w-14 items-center justify-center rounded-2xl ${pendingCard.iconWrap}`}
+                >
+                  <pendingCard.icon className="text-2xl" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-brand-700">
+                  View
+                  <HiArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  {pendingCard.label}
+                </p>
+                <p className={`mt-2 text-4xl font-bold ${pendingCard.valueColor}`}>
+                  {stats.pendingBookings}
+                </p>
+                <p className="mt-2 text-xs text-gray-500">
+                  {pendingCard.subtext}
+                </p>
+              </div>
+            </div>
+          </button>
         </div>
 
         <div className="mb-8">
@@ -261,11 +623,17 @@ export default function ClientDashboard() {
               <div className="flex items-center gap-2">
                 <MdEmojiEvents className="text-2xl text-amber-500" />
                 <h2 className="text-lg font-bold text-gray-900">
-                  Top Providers (Last 30 Days)
+                  Top Providers (
+                  {getLeaderboardHeadingLabel(
+                    appliedRange,
+                    appliedCustomFrom,
+                    appliedCustomTo
+                  )}
+                  )
                 </h2>
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                Based on ratings, bookings & response time
+                Based on ratings, bookings and response time
               </p>
             </div>
 
@@ -288,7 +656,7 @@ export default function ClientDashboard() {
             <div className="space-y-3">
               {userRankData.map((entry, idx) => (
                 <div
-                  key={entry._id}
+                  key={entry._id || entry.providerId?._id || idx}
                   className="flex flex-col gap-3 rounded-lg border p-3 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center"
                 >
                   <div
@@ -304,7 +672,7 @@ export default function ClientDashboard() {
                       {entry.providerId?.profile?.name || "Provider"}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      ⭐ {(entry.metrics?.avgRating || 0).toFixed(1)} •{" "}
+                      Rating {(entry.metrics?.avgRating || 0).toFixed(1)} •{" "}
                       {entry.metrics?.completedBookings || 0} jobs
                     </p>
                   </div>
@@ -341,11 +709,22 @@ export default function ClientDashboard() {
 
         <div className="rounded-2xl border bg-white p-4 sm:p-5 lg:p-6">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
-              Your Upcoming Bookings
-            </h2>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
+                Your Upcoming Bookings
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Filtered by{" "}
+                {formatSelectedRangeLabel(
+                  appliedRange,
+                  appliedCustomFrom,
+                  appliedCustomTo
+                )}
+              </p>
+            </div>
+
             <button
-              onClick={() => navigate("/client/bookings")}
+              onClick={() => goToBookingHistoryTab("confirmed")}
               className="flex items-center gap-1 text-sm font-medium text-brand-700 transition-all hover:gap-2"
             >
               View All
@@ -355,8 +734,15 @@ export default function ClientDashboard() {
 
           {recentBookings.length === 0 ? (
             <div className="py-12 text-center">
-              <div className="mb-4 text-6xl">📅</div>
-              <p className="mb-4 text-gray-500">No upcoming bookings</p>
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <HiCalendar className="text-3xl" />
+              </div>
+              <p className="mb-2 text-base font-medium text-gray-800">
+                No accepted or confirmed bookings
+              </p>
+              <p className="mb-5 text-sm text-gray-500">
+                Accepted and confirmed bookings in the selected range will appear here.
+              </p>
               <button
                 onClick={() => navigate("/services")}
                 className="rounded-lg bg-brand-700 px-6 py-2 text-white transition-colors hover:bg-brand-800"
@@ -367,20 +753,26 @@ export default function ClientDashboard() {
           ) : (
             <div className="space-y-4">
               {recentBookings.map((booking) => (
-                <div
+                <button
                   key={booking._id}
-                  className="flex flex-col gap-3 rounded-xl border p-4 transition-colors hover:bg-gray-50 lg:flex-row lg:items-center lg:justify-between"
+                  type="button"
+                  onClick={() => goToBookingHistoryTab("confirmed", booking._id)}
+                  className="group flex w-full flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-200 lg:flex-row lg:items-center lg:justify-between"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words font-medium text-gray-900">
-                      {booking.serviceId?.title || "Service"}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-600">
-                      {booking.providerId?.profile?.name || "Provider"} •{" "}
-                      {new Date(
-                        booking.schedule?.date || booking.createdAt
-                      ).toLocaleDateString()}
-                    </p>
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 transition-colors group-hover:bg-emerald-200">
+                      <HiCalendar className="text-xl" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words font-medium text-gray-900">
+                        {booking.serviceId?.title || "Service"}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {booking.providerId?.profile?.name || "Provider"} •{" "}
+                        {getBookingDisplayDate(booking)}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 lg:gap-4">
@@ -391,15 +783,19 @@ export default function ClientDashboard() {
                       className={`rounded-full px-3 py-1 text-xs font-medium ${
                         booking.status === "confirmed"
                           ? "bg-green-100 text-green-700"
-                          : booking.status === "requested"
-                          ? "bg-yellow-100 text-yellow-700"
+                          : booking.status === "accepted"
+                          ? "bg-blue-100 text-blue-700"
                           : "bg-gray-100 text-gray-600"
                       }`}
                     >
                       {booking.status}
                     </span>
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-brand-700">
+                      View
+                      <HiArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                    </span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

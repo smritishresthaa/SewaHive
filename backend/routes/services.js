@@ -1,4 +1,3 @@
-// routes/services.js
 const express = require("express");
 const { authGuard, roleGuard } = require("../middleware/auth");
 const Service = require("../models/Service");
@@ -50,6 +49,107 @@ async function getApprovedProviderIds(providerIds) {
   return approved;
 }
 
+function normalizeServicePriceMode(raw = "fixed") {
+  const value = String(raw || "fixed").trim().toLowerCase();
+
+  if (
+    value === "quote_required" ||
+    value === "quote" ||
+    value === "quote_based" ||
+    value === "quotebased"
+  ) {
+    return "quote_required";
+  }
+
+  if (value === "range") return "range";
+  return "fixed";
+}
+
+/**
+ * Helper: derive emergency information consistently
+ */
+function buildEmergencyMeta(service) {
+  const emergencyPrice = Math.max(0, Number(service?.emergencyPrice || 0));
+  const category = service?.categoryId;
+  const priceMode = normalizeServicePriceMode(service?.priceMode);
+  const supportsEmergencyPricing = priceMode === "fixed" || priceMode === "range";
+
+  const categoryAllowsEmergency =
+    category?.status === "active" && category?.emergencyServiceAllowed === true;
+
+  const serviceAvailable =
+    service?.isActive !== false && service?.adminDisabled !== true;
+
+  const canRequestEmergency =
+    serviceAvailable &&
+    categoryAllowsEmergency &&
+    supportsEmergencyPricing &&
+    emergencyPrice > 0;
+
+  let blockingReason = null;
+
+  if (!serviceAvailable) {
+    blockingReason = "Service is inactive or disabled";
+  } else if (!categoryAllowsEmergency) {
+    blockingReason = "Emergency is not enabled for this category";
+  } else if (!supportsEmergencyPricing) {
+    blockingReason = "Emergency booking is only supported for fixed and range services";
+  } else if (emergencyPrice <= 0) {
+    blockingReason = "Emergency price must be greater than 0";
+  }
+
+  return {
+    emergencyPrice,
+    priceMode,
+    supportsEmergencyPricing,
+    categoryAllowsEmergency,
+    allowedByCategory: categoryAllowsEmergency,
+    serviceAvailable,
+    canRequestEmergency,
+    blockingReason,
+  };
+}
+
+function attachEmergencyMeta(serviceDoc) {
+  const service =
+    typeof serviceDoc?.toObject === "function" ? serviceDoc.toObject() : serviceDoc;
+
+  return {
+    ...service,
+    emergencyMeta: buildEmergencyMeta(service),
+  };
+}
+
+async function getServiceStatsMap(serviceIds = []) {
+  const ids = serviceIds.map((id) => String(id)).filter(Boolean);
+  if (!ids.length) return new Map();
+
+  const { Types } = require("mongoose");
+  const objectIds = ids.map((id) => new Types.ObjectId(id));
+
+  const bookingsAgg = await require("../models/Booking").aggregate([
+    { $match: { serviceId: { $in: objectIds } } },
+    { $group: { _id: "$serviceId", bookingsCount: { $sum: 1 } } },
+  ]);
+
+  const bookingsMap = new Map(
+    bookingsAgg.map((item) => [String(item._id), Number(item.bookingsCount || 0)])
+  );
+
+  return new Map(ids.map((id) => [id, { bookingsCount: bookingsMap.get(id) || 0 }]));
+}
+
+async function withDynamicServiceStats(services = []) {
+  const statsMap = await getServiceStatsMap(services.map((s) => s._id));
+  return services.map((serviceDoc) => {
+    const service = attachEmergencyMeta(serviceDoc);
+    const stats = statsMap.get(String(service._id)) || { bookingsCount: 0 };
+    service.bookingsCount = stats.bookingsCount;
+    service.views = Number(service.views || 0);
+    return service;
+  });
+}
+
 /**
  * Get popular services (public, for landing page)
  * Sorted by bookingsCount desc, then ratingAvg desc
@@ -62,42 +162,63 @@ router.get("/popular", async (req, res, next) => {
       isActive: true,
       adminDisabled: { $ne: true },
     })
-      .populate("categoryId", "name icon iconKey image status")
+      .populate(
+        "categoryId",
+        "name icon iconKey image status emergencyServiceAllowed"
+      )
       .populate("subcategoryId", "name status")
       .populate(
         "providerId",
         "profile.name profile.avatarUrl providerDetails.badges providerDetails.rating"
       )
       .sort({ bookingsCount: -1, ratingAvg: -1 })
-      .limit(limit * 3); // fetch extra to filter
+      .limit(limit * 3);
 
-    // Filter: category must be active
     services = services.filter((s) => s.categoryId?.status === "active");
-
-    // Take top N
     services = services.slice(0, limit);
 
-    const formatted = services.map((s) => ({
-      _id: s._id,
-      title: s.title,
-      description: s.description,
-      image: s.images?.[0] || s.categoryId?.image || null,
-      basePrice: s.basePrice,
-      priceMode: s.priceMode,
-      ratingAvg: s.ratingAvg || 0,
-      ratingCount: s.ratingCount || 0,
-      bookingsCount: s.bookingsCount || 0,
-      category: s.categoryId
-        ? { _id: s.categoryId._id, name: s.categoryId.name, icon: s.categoryId.icon, iconKey: s.categoryId.iconKey }
-        : null,
-      provider: s.providerId
-        ? {
-            name: s.providerId.profile?.name || "Service Provider",
-            avatar: s.providerId.profile?.avatarUrl || null,
-            badges: s.providerId.providerDetails?.badges || [],
-          }
-        : null,
-    }));
+    const statsMap = await getServiceStatsMap(services.map((s) => s._id));
+    const formatted = services.map((s) => {
+      const emergencyMeta = buildEmergencyMeta(s);
+      const dynamicStats = statsMap.get(String(s._id)) || { bookingsCount: 0 };
+
+      return {
+        _id: s._id,
+        title: s.title,
+        description: s.description,
+        images: s.images || [],
+        image: s.images?.[0] || s.categoryId?.image || null,
+        basePrice: s.basePrice,
+        emergencyPrice: s.emergencyPrice || 0,
+        priceMode: s.priceMode,
+        priceRange: s.priceRange || {},
+        views: Number(s.views || 0),
+        ratingAvg: s.ratingAvg || 0,
+        ratingCount: s.ratingCount || 0,
+        bookingsCount: dynamicStats.bookingsCount,
+        emergencyMeta,
+        category: s.categoryId
+          ? {
+              _id: s.categoryId._id,
+              name: s.categoryId.name,
+              icon: s.categoryId.icon,
+              iconKey: s.categoryId.iconKey,
+              emergencyServiceAllowed: s.categoryId.emergencyServiceAllowed,
+            }
+          : null,
+        provider: s.providerId
+          ? {
+              _id: s.providerId._id,
+              name: s.providerId.profile?.name || "Service Provider",
+              avatar: s.providerId.profile?.avatarUrl || null,
+              badges: s.providerId.providerDetails?.badges || [],
+              kycStatus: s.providerId.kycStatus,
+              rating: s.providerId.providerDetails?.rating || {},
+              completionRate: s.providerId.providerDetails?.completedBookings || 0,
+            }
+          : null,
+      };
+    });
 
     res.json({ success: true, services: formatted });
   } catch (err) {
@@ -116,29 +237,24 @@ router.get("/list", async (req, res, next) => {
     if (categoryId) query.categoryId = categoryId;
 
     let services = await Service.find(query)
-      .populate('categoryId', 'name icon iconKey image status')
-      .populate('subcategoryId', 'name status')
-      .populate('providerId', 'kycStatus profile.name profile.avatarUrl providerDetails.badges providerDetails.rating providerDetails.metrics providerDetails.approvedCategories')
+      .populate(
+        "categoryId",
+        "name icon iconKey image status emergencyServiceAllowed"
+      )
+      .populate("subcategoryId", "name status")
+      .populate(
+        "providerId",
+        "kycStatus profile.name profile.avatarUrl providerDetails.badges providerDetails.rating providerDetails.metrics providerDetails.approvedCategories"
+      )
       .limit(100);
 
-    // Filter by: (1) category active, (2) provider KYC approved, (3) provider approved for this specific category
     services = services.filter((service) => {
-      // Check category is active
-      if (service.categoryId?.status !== 'active') return false;
-      
-      // TEMPORARILY DISABLED FOR TESTING UI
-      // Check provider is KYC verified
-      // if (service.providerId?.kycStatus !== 'approved') return false;
-      
-      // Check provider is approved for this specific category (skill proof approved)
-      // const approvedCategoryIds = service.providerId.providerDetails?.approvedCategories || [];
-      // return approvedCategoryIds.some(id => id.toString() === service.categoryId._id.toString());
+      if (service.categoryId?.status !== "active") return false;
       return true;
     });
 
-    // Location filter
     if (lng && lat) {
-      const approvedProviderIds = new Set(services.map(s => String(s.providerId._id)));
+      const approvedProviderIds = new Set(services.map((s) => String(s.providerId._id)));
       if (approvedProviderIds.size === 0) {
         return res.json({ services: [] });
       }
@@ -157,27 +273,27 @@ router.get("/list", async (req, res, next) => {
         },
       }).select("_id providerDetails.trustScore");
 
-      const providerMap = new Map(providers.map((p) => [String(p._id), p.providerDetails?.trustScore || 0]));
-
-      services = services.filter((s) =>
-        providerMap.has(String(s.providerId._id))
+      const providerMap = new Map(
+        providers.map((p) => [String(p._id), p.providerDetails?.trustScore || 0])
       );
 
-      // Sort by trust score (descending)
+      services = services.filter((s) => providerMap.has(String(s.providerId._id)));
+
       services.sort((a, b) => {
         const scoreA = providerMap.get(String(a.providerId._id)) || 0;
         const scoreB = providerMap.get(String(b.providerId._id)) || 0;
         return scoreB - scoreA;
       });
     } else {
-      // If no location filter, still sort by trust score
-      const approvedProviderIds = new Set(services.map(s => String(s.providerId._id)));
+      const approvedProviderIds = new Set(services.map((s) => String(s.providerId._id)));
       const providers = await User.find({
         role: "provider",
-        _id: { $in: Array.from(approvedProviderIds) }
+        _id: { $in: Array.from(approvedProviderIds) },
       }).select("_id providerDetails.trustScore");
 
-      const providerMap = new Map(providers.map((p) => [String(p._id), p.providerDetails?.trustScore || 0]));
+      const providerMap = new Map(
+        providers.map((p) => [String(p._id), p.providerDetails?.trustScore || 0])
+      );
 
       services.sort((a, b) => {
         const scoreA = providerMap.get(String(a.providerId._id)) || 0;
@@ -186,7 +302,9 @@ router.get("/list", async (req, res, next) => {
       });
     }
 
-    res.json({ services });
+    const enrichedServices = await withDynamicServiceStats(services);
+
+    res.json({ services: enrichedServices });
   } catch (e) {
     next(e);
   }
@@ -232,7 +350,10 @@ router.get(
           "name status icon iconKey description recommendedPriceRange emergencyServiceAllowed"
         )
         .populate("subcategoryId", "name status");
-      res.json({ services });
+
+      const enrichedServices = await withDynamicServiceStats(services);
+
+      res.json({ services: enrichedServices });
     } catch (e) {
       next(e);
     }
@@ -244,14 +365,20 @@ router.get(
  */
 router.get("/:id", async (req, res, next) => {
   try {
+    await Service.findByIdAndUpdate(req.params.id, { $inc: { views: 1 } });
+
     const service = await Service.findById(req.params.id)
       .populate("providerId", "profile providerDetails kycStatus")
-      .populate("categoryId", "name status icon iconKey description recommendedPriceRange")
+      .populate(
+        "categoryId",
+        "name status icon iconKey description recommendedPriceRange emergencyServiceAllowed"
+      )
       .populate("subcategoryId", "name status");
-    if (!service)
-      return res.status(404).json({ message: "Service not found" });
 
-    // Fetch latest provider verification record
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
     let kycStatus = service.providerId?.kycStatus;
     const verification = await ProviderVerification.findOne({
       providerId: service.providerId?._id,
@@ -261,8 +388,7 @@ router.get("/:id", async (req, res, next) => {
       kycStatus = verification.status;
     }
 
-    // Attach KYC status to response for frontend
-    const serviceJson = service.toJSON();
+    const [serviceJson] = await withDynamicServiceStats([service]);
     serviceJson.providerKycStatus = kycStatus;
 
     res.json({ service: serviceJson });
@@ -273,7 +399,6 @@ router.get("/:id", async (req, res, next) => {
 
 /**
  * Create service
- * PHASE 2A: Allows draft creation, but blocks publishing without KYC approval
  */
 router.post(
   "/create",
@@ -281,14 +406,12 @@ router.post(
   roleGuard(["provider"]),
   async (req, res, next) => {
     try {
-      // STRICT VALIDATION: categoryId is required
       if (!req.body.categoryId) {
-        return res.status(400).json({ 
-          message: "Category is required. Please select a category or request a new one." 
+        return res.status(400).json({
+          message: "Category is required. Please select a category or request a new one.",
         });
       }
 
-      // Validate category exists and is active
       const category = await Category.findById(req.body.categoryId).select("status");
       if (!category) {
         return res.status(404).json({ message: "Selected category does not exist" });
@@ -308,29 +431,32 @@ router.post(
           return res.status(403).json({ message: "Selected subcategory is inactive" });
         }
         if (String(subcategory.categoryId) !== String(req.body.categoryId)) {
-          return res.status(400).json({ message: "Subcategory does not belong to selected category" });
+          return res
+            .status(400)
+            .json({ message: "Subcategory does not belong to selected category" });
         }
       }
 
-      // PHASE 2A: Check KYC verification if trying to publish/activate
-      const requestedActive = req.body.isActive !== false; // Default is true
+      const requestedActive = req.body.isActive !== false;
       if (requestedActive) {
         const isVerified = await isProviderVerified(req.user.id);
         if (!isVerified) {
-          const verification = await ProviderVerification.findOne({ 
-            providerId: req.user.id 
+          const verification = await ProviderVerification.findOne({
+            providerId: req.user.id,
           }).sort({ createdAt: -1 });
-          
-          return res.status(403).json({ 
+
+          return res.status(403).json({
             message: "KYC verification required to publish services",
-            reason: "You can create draft services, but must complete KYC verification before publishing them.",
+            reason:
+              "You can create draft services, but must complete KYC verification before publishing them.",
             kycStatus: verification?.status || "not_submitted",
-            suggestion: "Create as draft (isActive: false) or complete KYC verification first."
+            suggestion: "Create as draft (isActive: false) or complete KYC verification first.",
           });
         }
 
-        // PHASE 1: Check Category Skill Proof Approval
-        const user = await User.findById(req.user.id).select("providerDetails.approvedCategories");
+        const user = await User.findById(req.user.id).select(
+          "providerDetails.approvedCategories"
+        );
         const isCategoryApproved = user.providerDetails.approvedCategories.some(
           (id) => id.toString() === req.body.categoryId
         );
@@ -338,13 +464,14 @@ router.post(
         if (!isCategoryApproved) {
           return res.status(403).json({
             message: "Category skill proof required",
-            reason: "You must submit and get approval for your skill proof in this category before publishing services.",
-            suggestion: "Go to your Trust Center to upload your portfolio and tools for this category."
+            reason:
+              "You must submit and get approval for your skill proof in this category before publishing services.",
+            suggestion:
+              "Go to your Trust Center to upload your portfolio and tools for this category.",
           });
         }
       }
 
-      // Create service with only allowed fields
       const payload = {
         providerId: req.user.id,
         categoryId: req.body.categoryId,
@@ -364,7 +491,7 @@ router.post(
         availability: req.body.availability,
         coverage: req.body.coverage,
         maxDistance: req.body.maxDistance,
-        isActive: requestedActive, // Will be true only if KYC verified (checked above)
+        isActive: requestedActive,
       };
 
       const service = await Service.create(payload);
@@ -396,7 +523,6 @@ router.post(
         return res.status(403).json({ message: "Service is restricted by admin" });
       }
 
-      // Validate category if being updated
       if (req.body.categoryId && String(req.body.categoryId) !== String(service.categoryId)) {
         const category = await Category.findById(req.body.categoryId).select("status");
         if (!category) {
@@ -419,28 +545,30 @@ router.post(
           return res.status(403).json({ message: "Selected subcategory is inactive" });
         }
         if (String(subcategory.categoryId) !== String(targetCategoryId)) {
-          return res.status(400).json({ message: "Subcategory does not belong to selected category" });
+          return res
+            .status(400)
+            .json({ message: "Subcategory does not belong to selected category" });
         }
       }
 
-      // PHASE 2A: Block activation if trying to set isActive=true without KYC
       if (req.body.isActive === true && !service.isActive) {
         const isVerified = await isProviderVerified(req.user.id);
         if (!isVerified) {
-          const verification = await ProviderVerification.findOne({ 
-            providerId: req.user.id 
+          const verification = await ProviderVerification.findOne({
+            providerId: req.user.id,
           }).sort({ createdAt: -1 });
-          
-          return res.status(403).json({ 
+
+          return res.status(403).json({
             message: "KYC verification required to activate service",
             reason: "You must complete KYC verification before publishing services.",
-            kycStatus: verification?.status || "not_submitted"
+            kycStatus: verification?.status || "not_submitted",
           });
         }
 
-        // PHASE 1: Check Category Skill Proof Approval
         const targetCategoryId = req.body.categoryId || service.categoryId;
-        const user = await User.findById(req.user.id).select("providerDetails.approvedCategories");
+        const user = await User.findById(req.user.id).select(
+          "providerDetails.approvedCategories"
+        );
         const isCategoryApproved = user.providerDetails.approvedCategories.some(
           (id) => id.toString() === targetCategoryId.toString()
         );
@@ -448,28 +576,42 @@ router.post(
         if (!isCategoryApproved) {
           return res.status(403).json({
             message: "Category skill proof required",
-            reason: "You must submit and get approval for your skill proof in this category before publishing services.",
-            suggestion: "Go to your Trust Center to upload your portfolio and tools for this category."
+            reason:
+              "You must submit and get approval for your skill proof in this category before publishing services.",
+            suggestion:
+              "Go to your Trust Center to upload your portfolio and tools for this category.",
           });
         }
       }
 
-      // If category changes and no subcategory provided, clear subcategory
       if (req.body.categoryId && String(req.body.categoryId) !== String(service.categoryId)) {
         if (req.body.subcategoryId === undefined) {
           service.subcategoryId = null;
         }
       }
 
-      // Update only allowed fields
       const allowedUpdates = [
-        'categoryId', 'subcategoryId', 'title', 'description', 'images',
-        'priceMode', 'basePrice', 'emergencyPrice', 'includedHours', 'hourlyRate', 'fixedRate',
-        'priceRange', 'quoteDescription', 'visitFee', 'availability',
-        'coverage', 'maxDistance', 'isActive'
+        "categoryId",
+        "subcategoryId",
+        "title",
+        "description",
+        "images",
+        "priceMode",
+        "basePrice",
+        "emergencyPrice",
+        "includedHours",
+        "hourlyRate",
+        "fixedRate",
+        "priceRange",
+        "quoteDescription",
+        "visitFee",
+        "availability",
+        "coverage",
+        "maxDistance",
+        "isActive",
       ];
 
-      allowedUpdates.forEach(field => {
+      allowedUpdates.forEach((field) => {
         if (req.body[field] !== undefined) {
           service[field] = req.body[field];
         }

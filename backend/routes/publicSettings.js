@@ -15,6 +15,9 @@ router.get("/settings/public", async (req, res) => {
     return res.json({
       success: true,
       registrationOpen: settings?.registrationOpen ?? true,
+      termsAndConditions: settings?.termsAndConditions ?? "",
+      termsVersion: settings?.termsVersion ?? "1.0",
+      termsUpdatedAt: settings?.termsUpdatedAt ?? null,
     });
   } catch (err) {
     console.error("Failed to fetch public settings:", err);

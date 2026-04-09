@@ -16,6 +16,8 @@ const chatRoutes = require("./chat");
 const supportRoutes = require("./support");
 const publicSettingsRoutes = require("./publicSettings");
 
+const accountRoutes = require("./account"); // ✅ NEW
+
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -32,6 +34,9 @@ router.use("/admin/support", adminSupportRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/chat", chatRoutes);
 router.use("/support", supportRoutes);
+
+router.use("/account", accountRoutes); // ✅ NEW
+
 router.use("/", publicSettingsRoutes);
 
 module.exports = { router };

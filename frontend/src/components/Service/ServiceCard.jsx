@@ -5,6 +5,8 @@ import {
   HiCube,
   HiShieldCheck,
   HiTrophy,
+  HiEye,
+  HiCalendarDays,
 } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -190,6 +192,17 @@ export default function ServiceCard({ service, provider, onBook }) {
                 }`
               : `NPR ${service.basePrice}`}
           </p>
+        </div>
+
+        <div className="mb-3 grid grid-cols-2 gap-2 text-xs sm:text-sm">
+          <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-gray-600">
+            <HiEye className="h-4 w-4 text-gray-400" />
+            <span>{Number(service.views || 0).toLocaleString()} views</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">
+            <HiCalendarDays className="h-4 w-4" />
+            <span>{Number(service.bookingsCount || 0).toLocaleString()} bookings</span>
+          </div>
         </div>
       </div>
 

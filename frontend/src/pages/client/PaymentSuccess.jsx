@@ -12,6 +12,7 @@ export default function PaymentSuccess() {
 
   const bookingId = searchParams.get('booking_id');
   const transactionUuid = searchParams.get('transaction_uuid');
+  const isMock = searchParams.get('mock') === 'true';
 
   useEffect(() => {
     if (bookingId) {
@@ -53,14 +54,26 @@ export default function PaymentSuccess() {
           </p>
         </div>
 
+        {isMock && (
+          <div className="mb-6 text-center">
+            <span className="inline-flex items-center px-4 py-2 rounded-full bg-amber-100 text-amber-800 text-sm font-medium">
+              Demo Payment Mode
+            </span>
+          </div>
+        )}
+
         {/* Transaction Details */}
         {!loading && (
           <div className="bg-gray-50 rounded-2xl p-6 mb-8 space-y-3">
-            <h2 className="font-semibold text-gray-900 mb-4 text-lg">Transaction Details</h2>
-            
+            <h2 className="font-semibold text-gray-900 mb-4 text-lg">
+              Transaction Details
+            </h2>
+
             {transactionUuid && (
               <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-                <span className="text-gray-600">Transaction ID</span>
+                <span className="text-gray-600">
+                  {isMock ? 'Demo Transaction ID' : 'Transaction ID'}
+                </span>
                 <span className="font-mono text-sm text-gray-900 bg-white px-3 py-1 rounded">
                   {transactionUuid.slice(0, 30)}...
                 </span>
@@ -75,7 +88,7 @@ export default function PaymentSuccess() {
                     {bookingId?.slice(-8).toUpperCase()}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between items-center border-b border-gray-200 pb-2">
                   <span className="text-gray-600">Amount Paid</span>
                   <span className="font-semibold text-green-600 text-xl">
