@@ -409,7 +409,7 @@ export default function Payments() {
     <div className="space-y-4 min-h-screen" style={{ backgroundColor: '#f8fafc' }}>
 
       {/* ─── KPI STRIP ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {kpis.map(kpi => (
           <div key={kpi.label} className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 border-l-4 ${kpi.border}`}>
             <div className={`${kpi.iconBg} w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0`}>
@@ -504,7 +504,7 @@ export default function Payments() {
 
 
       {/* ─── CHARTS ROW ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
 
         {/* Revenue Trend (8 cols) */}
         <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -608,7 +608,7 @@ export default function Payments() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[960px] w-full text-sm">
             <thead>
               <tr className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
                 <th className="text-left py-2.5 px-4">Client</th>

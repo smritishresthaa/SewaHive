@@ -168,7 +168,7 @@
 //   return (
 //     <div className="space-y-3">
 //       {/* Header */}
-//       <div className="flex items-center justify-between">
+//       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 //         <div>
 //           <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
 //           <p className="text-xs text-gray-500">Real-time overview of SewaHive platform</p>
@@ -189,7 +189,7 @@
 //       )}
 
 //       {/* ═══ ROW 1 — 3 Gradient Action Cards (side by side) ═══ */}
-//       <div className="grid grid-cols-3 gap-3">
+//       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
 //         <Link
 //           to="/verification"
 //           className="rounded-2xl px-4 py-3 text-white shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all relative overflow-hidden"
@@ -242,7 +242,7 @@
 //       </div>
 
 //       {/* ═══ ROW 2 — 8 KPI cards (4 per row) ═══ */}
-//       <div className="grid grid-cols-4 gap-3">
+//       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
 //         <KPI icon={HiUsers} label="Total Clients" value={stats.users.totalUsers} color="blue" />
 //         <KPI icon={HiBriefcase} label="Total Providers" value={stats.users.totalProviders} color="purple" />
 //         <KPI icon={HiCheckBadge} label="Verified" value={stats.users.verifiedProviders} color="green" />
@@ -293,7 +293,7 @@
 //       </div>
 
 //       {/* ═══ ROW 4 — Two Donut Cards SIDE BY SIDE ═══ */}
-//       <div className="grid grid-cols-2 gap-3">
+//       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
 //         {/* Donut Card 1: Booking Status */}
 //         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
 //           <h3 className="text-sm font-semibold text-gray-800 mb-2">Booking Status</h3>
@@ -397,7 +397,7 @@
 //           </div>
 //         ) : (
 //           <div className="overflow-x-auto">
-//             <table className="w-full text-xs">
+//             <table className="min-w-[920px] w-full text-xs">
 //               <thead>
 //                 <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
 //                   <th className="px-4 py-1.5">Client</th>

@@ -207,9 +207,29 @@ router.get(
   roleGuard(["provider"]),
   async (req, res, next) => {
     try {
-      const verification = await ProviderVerification.findOne({
+      let verification = await ProviderVerification.findOne({
         providerId: req.user.id,
       }).sort({ createdAt: -1 });
+
+      if (!verification) {
+        const provider = await User.findById(req.user.id).select("kycStatus providerDetails.badges");
+        const normalizedKycStatus = resolveProviderKycStatus(provider?.kycStatus);
+
+        if (provider && isKycApproved(normalizedKycStatus)) {
+          verification = {
+            providerId: provider._id,
+            status: normalizedKycStatus,
+            badge: Array.isArray(provider?.providerDetails?.badges)
+              ? provider.providerDetails.badges[0] || "verified"
+              : provider?.providerDetails?.badges || "verified",
+            reviewedAt: null,
+            createdAt: null,
+            documents: [],
+            addressDocuments: [],
+          };
+        }
+      }
+
       res.json({ verification });
     } catch (e) {
       next(e);

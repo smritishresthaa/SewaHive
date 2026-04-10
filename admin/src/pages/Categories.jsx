@@ -499,7 +499,7 @@ export default function Categories() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-1 gap-4 mb-5 sm:grid-cols-2 lg:grid-cols-4">
         {[
           {
             label: "Total Categories",
@@ -599,7 +599,7 @@ export default function Categories() {
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="min-w-[920px] w-full">
               <thead className="bg-gradient-to-r from-green-50 to-emerald-50 border-b-2 border-green-200">
                 <tr>
                   <th className="w-8"></th>
@@ -924,7 +924,7 @@ export default function Categories() {
                                 <h4 className="font-semibold text-sm text-gray-700 mb-2">
                                   Category Analytics
                                 </h4>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                                   <div className="bg-white p-3 rounded border">
                                     <div className="text-xs text-gray-500">Providers</div>
                                     <div className="text-lg font-bold text-gray-900">
@@ -1034,7 +1034,7 @@ export default function Categories() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Icon Key</label>
                   <input
@@ -1075,7 +1075,7 @@ export default function Categories() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Min Price (Rs.)
@@ -1275,7 +1275,7 @@ export default function Categories() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
@@ -1373,7 +1373,7 @@ export default function Categories() {
               <p className="text-gray-500 text-center py-8">No services found in this category</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="min-w-[920px] w-full text-sm">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       <th className="px-4 py-2 text-left">Service</th>

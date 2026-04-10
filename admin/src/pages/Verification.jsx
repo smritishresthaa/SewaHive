@@ -80,7 +80,7 @@ export default function Verification() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Provider Verification</h1>
           <p className="text-[11px] text-gray-500 mt-0.5">Review KYC submissions · Auto-updates every 30s</p>
@@ -97,7 +97,7 @@ export default function Verification() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Total', value: stats.totalVerifications, Icon: HiClipboardDocumentList, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-500' },
           { label: 'Pending', value: stats.pendingVerifications, Icon: HiClock, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-500' },

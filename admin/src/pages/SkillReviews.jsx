@@ -92,8 +92,8 @@ export default function SkillReviews() {
           <p className="text-gray-500">There are no skill proofs matching the current filter.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
+          <table className="min-w-[720px] w-full text-left">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="p-4 font-semibold text-gray-600">Provider</th>
@@ -206,7 +206,7 @@ export default function SkillReviews() {
                  {selectedItem.proof.portfolio?.some(p => p.type === 'before') && (
                    <div className="mb-4">
                      <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded mb-2 inline-block">Before Service</span>
-                     <div className="grid grid-cols-3 gap-2">
+                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                        {Array.from(new Set(selectedItem.proof.portfolio.filter(p => p.type === 'before').map(img => img.url))).map((url, i) => (
                          <a key={i} href={url} target="_blank" rel="noreferrer">
                            <img src={url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="Before" />
@@ -220,7 +220,7 @@ export default function SkillReviews() {
                  {selectedItem.proof.portfolio?.some(p => p.type === 'after') && (
                    <div className="mb-4">
                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-1 rounded mb-2 inline-block">After Service</span>
-                     <div className="grid grid-cols-3 gap-2">
+                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                        {Array.from(new Set(selectedItem.proof.portfolio.filter(p => p.type === 'after').map(img => img.url))).map((url, i) => (
                          <a key={i} href={url} target="_blank" rel="noreferrer">
                            <img src={url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="After" />
@@ -234,7 +234,7 @@ export default function SkillReviews() {
                  {selectedItem.proof.portfolio?.some(p => !['before', 'after'].includes(p.type)) && (
                    <div>
                      <span className="text-xs font-semibold text-gray-600 bg-gray-200 px-2 py-1 rounded mb-2 inline-block">General Work Samples</span>
-                     <div className="grid grid-cols-3 gap-2">
+                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                        {selectedItem.proof.portfolio.filter(p => !['before', 'after'].includes(p.type)).map((img, i) => (
                          <a key={i} href={img.url} target="_blank" rel="noreferrer">
                            <img src={img.url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="Work" />
@@ -251,7 +251,7 @@ export default function SkillReviews() {
               <div className="bg-gray-50 p-4 rounded-2xl border">
                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Certificates</h3>
                  {selectedItem.proof.certificates?.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {selectedItem.proof.certificates.map((img, i) => (
                         <a key={i} href={img.url} target="_blank" rel="noreferrer">
                           <img src={img.url} className="w-full h-24 object-cover rounded shadow-sm border hover:opacity-75 transition" alt="Certificate" />

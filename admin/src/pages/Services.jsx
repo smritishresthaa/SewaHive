@@ -572,7 +572,7 @@ export default function Services() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-lg font-bold text-gray-900">Service Management</h1>
         <button
           onClick={() => {
@@ -600,7 +600,7 @@ export default function Services() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
             label: 'Active Services',
@@ -650,7 +650,7 @@ export default function Services() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
             <HiChartBar className="w-4 h-4 text-gray-400" />
@@ -811,7 +811,7 @@ export default function Services() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="min-w-[960px] w-full text-xs">
             <thead>
               <tr className="text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
                 <th className="px-4 py-2.5">Service</th>
@@ -890,7 +890,7 @@ export default function Services() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Accordion icon={HiSquares2X2} title="Category Catalog" defaultOpen={false}>
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] text-gray-500">Manage categories and subcategories</p>
@@ -903,7 +903,7 @@ export default function Services() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="min-w-[960px] w-full text-xs">
               <thead>
                 <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase border-b border-gray-100">
                   <th className="px-2 py-2">Category</th>
@@ -978,7 +978,7 @@ export default function Services() {
         </Accordion>
 
         <Accordion icon={HiCurrencyDollar} title="Pricing & Commission" defaultOpen={false}>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
             {[
               { label: 'Platform Commission', key: 'platformCommission', suffix: '%' },
               { label: 'Processing Fee', key: 'processingFee', suffix: '%' },
@@ -1062,7 +1062,7 @@ export default function Services() {
 
       <Accordion icon={HiStar} title="Featured Providers" defaultOpen={false}>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="min-w-[960px] w-full text-xs">
             <thead>
               <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase border-b border-gray-100">
                 <th className="px-3 py-2">Provider</th>

@@ -48,7 +48,7 @@
 //   return (
 //     <div className="space-y-4">
 //       {/* Header */}
-//       <div className="flex items-center justify-between">
+//       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 //         <div>
 //           <h1 className="text-xl font-bold text-gray-900">Dispute Resolution</h1>
 //           <p className="text-[11px] text-gray-500 mt-0.5">Review and resolve service disputes</p>
@@ -59,7 +59,7 @@
 //       </div>
 
 //       {/* KPI Cards */}
-//       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+//       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 //         {[
 //           { label: 'Total', value: stats.totalDisputes || 0, Icon: HiExclamationTriangle, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-400' },
 //           { label: 'Open', value: stats.openCount || 0, Icon: HiExclamationCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-500' },
@@ -116,7 +116,7 @@
 //           </div>
 //         ) : (
 //           <div className="overflow-x-auto">
-//             <table className="w-full text-xs">
+//             <table className="min-w-[920px] w-full text-xs">
 //               <thead>
 //                 <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
 //                   <th className="px-5 py-2.5">ID</th>

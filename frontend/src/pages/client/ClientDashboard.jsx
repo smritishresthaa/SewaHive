@@ -275,7 +275,7 @@ export default function ClientDashboard() {
       setLoading(true);
 
       const upcomingParams = buildRangeParams(range, fromDate, toDate);
-      const pastParams = buildRangeParams(range, fromDate, toDate, 5);
+      const pastParams = buildRangeParams(range, fromDate, toDate);
 
       const [upcomingRes, pastRes] = await Promise.all([
         api.get("/bookings/upcoming", {

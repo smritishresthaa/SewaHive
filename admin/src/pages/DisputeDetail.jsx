@@ -200,7 +200,7 @@
 
 //         {/* Tabs */}
 //         <div className="mb-8 border-b border-gray-200">
-//           <div className="flex gap-8">
+//           <div className="flex gap-4 overflow-x-auto pb-2 sm:gap-8">
 //             <button
 //               onClick={() => setTab("details")}
 //               className={`pb-4 font-medium transition ${
@@ -445,7 +445,7 @@
 // function DetailCard({ label, value, icon }) {
 //   return (
 //     <div className="rounded-lg border border-gray-200 bg-white p-4">
-//       <div className="flex items-center justify-between">
+//       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 //         <div>
 //           <p className="text-sm font-medium text-gray-600">{label}</p>
 //           <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>

@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -10,7 +11,6 @@ import {
   HiXMark,
   HiArrowPath,
   HiStopCircle,
-  HiPlayCircle,
   HiXCircle,
   HiFilm,
 } from "react-icons/hi2";
@@ -65,10 +65,6 @@ function makeTempId() {
   return `temp-${Date.now()}-${++tempIdCounter}`;
 }
 
-function notifyUnreadSidebarRefresh() {
-  window.dispatchEvent(new Event("chat-unread-updated"));
-}
-
 /* Detect MediaRecorder codec support */
 function getRecorderMimeType() {
   const candidates = [
@@ -119,6 +115,102 @@ function ImageLightbox({ src, alt, onClose }) {
 }
 
 /* ────────────────────────────────────────────
+   Confirmation Modal
+   ──────────────────────────────────────────── */
+
+function ConfirmationModal({
+  open,
+  title,
+  description,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  confirmTone = "danger",
+  loading = false,
+  onConfirm,
+  onClose,
+}) {
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(e) {
+      if (e.key === "Escape" && !loading) onClose();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, loading, onClose]);
+
+  if (!open) return null;
+
+  const confirmClasses =
+    confirmTone === "success"
+      ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-200"
+      : "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-200";
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
+      <button
+        type="button"
+        aria-label="Close confirmation modal"
+        className="absolute inset-0 bg-slate-950/55 backdrop-blur-[2px]"
+        onClick={() => !loading && onClose()}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chat-confirmation-title"
+        className="relative w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+      >
+        <div className="border-b border-slate-100 px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 id="chat-confirmation-title" className="text-lg font-semibold text-slate-900">
+                {title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => !loading && onClose()}
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              aria-label="Close modal"
+            >
+              <HiXMark className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className={`inline-flex min-w-[126px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${confirmClasses}`}
+          >
+            {loading ? "Please wait..." : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────
    Message Bubble
    ──────────────────────────────────────────── */
 
@@ -142,8 +234,6 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
           isSending ? "opacity-60" : ""
         } ${isImage || isVoice ? "p-1" : "px-3.5 py-2"} ${bubbleBase}`}
       >
-
-        {/* ── Image bubble ── */}
         {isImage && message.attachment?.url && (
           <button
             onClick={() => onImageClick(message.attachment.url)}
@@ -160,7 +250,6 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
           </button>
         )}
 
-        {/* ── Video bubble ── */}
         {isVideo && message.attachment?.url && (
           <div className="flex flex-col items-center">
             <video
@@ -172,9 +261,8 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
           </div>
         )}
 
-        {/* ── Voice bubble ── */}
         {isVoice && message.attachment?.url && (
-          <div className={`flex items-center gap-2 px-3 py-2 ${mine ? "" : ""}`}>
+          <div className="flex items-center gap-2 px-3 py-2">
             <audio
               src={message.attachment.url}
               controls
@@ -190,14 +278,12 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
           </div>
         )}
 
-        {/* ── Text content ── */}
         {message.text && (
           <p className={`whitespace-pre-wrap break-words ${isImage || isVoice ? "px-2.5 py-1.5" : ""}`}>
             {message.text}
           </p>
         )}
 
-        {/* ── Meta row ── */}
         <div className={`flex items-center gap-1.5 ${isImage || isVoice ? "px-2.5 pb-1.5" : "mt-1"}`}>
           <span className={`text-[11px] ${metaColor}`}>
             {isSending
@@ -229,7 +315,7 @@ function MessageBubble({ message, mine, onImageClick, onRetry }) {
    ──────────────────────────────────────────── */
 
 function useVoiceRecorder() {
-  const [state, setState] = useState("idle"); // idle | recording | preview | error
+  const [state, setState] = useState("idle");
   const [elapsed, setElapsed] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
   const [blob, setBlob] = useState(null);
@@ -342,13 +428,11 @@ export default function BookingChat() {
   const Layout = user?.role === "provider" ? ProviderLayout : ClientLayout;
   const selfId = String(user?._id || user?.id || "");
 
-  /* ── Sidebar state ── */
   const [conversations, setConversations] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
   const [conversationSearch, setConversationSearch] = useState("");
   const [activePairKey, setActivePairKey] = useState("");
 
-  /* ── Core chat state ── */
   const [booking, setBooking] = useState(null);
   const [messages, setMessages] = useState([]);
   const [pagination, setPagination] = useState({ hasMore: false, nextBefore: null });
@@ -360,8 +444,8 @@ export default function BookingChat() {
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [blockState, setBlockState] = useState({ isBlocked: false, blockedByMe: false, blockedByOther: false });
   const [blockLoading, setBlockLoading] = useState(false);
+  const [confirmationModal, setConfirmationModal] = useState({ open: false, mode: "block" });
 
-  /* ── Media state ── */
   const [imagePreview, setImagePreview] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -499,23 +583,36 @@ export default function BookingChat() {
     };
   }, [bookingId, loadChatForBooking]);
 
-  async function handleToggleBlock() {
+  function openBlockConfirmation() {
     if (blockLoading || !currentBookingId) return;
+    setConfirmationModal({
+      open: true,
+      mode: blockState?.blockedByMe ? "unblock" : "block",
+    });
+  }
+
+  function closeConfirmationModal() {
+    if (blockLoading) return;
+    setConfirmationModal((prev) => ({ ...prev, open: false }));
+  }
+
+  async function confirmToggleBlock() {
+    if (blockLoading || !currentBookingId) return;
+
     try {
       setBlockLoading(true);
-      if (blockState?.blockedByMe) {
+
+      if (confirmationModal.mode === "unblock") {
         const res = await api.delete(`/chat/booking/${currentBookingId}/block`);
         setBlockState(res.data?.block || { isBlocked: false, blockedByMe: false, blockedByOther: false });
         toast.success("Chat unblocked");
       } else {
-        const confirmed = window.confirm(
-          "Block this chat? Existing history will stay visible, but both sides will not be able to send new messages until you unblock."
-        );
-        if (!confirmed) return;
         const res = await api.post(`/chat/booking/${currentBookingId}/block`);
         setBlockState(res.data?.block || { isBlocked: true, blockedByMe: true, blockedByOther: false });
         toast.success("Chat blocked");
       }
+
+      closeConfirmationModal();
       await fetchConversations(activePairKey);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to update chat block status");
@@ -913,6 +1010,23 @@ export default function BookingChat() {
   const hasVoiceError = voice.state === "error";
   const isMediaActive = !!imagePreview || !!videoPreview || isRecording || hasVoicePreview || hasVoiceError;
 
+  const modalCopy =
+    confirmationModal.mode === "unblock"
+      ? {
+          title: "Unblock this chat?",
+          description:
+            "This will restore messaging for both sides in this shared conversation. Previous chat history will remain visible.",
+          confirmLabel: "Unblock chat",
+          confirmTone: "success",
+        }
+      : {
+          title: "Block this chat?",
+          description:
+            "Existing history will stay visible, but both sides will not be able to send new messages until you unblock this shared conversation.",
+          confirmLabel: "Block chat",
+          confirmTone: "danger",
+        };
+
   if (loading) {
     return (
       <Layout>
@@ -1071,7 +1185,7 @@ export default function BookingChat() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleToggleBlock}
+                    onClick={openBlockConfirmation}
                     disabled={blockLoading}
                     className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
                       blockState?.blockedByMe
@@ -1389,6 +1503,17 @@ export default function BookingChat() {
       </div>
 
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+
+      <ConfirmationModal
+        open={confirmationModal.open}
+        title={modalCopy.title}
+        description={modalCopy.description}
+        confirmLabel={modalCopy.confirmLabel}
+        confirmTone={modalCopy.confirmTone}
+        loading={blockLoading}
+        onConfirm={confirmToggleBlock}
+        onClose={closeConfirmationModal}
+      />
     </Layout>
   );
 }

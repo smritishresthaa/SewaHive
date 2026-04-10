@@ -141,7 +141,7 @@ export default function LeaderboardPage() {
           )}
 
           <div className="mt-8">
-            <div className="grid grid-cols-3 text-xs font-semibold text-gray-500 uppercase tracking-[0.15em] px-4">
+            <div className="hidden grid-cols-3 px-4 text-xs font-semibold uppercase tracking-[0.15em] text-gray-500 md:grid">
               <span>Username</span>
               <span className="text-center">Rank</span>
               <span className="text-right">Score</span>
@@ -157,7 +157,7 @@ export default function LeaderboardPage() {
                   return (
                     <div
                       key={entry._id}
-                      className="grid grid-cols-3 items-center rounded-full bg-slate-100 px-4 py-3 text-sm"
+                      className="grid gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm md:grid-cols-3 md:items-center md:rounded-full"
                     >
                       <span className="text-gray-900">{getProviderUsername(entry)}</span>
                       <span className="text-center text-gray-700">{rank}</span>

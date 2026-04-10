@@ -185,7 +185,7 @@ export default function Support() {
   return (
     <div className="relative space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Support Tickets</h1>
           <p className="text-[11px] text-gray-500 mt-0.5">
@@ -211,7 +211,7 @@ export default function Support() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
           {
             label: "Total",
@@ -343,7 +343,7 @@ export default function Support() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[820px]">
+            <table className="min-w-[900px] w-full text-xs">
               <thead>
                 <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-2.5">Ref</th>

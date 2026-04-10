@@ -69,7 +69,7 @@ export default function Reviews() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold text-gray-900">Reviews & Complaints</h1>
         <button onClick={fetchReviews} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition" title="Refresh">
           <HiArrowPath className="w-4 h-4" />
@@ -83,7 +83,7 @@ export default function Reviews() {
       )}
 
       {/* ═══ KPI Cards ═══ */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 border-blue-500 p-3 flex items-center gap-3 hover:shadow-md transition-shadow">
           <div className="bg-blue-50 rounded-full p-2"><HiChatBubbleLeftRight className="w-5 h-5 text-blue-600" /></div>
           <div>

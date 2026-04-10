@@ -626,7 +626,7 @@ React.useEffect(() => {
             </button>
           </div>
 
-          <div className="mt-16 text-sm text-slate-600 font-inter sm:mt-18">
+          <div className="mt-16 text-base text-white/600 font-inter sm:mt-18">
             Trusted by top companies
           </div>
 
@@ -1403,7 +1403,7 @@ React.useEffect(() => {
                   <span className="font-poppins font-medium">
                     {featuredReview.client?.name}
                   </span>
-                  <span className="text-slate-600 font-inter">
+                  <span className="text-white/80 font-inter">
                     Used {featuredReview.serviceTitle}
                   </span>
 
@@ -1617,7 +1617,7 @@ React.useEffect(() => {
 </section>
 
 
-<section className="mt-10 border-t border-slate-200 bg-white text-slate-900">
+<section className="mt-10 bg-white text-slate-900">
   <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
     <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
       <div>

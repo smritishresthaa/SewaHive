@@ -312,7 +312,7 @@ export default function Users() {
   return (
     <div className="relative space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">User Management</h1>
           <p className="text-[11px] text-gray-500 mt-0.5">Manage all clients and providers</p>
@@ -329,7 +329,7 @@ export default function Users() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { label: 'Total Users', value: stats.totalUsers, Icon: HiUsers, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-500' },
           { label: 'Clients', value: stats.totalClients, Icon: HiUsers, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-500' },
@@ -395,7 +395,7 @@ export default function Users() {
       {/* User Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="min-w-[920px] w-full text-xs">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
                 <th className="px-4 py-2">User</th>
