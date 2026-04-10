@@ -135,6 +135,11 @@ export default function ClientBookingHistory() {
   const [appliedCustomFrom, setAppliedCustomFrom] = useState("");
   const [appliedCustomTo, setAppliedCustomTo] = useState("");
 
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [rescheduleBooking, setRescheduleBooking] = useState(null);
+  const [rescheduleDateTime, setRescheduleDateTime] = useState("");
+  const [rescheduleError, setRescheduleError] = useState("");
+
   const matchesFilter = (booking, filterValue) => {
     const normalized = normalizeStatusForTab(booking.status);
 
@@ -208,6 +213,41 @@ export default function ClientBookingHistory() {
     );
   }
 
+  function formatDateTimeLocalValue(dateInput) {
+    if (!dateInput) return "";
+    const parsed = new Date(dateInput);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const hours = String(parsed.getHours()).padStart(2, "0");
+    const minutes = String(parsed.getMinutes()).padStart(2, "0");
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
+  function openRescheduleModal(booking) {
+    setRescheduleBooking(booking);
+    setRescheduleError("");
+
+    const initialDateTime =
+      formatDateTimeLocalValue(booking?.scheduledAt) ||
+      formatDateTimeLocalValue(booking?.schedule?.date);
+
+    setRescheduleDateTime(initialDateTime);
+    setRescheduleModalOpen(true);
+  }
+
+  function closeRescheduleModal() {
+    if (rescheduleBooking?._id && processing[rescheduleBooking._id]) return;
+
+    setRescheduleModalOpen(false);
+    setRescheduleBooking(null);
+    setRescheduleDateTime("");
+    setRescheduleError("");
+  }
+
   useEffect(() => {
     setFilter(resolvedInitialFilter);
   }, [resolvedInitialFilter]);
@@ -258,6 +298,19 @@ export default function ClientBookingHistory() {
       }, 100);
     }
   }, [highlightBookingId, bookings]);
+
+  useEffect(() => {
+    if (!rescheduleModalOpen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeRescheduleModal();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [rescheduleModalOpen, rescheduleBooking, processing]);
 
   async function fetchBookings(
     range = appliedRange,
@@ -379,17 +432,20 @@ export default function ClientBookingHistory() {
   }
 
   async function handleReschedule(bookingId) {
-    const nextDate = window.prompt(
-      "Enter new schedule date and time (YYYY-MM-DD HH:MM)"
-    );
-    if (!nextDate) return;
+    const inputValue = String(rescheduleDateTime || "").trim();
 
+    if (!inputValue) {
+      setRescheduleError("Please select a new schedule date and time.");
+      return;
+    }
+
+    setRescheduleError("");
     setProcessing((prev) => ({ ...prev, [bookingId]: true }));
 
     try {
-      const iso = new Date(nextDate.replace(" ", "T"));
+      const iso = new Date(inputValue);
       if (Number.isNaN(iso.getTime())) {
-        toast.error("Please enter a valid date and time");
+        setRescheduleError("Please enter a valid date and time.");
         return;
       }
 
@@ -398,9 +454,13 @@ export default function ClientBookingHistory() {
       });
 
       toast.success("Booking rescheduled successfully");
+      closeRescheduleModal();
       fetchBookings();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to reschedule booking");
+      const message =
+        err?.response?.data?.message || "Failed to reschedule booking";
+      setRescheduleError(message);
+      toast.error(message);
     } finally {
       setProcessing((prev) => ({ ...prev, [bookingId]: false }));
     }
@@ -491,7 +551,7 @@ export default function ClientBookingHistory() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => handleReschedule(booking._id)}
+              onClick={() => openRescheduleModal(booking)}
               disabled={isProcessing}
               className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
             >
@@ -558,7 +618,7 @@ export default function ClientBookingHistory() {
         return (
           <div className="flex gap-2">
             <button
-              onClick={() => handleReschedule(booking._id)}
+              onClick={() => openRescheduleModal(booking)}
               disabled={isProcessing}
               className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
             >
@@ -591,7 +651,7 @@ export default function ClientBookingHistory() {
         return (
           <div className="flex gap-2">
             <button
-              onClick={() => handleReschedule(booking._id)}
+              onClick={() => openRescheduleModal(booking)}
               disabled={isProcessing}
               className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
             >
@@ -1085,6 +1145,80 @@ export default function ClientBookingHistory() {
           }}
           onReviewSubmitted={handleReviewSubmitted}
         />
+      )}
+
+      {rescheduleModalOpen && rescheduleBooking && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-gray-100 px-5 py-4 sm:px-6">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Reschedule Booking
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Select a new date and time for{" "}
+                <span className="font-medium text-gray-900">
+                  {rescheduleBooking.serviceId?.title || "this booking"}
+                </span>
+                .
+              </p>
+            </div>
+
+            <div className="space-y-4 px-5 py-4 sm:px-6">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  New schedule date & time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={rescheduleDateTime}
+                  onChange={(e) => {
+                    setRescheduleDateTime(e.target.value);
+                    if (rescheduleError) setRescheduleError("");
+                  }}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm text-gray-700 outline-none transition ${
+                    rescheduleError
+                      ? "border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-100"
+                      : "border-gray-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  }`}
+                />
+                {rescheduleError && (
+                  <p className="mt-2 text-sm text-red-600">{rescheduleError}</p>
+                )}
+              </div>
+
+              {(rescheduleBooking.schedule?.date || rescheduleBooking.scheduledAt) && (
+                <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  Current schedule:{" "}
+                  <span className="font-medium text-gray-800">
+                    {new Date(
+                      rescheduleBooking.scheduledAt ||
+                        rescheduleBooking.schedule?.date
+                    ).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-gray-100 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+              <button
+                type="button"
+                onClick={closeRescheduleModal}
+                disabled={processing[rescheduleBooking._id]}
+                className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReschedule(rescheduleBooking._id)}
+                disabled={processing[rescheduleBooking._id]}
+                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {processing[rescheduleBooking._id] ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </ClientLayout>
   );

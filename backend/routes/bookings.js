@@ -1281,6 +1281,91 @@ router.patch(
 );
 
 /**
+ * CLIENT: Reschedule booking
+ */
+router.patch(
+  "/:id/reschedule",
+  authGuard,
+  roleGuard(["client"]),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { scheduledAt } = req.body;
+
+      const booking = await Booking.findById(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (String(booking.clientId) !== req.user.id) {
+        return res.status(403).json({ message: "Not your booking" });
+      }
+
+      const reschedulableStatuses = [
+        "requested",
+        "pending_payment",
+        "accepted",
+        "confirmed",
+        "quote_requested",
+        "quote_sent",
+        "quote_pending_admin_review",
+        "quote_accepted",
+      ];
+
+      if (!reschedulableStatuses.includes(booking.status)) {
+        return res.status(400).json({
+          message: `Cannot reschedule booking with status: ${booking.status}`,
+        });
+      }
+
+      if (!scheduledAt) {
+        return res.status(400).json({ message: "scheduledAt is required" });
+      }
+
+      const nextSchedule = new Date(scheduledAt);
+      if (Number.isNaN(nextSchedule.getTime())) {
+        return res.status(400).json({ message: "Invalid scheduledAt value" });
+      }
+
+      if (nextSchedule < new Date()) {
+        return res.status(400).json({
+          message: "Cannot reschedule to a past date/time",
+        });
+      }
+
+      booking.scheduledAt = nextSchedule;
+
+      if (booking.schedule) {
+        booking.schedule.date = nextSchedule;
+      }
+
+      booking.updatedAt = new Date();
+
+      await booking.save();
+
+      await createNotification({
+        userId: booking.providerId,
+        type: "booking_rescheduled",
+        title: "Booking Rescheduled",
+        message: `Client has rescheduled the booking`,
+        category: "booking",
+        bookingId: booking._id,
+        fromUserId: req.user.id,
+        sendEmail: true,
+      });
+
+      res.json({
+        ok: true,
+        message: "Booking rescheduled successfully",
+        booking,
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+/**
  * START TIMER - Provider starts tracking work time
  */
 router.post("/:id/timer/start", authGuard, roleGuard(["provider"]), async (req, res, next) => {

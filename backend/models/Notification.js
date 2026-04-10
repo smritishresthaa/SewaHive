@@ -151,6 +151,7 @@ const NotificationSchema = new Schema(
         "booking_started",
         "booking_completed",
         "booking_cancelled",
+        "booking_rescheduled",
         "booking_no_show",
         "provider_en_route",
         "provider_completed_service",
