@@ -131,6 +131,20 @@ export default function ClientSidebar() {
     }`;
   }
 
+  function getOnboardingAttr(path) {
+    const map = {
+      "/client/dashboard": "client-dashboard-link",
+      "/client/profile": "client-profile-link",
+      "/client/settings": "client-settings-link",
+      "/client/bookings": "client-bookings-link",
+      "/client/messages": "client-messages-link",
+      "/client/transactions": "client-transactions-link",
+      "/client/leaderboard": "client-leaderboard-link",
+    };
+
+    return map[path] || undefined;
+  }
+
   const renderNavContent = (isMobile = false) => (
     <nav className={isMobile ? "space-y-1 p-4" : "flex-1 space-y-1 px-3 py-4"}>
       {navSections.map((section, si) => (
@@ -153,7 +167,8 @@ export default function ClientSidebar() {
                   to={item.to}
                   className={navItemClass(item.to)}
                   onClick={() => isMobile && setMobileOpen(false)}
-                >
+                  data-onboarding={getOnboardingAttr(item.to)}>
+
                   <div className="flex min-w-0 items-center gap-2.5">
                     <Icon className={iconClass(item.to)} />
                     <span className="truncate">{item.label}</span>

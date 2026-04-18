@@ -125,11 +125,40 @@ async function getServiceStatsMap(serviceIds = []) {
   if (!ids.length) return new Map();
 
   const { Types } = require("mongoose");
+  const Booking = require("../models/Booking");
+
   const objectIds = ids.map((id) => new Types.ObjectId(id));
 
-  const bookingsAgg = await require("../models/Booking").aggregate([
-    { $match: { serviceId: { $in: objectIds } } },
-    { $group: { _id: "$serviceId", bookingsCount: { $sum: 1 } } },
+  const COUNTABLE_BOOKING_STATUSES = [
+    "pending_payment",
+    "quote_requested",
+    "quote_sent",
+    "quote_pending_admin_review",
+    "quote_accepted",
+    "accepted",
+    "confirmed",
+    "provider_en_route",
+    "in-progress",
+    "provider_completed",
+    "awaiting_client_confirmation",
+    "pending-completion",
+    "completed",
+    "disputed",
+  ];
+
+  const bookingsAgg = await Booking.aggregate([
+    {
+      $match: {
+        serviceId: { $in: objectIds },
+        status: { $in: COUNTABLE_BOOKING_STATUSES },
+      },
+    },
+    {
+      $group: {
+        _id: "$serviceId",
+        bookingsCount: { $sum: 1 },
+      },
+    },
   ]);
 
   const bookingsMap = new Map(
@@ -169,7 +198,7 @@ router.get("/popular", async (req, res, next) => {
       .populate("subcategoryId", "name status")
       .populate(
         "providerId",
-        "profile.name profile.avatarUrl providerDetails.badges providerDetails.rating"
+        "profile.name profile.avatarUrl providerDetails.badges providerDetails.rating kycStatus"
       )
       .sort({ bookingsCount: -1, ratingAvg: -1 })
       .limit(limit * 3);

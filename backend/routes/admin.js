@@ -7,6 +7,12 @@ const Service = require('../models/Service');
 const Review = require('../models/Review');
 const AdminServiceConfig = require('../models/AdminServiceConfig');
 const { broadcastToRole } = require('../utils/notificationStream');
+const { handleSuspensionBookingImpact } = require('../utils/handleSuspensionBookingImpact');
+const { handleAccountDeletionImpact } = require('../utils/handleAccountDeletionImpact');
+const {
+  sendProviderIdVerificationStatusEmail,
+  sendProviderSkillVerificationStatusEmail,
+} = require('../utils/verificationEmails');
 const ProviderVerification = require('../models/ProviderVerification');
 const Dispute = require('../models/Dispute');
 const Booking = require('../models/Booking');
@@ -123,7 +129,7 @@ router.put('/skills-review/:providerId/:categoryId', authenticate, requireAdmin,
       return res.status(400).json({ message: 'Invalid status' });
     }
 
-    const user = await User.findById(providerId);
+    const user = await User.findById(providerId).populate('providerDetails.skillProofs.categoryId', 'name');
     if (!user) return res.status(404).json({ message: 'Provider not found' });
 
     const proofIndex = user.providerDetails.skillProofs.findIndex(
@@ -152,6 +158,24 @@ router.put('/skills-review/:providerId/:categoryId', authenticate, requireAdmin,
     }
 
     await user.save();
+
+    if (user.email) {
+      const categoryName =
+        user.providerDetails.skillProofs[proofIndex]?.categoryId?.name ||
+        undefined;
+
+      try {
+        await sendProviderSkillVerificationStatusEmail({
+          to: user.email,
+          providerName: user.profile?.name,
+          categoryName,
+          status,
+          adminFeedback,
+        });
+      } catch (mailError) {
+        console.error('Skill verification status email failed:', mailError);
+      }
+    }
 
     res.json({
       success: true,
@@ -1944,6 +1968,21 @@ router.patch(
         metadata: { docIndex, adminComment },
       });
 
+      if (provider.email) {
+        try {
+          await sendProviderIdVerificationStatusEmail({
+            to: provider.email,
+            providerName: provider.profile?.name,
+            status,
+            adminComment,
+            documentType:
+              provider.providerDetails?.verificationDocs?.[docIndex]?.docType || null,
+          });
+        } catch (mailError) {
+          console.error('Legacy verification status email failed:', mailError);
+        }
+      }
+
       res.json({
         success: true,
         message: `Verification document ${status} successfully`,
@@ -2150,6 +2189,23 @@ router.patch('/verifications/:verificationId/review', authenticate, requireAdmin
         category: 'verification',
         metadata: { verificationId: verification._id },
       });
+
+      const providerUser = await User.findById(verification.providerId).select('email profile.name');
+      if (providerUser?.email) {
+        try {
+          await sendProviderIdVerificationStatusEmail({
+            to: providerUser.email,
+            providerName: providerUser.profile?.name,
+            status: derivedStatus,
+            adminComment: message,
+            documentType: verification.documentType || null,
+            badge: verification.badge || badge || null,
+          });
+        } catch (mailError) {
+          console.error('Verification lifecycle email failed:', mailError);
+        }
+      }
+
       console.log('✅ Notification sent to provider');
     }
 
@@ -2346,7 +2402,11 @@ router.get('/providers/status/list', authenticate, requireAdmin, async (req, res
     const User = require('../models/User');
     const { providerStatus, search } = req.query;
 
-    let filter = { role: 'provider' };
+    let filter = {
+      role: 'provider',
+      isDeleted: { $ne: true },
+      accountStatus: { $ne: 'deleted' },
+    };
     if (providerStatus) filter.providerStatus = providerStatus;
     if (search) {
       filter.$or = [
@@ -2465,13 +2525,23 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
     const User = require('../models/User');
     const { role, status, search } = req.query;
 
-    let filter = {};
+    let filter = {
+      isDeleted: { $ne: true },
+      accountStatus: { $ne: 'deleted' },
+    };
+
     if (role && role !== 'all') filter.role = role;
     if (status && status !== 'all') {
       if (status === 'suspended') {
         filter.accountStatus = 'suspended';
       } else if (status === 'active') {
-        filter.accountStatus = { $ne: 'suspended' };
+        filter.accountStatus = 'active';
+      } else if (status === 'deleted') {
+        filter = {
+          ...filter,
+          isDeleted: true,
+          accountStatus: 'deleted',
+        };
       }
     }
     if (search) {
@@ -2483,7 +2553,7 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
     }
 
     const users = await User.find(filter)
-      .select('profile email phone role providerDetails accountStatus createdAt location providerStatus')
+      .select('profile email phone role providerDetails accountStatus suspension createdAt location providerStatus deletedAt')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: users });
@@ -2574,32 +2644,97 @@ router.get('/services', authenticate, requireAdmin, async (req, res, next) => {
 router.patch('/users/:id/suspend', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const User = require('../models/User');
+    const { createNotification } = require('../utils/createNotification');
+
+    const { duration, reason, permanent } = req.body;
+
     const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const newStatus = user.accountStatus === 'suspended' ? 'active' : 'suspended';
-    user.accountStatus = newStatus;
+    let newStatus;
+
+    // -------------------------
+    // UNSUSPEND CASE
+    // -------------------------
+    if (user.accountStatus === 'suspended') {
+      user.accountStatus = 'active';
+      user.suspension = {};
+
+      newStatus = 'active';
+
+      await user.save();
+
+      await createNotification({
+        userId: user._id,
+        type: 'account_update',
+        title: 'Account Reactivated',
+        message: 'Your account has been reactivated. You can now use all services.',
+        priority: 'high',
+      });
+
+      return res.json({
+        success: true,
+        message: 'User reactivated successfully',
+        data: { accountStatus: newStatus },
+      });
+    }
+
+    // -------------------------
+    // SUSPEND CASE
+    // -------------------------
+    const now = new Date();
+    let endsAt = null;
+
+    if (!permanent && duration) {
+      endsAt = new Date(now.getTime() + duration);
+    }
+
+    user.accountStatus = 'suspended';
+    user.suspension = {
+      reason: reason || '',
+      startsAt: now,
+      endsAt,
+      imposedBy: req.user._id,
+    };
+
+    newStatus = 'suspended';
+
     await user.save();
 
-    const createNotification = require('../utils/createNotification');
+    const affectedBookings = await handleSuspensionBookingImpact({
+      suspendedUser: user,
+      adminUserId: req.user.id || req.user._id,
+      startsAt: now,
+      endsAt,
+      permanent: Boolean(permanent),
+    });
+
     await createNotification({
       userId: user._id,
       type: 'account_update',
-      title: newStatus === 'suspended' ? 'Account Suspended' : 'Account Reactivated',
-      message: newStatus === 'suspended'
-        ? 'Your account has been suspended by an administrator. Please contact support for more information.'
-        : 'Your account has been reactivated. You can now use all services.',
+      title: 'Account Suspended',
+      message: permanent
+        ? `Your account has been permanently suspended. Reason: ${reason || 'N/A'}`
+        : `Your account is suspended until ${endsAt?.toLocaleString()}. Reason: ${reason || 'N/A'}`,
       priority: 'high',
+      metadata: {
+        affectedBookings: affectedBookings.summary,
+      },
     });
 
     res.json({
       success: true,
-      message: `User ${newStatus === 'suspended' ? 'suspended' : 'reactivated'} successfully`,
-      data: { accountStatus: newStatus },
+      message: 'User suspended successfully',
+      data: {
+        accountStatus: newStatus,
+        suspension: user.suspension,
+        affectedBookings,
+      },
     });
+
   } catch (err) {
     next(err);
   }
@@ -2614,13 +2749,53 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) =
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    if (String(user._id) === String(req.user.id || req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own admin account from this screen.',
+      });
+    }
+
+    if (user.isDeleted || user.accountStatus === 'deleted') {
+      return res.status(400).json({
+        success: false,
+        message: 'This account has already been deleted.',
+      });
+    }
+
+    const deletionImpact = await handleAccountDeletionImpact({
+      user,
+      adminUserId: req.user.id || req.user._id,
+    });
+
+    if (deletionImpact.blockingBookings.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'This account has active bookings that need manual admin handling before deletion can continue.',
+        data: deletionImpact,
+      });
+    }
+
     user.accountStatus = 'deleted';
     user.isDeleted = true;
+    user.deletedAt = new Date();
+    user.isBlocked = true;
+    user.notificationsToken = null;
+    user.deactivatedAt = user.deactivatedAt || new Date();
+    user.suspension = {
+      reason: user.suspension?.reason || 'Account deleted by admin',
+      startsAt: user.suspension?.startsAt || new Date(),
+      endsAt: null,
+      imposedBy: req.user.id || req.user._id,
+    };
+
     await user.save();
 
     res.json({
       success: true,
       message: 'User account deleted successfully',
+      data: deletionImpact,
     });
   } catch (err) {
     next(err);
@@ -2657,7 +2832,7 @@ router.patch('/users/:id/verify', authenticate, requireAdmin, async (req, res, n
 
     await user.save();
 
-    const createNotification = require('../utils/createNotification');
+    const { createNotification } = require('../utils/createNotification');
     await createNotification({
       userId: user._id,
       type: 'verification_approved',

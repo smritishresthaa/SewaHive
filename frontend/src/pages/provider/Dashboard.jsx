@@ -682,7 +682,7 @@ export default function ProviderDashboard() {
   return (
     <ProviderLayout>
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div data-onboarding="provider-dashboard-hero" className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight text-gray-950 sm:text-3xl">
@@ -876,7 +876,7 @@ export default function ProviderDashboard() {
           </div>
         </div>
 
-        <div className="mb-8 grid gap-6 xl:grid-cols-[1.6fr,1fr]">
+        <div data-onboarding="provider-performance" className="mb-8 grid gap-6 xl:grid-cols-[1.6fr,1fr]">
           <div className="rounded-3xl border border-gray-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5">
               <div>

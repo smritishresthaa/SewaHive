@@ -395,7 +395,7 @@ export default function ClientDashboard() {
   return (
     <ClientLayout>
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div data-onboarding="client-dashboard-hero" className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               Welcome back, {user?.profile?.name || "there"}
@@ -580,7 +580,7 @@ export default function ClientDashboard() {
           </button>
         </div>
 
-        <div className="mb-8">
+        <div data-onboarding="client-browse-services" className="mb-8">
           <h2 className="mb-4 text-lg font-bold text-gray-900 sm:text-xl">
             Browse Services
           </h2>

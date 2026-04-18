@@ -1,85 +1,44 @@
-// src/pages/VerifyEmail.jsx
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import api from "../utils/axios";
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function VerifyEmail() {
-  const { token } = useParams();
   const navigate = useNavigate();
 
-  const [status, setStatus] = useState("loading"); // "loading" | "success" | "error"
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    async function verify() {
-      try {
-        const res = await api.get(`/auth/verify-email/${token}`);
-        setStatus("success");
-        setMessage(res.data?.message || "Email verified successfully!");
-
-        // Small delay then go to login
-        setTimeout(() => {
-          navigate("/login");
-        }, 2000);
-      } catch (err) {
-        setStatus("error");
-        const msg =
-          err?.response?.data?.message ||
-          "Verification link is invalid or has expired.";
-        setMessage(msg);
-      }
-    }
-
-    if (token) {
-      verify();
-    }
-  }, [token, navigate]);
-
-  const isLoading = status === "loading";
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow p-8 text-center">
-        {status === "success" && (
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-            <span className="text-green-600 text-2xl">✓</span>
+    <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl items-center justify-center">
+        <div className="w-full rounded-3xl border border-slate-200 bg-white px-6 py-8 text-center shadow-[0_24px_70px_rgba(15,23,42,0.10)] sm:px-8 sm:py-10">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-2xl text-amber-700">
+            !
           </div>
-        )}
 
-        {status === "error" && (
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-            <span className="text-red-600 text-2xl">!</span>
-          </div>
-        )}
+          <h1 className="mt-5 text-2xl font-semibold text-slate-900 sm:text-3xl">
+            Email verification now uses an OTP code
+          </h1>
 
-        {status === "loading" && (
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center">
-            <span className="text-brand-700 text-xl">⏳</span>
-          </div>
-        )}
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
+            SewaHive has moved from link-based email verification to a 6-digit one-time code.
+            Please return to the verification screen, enter your email address, and submit the
+            latest code from your inbox.
+          </p>
 
-        <h1 className="text-2xl font-semibold text-gray-900">
-          {status === "success" && "Email Verified 🎉"}
-          {status === "error" && "Verification Problem"}
-          {status === "loading" && "Verifying your email…"}
-        </h1>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => navigate("/verify-info")}
+              className="inline-flex min-w-[180px] items-center justify-center rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+            >
+              Go to OTP verification
+            </button>
 
-        <p className="mt-3 text-sm text-gray-600">
-          {isLoading
-            ? "Please wait while we confirm your verification link."
-            : message}
-        </p>
-
-        {!isLoading && (
-          <div className="mt-6">
             <Link
               to="/login"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-brand-700 text-white text-sm hover:bg-brand-800"
+              className="inline-flex min-w-[180px] items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Go to Login
+              Back to login
             </Link>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

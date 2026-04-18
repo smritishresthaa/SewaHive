@@ -172,6 +172,26 @@ export default function ProviderSidebar() {
     }`;
   }
 
+  function getOnboardingAttr(path) {
+    const map = {
+      "/provider/dashboard": "provider-dashboard-link",
+      "/provider/profile": "provider-profile-link",
+      "/provider/skills": "provider-skills-link",
+      "/provider/settings": "provider-settings-link",
+      "/provider/emergency": "provider-emergency-link",
+      "/provider/verification": "provider-verification-link",
+      "/provider/services": "provider-services-link",
+      "/provider/bookings": "provider-bookings-link",
+      "/provider/messages": "provider-messages-link",
+      "/provider/reviews": "provider-reviews-link",
+      "/provider/earnings": "provider-earnings-link",
+      "/provider/leaderboard": "provider-leaderboard-link",
+      "/provider/help": "provider-help-link",
+    };
+
+    return map[path] || undefined;
+  }
+
   const renderNavContent = (isMobile = false) => (
     <nav className={isMobile ? "space-y-1 p-4" : "flex-1 px-3 py-4 space-y-1"}>
       {navSections.map((section, si) => (
@@ -194,6 +214,7 @@ export default function ProviderSidebar() {
                   to={item.to}
                   className={navItemClass(item.to)}
                   onClick={() => isMobile && setMobileOpen(false)}
+                  data-onboarding={getOnboardingAttr(item.to)}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <Icon className={iconClass(item.to)} />

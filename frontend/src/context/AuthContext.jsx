@@ -1,16 +1,17 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import api from "../utils/axios";
+import { normalizeRoles, hasRole } from "../utils/roles";
 
 const AuthContext = createContext(null);
 const ACCOUNT_NOTICE_KEY = "sewahiveAccountNotice";
 
-function buildDefaultNotifications(role = "client") {
+function buildDefaultNotifications(role = "client", roles = []) {
   return {
     bookingUpdates: true,
     messages: true,
     reviews: true,
     email: true,
-    emergencyAlerts: role === "provider",
+    emergencyAlerts: hasRole({ role, roles }, "provider"),
   };
 }
 
@@ -24,7 +25,8 @@ const defaultAddress = {
 function normalizeUserShape(userFromServer) {
   const user = { ...(userFromServer || {}) };
 
-  user.role = user.role || "client";
+  user.roles = normalizeRoles(user.roles, user.role || "client");
+  user.role = hasRole(user, user.role) ? user.role : user.roles[0] || "client";
   user.profile = user.profile || {};
   user.profile.address = user.profile.address || { ...defaultAddress };
   user.location = user.location || { type: "Point", coordinates: [0, 0] };
@@ -35,7 +37,7 @@ function normalizeUserShape(userFromServer) {
   user.providerDetails = user.providerDetails || {};
   user.settings = user.settings || {};
   user.settings.notifications = {
-    ...buildDefaultNotifications(user.role),
+    ...buildDefaultNotifications(user.role, user.roles),
     ...(user.settings.notifications || {}),
   };
   user.accountStatus = user.accountStatus || "active";
@@ -118,7 +120,7 @@ export function AuthProvider({ children }) {
           ...prev?.settings,
           ...updatedUser?.settings,
           notifications: {
-            ...buildDefaultNotifications(updatedUser?.role || prev?.role || "client"),
+            ...buildDefaultNotifications(updatedUser?.role || prev?.role || "client", updatedUser?.roles || prev?.roles || []),
             ...prev?.settings?.notifications,
             ...updatedUser?.settings?.notifications,
           },
@@ -126,6 +128,70 @@ export function AuthProvider({ children }) {
       })
     );
   }
+
+
+  async function switchRole(role) {
+    const normalizedRole = String(role || "").trim().toLowerCase();
+    const currentUser = normalizeUserShape(user || {});
+
+    if (!normalizedRole || !hasRole(currentUser, normalizedRole)) {
+      throw new Error("Requested role is not enabled for this account");
+    }
+
+    if (currentUser.role === normalizedRole) {
+      return currentUser;
+    }
+
+    const res = await api.post("/auth/switch-role", { role: normalizedRole });
+    const token = res.data?.accessToken;
+    const switchedUser = normalizeUserShape(res.data?.user);
+
+    if (!token || !switchedUser) {
+      throw new Error("Invalid server response");
+    }
+
+    localStorage.setItem("accessToken", token);
+    persistAccountNotice(null);
+    setUser(switchedUser);
+    return switchedUser;
+  }
+
+  async function enableProviderCapability() {
+    const res = await api.post("/auth/enable-provider");
+    const token = res.data?.accessToken;
+    const upgradedUser = normalizeUserShape(res.data?.user);
+
+    if (!token || !upgradedUser) {
+      throw new Error("Invalid server response");
+    }
+
+    localStorage.setItem("accessToken", token);
+    persistAccountNotice(null);
+    setUser(upgradedUser);
+    return upgradedUser;
+  }
+
+  const markWalkthroughStatus = useCallback(async (role, status) => {
+    const normalizedRole = String(role || user?.role || "client").trim().toLowerCase();
+    const normalizedStatus = String(status || "").trim().toLowerCase();
+
+    if (!["client", "provider"].includes(normalizedRole)) {
+      throw new Error("Invalid onboarding role");
+    }
+
+    if (!["completed", "skipped"].includes(normalizedStatus)) {
+      throw new Error("Invalid onboarding status");
+    }
+
+    const res = await api.post("/auth/onboarding/walkthrough", {
+      role: normalizedRole,
+      status: normalizedStatus,
+    });
+
+    const updatedUser = normalizeUserShape(res.data?.user);
+    setUser(updatedUser);
+    return updatedUser;
+  }, [user]);
 
   async function logout() {
     try {
@@ -146,12 +212,14 @@ export function AuthProvider({ children }) {
 
   function getRedirectPath(role, accountUser = user) {
     const currentUser = normalizeUserShape(accountUser || { role });
+    const resolvedRole = String(role || currentUser.role || "client").trim().toLowerCase();
+
     if (currentUser.accountStatus === "suspended" || currentUser.accountStatus === "deleted") {
       return "/";
     }
-    if (currentUser.onboarding?.nextStep) return currentUser.onboarding.nextStep;
-    if (role === "provider") return "/provider/dashboard";
-    if (role === "admin") return "/admin/dashboard";
+
+    if (resolvedRole === "provider") return "/provider/dashboard";
+    if (resolvedRole === "admin") return "/admin/dashboard";
     return "/client/dashboard";
   }
 
@@ -164,6 +232,9 @@ export function AuthProvider({ children }) {
         loading,
         login,
         loginWithGoogle,
+        switchRole,
+        enableProviderCapability,
+        markWalkthroughStatus,
         logout,
         getRedirectPath,
         fetchUser,

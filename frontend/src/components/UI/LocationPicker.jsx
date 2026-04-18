@@ -16,12 +16,20 @@ export default function LocationPicker({
   onLocationChange,
   label = "Service Location",
 }) {
+  const hasInitialCoords =
+    Array.isArray(initialCoords) &&
+    initialCoords.length === 2 &&
+    initialCoords.every((value) => Number.isFinite(Number(value))) &&
+    !(Number(initialCoords[0]) === 0 && Number(initialCoords[1]) === 0);
+
+  const initialSource = hasInitialCoords ? "manual" : null;
+
   // Location Mode: 'current' or 'manual'
   const [locationMode, setLocationMode] = useState("manual");
-  
-  const [coords, setCoords] = useState(initialCoords || [85.3240, 27.7172]);
+  const [coords, setCoords] = useState(hasInitialCoords ? initialCoords : null);
   const [addressText, setAddressText] = useState(initialAddress || "");
   const [landmark, setLandmark] = useState(initialLandmark || "");
+  const [locationSource, setLocationSource] = useState(initialSource);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -30,6 +38,18 @@ export default function LocationPicker({
   const [currentLocationDetected, setCurrentLocationDetected] = useState(false);
   const searchTimeout = useRef(null);
 
+  function clearSelectedLocation({ keepLandmark = true } = {}) {
+    setCoords(null);
+    setAddressText("");
+    setLocationSource(null);
+    setShowMap(false);
+    setCurrentLocationDetected(false);
+
+    if (!keepLandmark) {
+      setLandmark("");
+    }
+  }
+
   // Notify parent whenever location changes
   useEffect(() => {
     if (onLocationChange) {
@@ -37,10 +57,11 @@ export default function LocationPicker({
         coordinates: coords,
         addressText,
         landmark,
+        source: locationSource,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coords, addressText, landmark]);
+  }, [coords, addressText, landmark, locationSource]);
 
   // Search locations using OpenStreetMap Nominatim API
   async function handleSearchLocation(query) {
@@ -74,6 +95,9 @@ export default function LocationPicker({
   function handleSearchChange(e) {
     const query = e.target.value;
     setSearchQuery(query);
+    setAddressText("");
+    setCoords(null);
+    setLocationSource(null);
 
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
@@ -86,6 +110,7 @@ export default function LocationPicker({
     setCoords(newCoords);
     setAddressText(result.display_name);
     setSearchQuery(getShortAddress(result.display_name));
+    setLocationSource("manual");
     setSearchResults([]);
     toast.success("Location selected!");
   }
@@ -101,6 +126,7 @@ export default function LocationPicker({
       (position) => {
         const { latitude, longitude } = position.coords;
         setCoords([longitude, latitude]);
+        setLocationSource("current");
         reverseGeocode(latitude, longitude);
         setGettingLocation(false);
         setCurrentLocationDetected(true);
@@ -124,13 +150,24 @@ export default function LocationPicker({
   }
 
   function handleModeChange(mode) {
+    if (mode === locationMode) return;
+
     setLocationMode(mode);
+    setSearchResults([]);
+
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+      searchTimeout.current = null;
+    }
+
     if (mode === "current") {
+      setSearchQuery("");
+      clearSelectedLocation();
       // Auto-detect location when switching to current mode
       handleGetCurrentLocation();
     } else {
-      // Clear current location flag when switching to manual
-      setCurrentLocationDetected(false);
+      clearSelectedLocation();
+      setSearchQuery("");
     }
   }
 
@@ -168,7 +205,7 @@ export default function LocationPicker({
       {/* Mode Selection */}
       <div className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
         <label className="block text-sm font-semibold text-gray-700 mb-3">
-          Service Location
+          {label}
         </label>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -230,12 +267,12 @@ export default function LocationPicker({
             </button>
           </div>
 
-          {currentLocationDetected && (
+          {currentLocationDetected && coords && (
             <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <HiCheckCircle className="text-emerald-600 text-xl flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  {addressText && (
+                  {addressText && coords && (
                     <p className="text-sm text-gray-700">{addressText}</p>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
@@ -296,7 +333,7 @@ export default function LocationPicker({
           </div>
 
           {/* Selected Address Display */}
-          {addressText && (
+          {addressText && coords && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
               <div className="flex items-start gap-2">
                 <HiMapPin className="text-emerald-600 text-xl flex-shrink-0 mt-0.5" />
@@ -334,13 +371,20 @@ export default function LocationPicker({
       {/* Map Preview */}
       <button
         type="button"
-        onClick={() => setShowMap(!showMap)}
-        className="w-full px-4 py-2 border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 rounded-lg font-medium transition"
+        onClick={() => coords && setShowMap(!showMap)}
+        disabled={!coords}
+        className="w-full px-4 py-2 border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
       >
         {showMap ? "🗺️ Hide Map Preview" : "🗺️ Show on Map"}
       </button>
 
-      {showMap && (
+      {!coords && (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+          Choose your booking location from this form first. Your saved profile/home location will not be used automatically.
+        </div>
+      )}
+
+      {showMap && coords && (
         <div className="mt-2 relative rounded-lg overflow-hidden border-2 border-gray-300 shadow-lg">
           <div className="w-full h-64 bg-gray-100">
             <MapPreview coords={coords} />

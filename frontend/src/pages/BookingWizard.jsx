@@ -29,6 +29,15 @@ function normalizePriceMode(raw = "fixed") {
   return "fixed";
 }
 
+function hasValidCoordinates(value) {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((entry) => Number.isFinite(Number(entry))) &&
+    !(Number(value[0]) === 0 && Number(value[1]) === 0)
+  );
+}
+
 export default function BookingWizard() {
   const { serviceId } = useParams();
   const navigate = useNavigate();
@@ -50,12 +59,10 @@ export default function BookingWizard() {
   });
 
   const [location, setLocation] = useState({
-    coordinates:
-      user?.location?.coordinates?.length === 2
-        ? user.location.coordinates
-        : [85.324, 27.7172],
+    coordinates: null,
     addressText: "",
     landmark: "",
+    source: null,
   });
 
   useEffect(() => {
@@ -290,12 +297,18 @@ export default function BookingWizard() {
       return;
     }
 
-    if (
-      !location.coordinates ||
-      !Array.isArray(location.coordinates) ||
-      location.coordinates.length !== 2
-    ) {
-      toast.error("Invalid location coordinates. Please set your location.");
+    if (!hasValidCoordinates(location.coordinates)) {
+      toast.error("Please choose the service location from the booking form.");
+      return;
+    }
+
+    if (location.source === "manual" && !location.addressText?.trim()) {
+      toast.error("Please select the booking address from the search results.");
+      return;
+    }
+
+    if (!location.source) {
+      toast.error("Please confirm the service location before continuing.");
       return;
     }
 
@@ -306,10 +319,10 @@ export default function BookingWizard() {
         providerId: service.providerId?._id || service.providerId,
         location: {
           type: "Point",
-          coordinates: location.coordinates,
+          coordinates: location.coordinates.map((value) => Number(value)),
         },
-        addressText: location.addressText || "",
-        landmark: location.landmark || "",
+        addressText: location.addressText?.trim() || "",
+        landmark: location.landmark?.trim() || "",
         notes,
       };
 

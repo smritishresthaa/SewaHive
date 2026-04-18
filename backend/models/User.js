@@ -11,6 +11,12 @@ const UserSchema = new Schema(
       default: "client",
       required: true,
     },
+    roles: {
+      type: [String],
+      enum: ["client", "provider", "admin"],
+      default: ["client"],
+      index: true,
+    },
 
     email: {
       type: String,
@@ -224,6 +230,13 @@ const UserSchema = new Schema(
     // -----------------------------------
     isVerified: { type: Boolean, default: false },
     verifiedAt: Date,
+    emailVerification: {
+      otpHash: { type: String, default: "" },
+      otpExpiresAt: { type: Date, default: null },
+      lastSentAt: { type: Date, default: null },
+      resendAvailableAt: { type: Date, default: null },
+      failedAttempts: { type: Number, default: 0 },
+    },
 
     // -----------------------------------
     // PASSWORD RESET
@@ -250,6 +263,10 @@ const UserSchema = new Schema(
       kycCompleted: { type: Boolean, default: false },
       skillProfileCompleted: { type: Boolean, default: false },
       lastSuggestedStep: { type: String, default: "profile" },
+      clientWalkthroughCompletedAt: { type: Date, default: null },
+      clientWalkthroughSkippedAt: { type: Date, default: null },
+      providerWalkthroughCompletedAt: { type: Date, default: null },
+      providerWalkthroughSkippedAt: { type: Date, default: null },
     },
     deactivatedAt: Date,
     deletedAt: Date,
@@ -262,10 +279,40 @@ const UserSchema = new Schema(
 
 UserSchema.index({ location: "2dsphere" });
 UserSchema.index({ role: 1 });
+UserSchema.index({ roles: 1 });
 
 UserSchema.pre("save", function normalizeData(next) {
   if (this.kycStatus === "submitted" || this.kycStatus === "under_review") {
     this.kycStatus = "pending_review";
+  }
+
+  const allowedRoles = ["client", "provider", "admin"];
+  const normalizedRoles = new Set();
+  const addRole = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (allowedRoles.includes(normalized)) normalizedRoles.add(normalized);
+  };
+
+  (Array.isArray(this.roles) ? this.roles : [this.roles]).forEach(addRole);
+  addRole(this.role);
+
+  if (normalizedRoles.has("provider")) {
+    normalizedRoles.add("client");
+  }
+
+  if (normalizedRoles.has("admin")) {
+    this.roles = ["admin"];
+    this.role = "admin";
+  } else {
+    if (!normalizedRoles.size) {
+      normalizedRoles.add("client");
+    }
+
+    this.roles = Array.from(normalizedRoles);
+
+    if (!normalizedRoles.has(this.role)) {
+      this.role = normalizedRoles.has("provider") ? "provider" : "client";
+    }
   }
 
   if (!this.providerDetails) {
@@ -295,6 +342,24 @@ UserSchema.pre("save", function normalizeData(next) {
       email: true,
       emergencyAlerts: this.role === "provider",
     };
+  }
+
+  if (!this.emailVerification) {
+    this.emailVerification = {
+      otpHash: "",
+      otpExpiresAt: null,
+      lastSentAt: null,
+      resendAvailableAt: null,
+      failedAttempts: 0,
+    };
+  } else {
+    if (typeof this.emailVerification.otpHash !== "string") {
+      this.emailVerification.otpHash = "";
+    }
+
+    if (typeof this.emailVerification.failedAttempts !== "number") {
+      this.emailVerification.failedAttempts = 0;
+    }
   }
 
   if (!Array.isArray(this.providerDetails.badges)) {

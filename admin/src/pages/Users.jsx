@@ -21,20 +21,39 @@ export default function Users() {
   const [filteredUsers, setFilteredUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  
+
   // Filters - get initial search from URL params
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [verificationFilter, setVerificationFilter] = useState('all')
-  
+
   // User detail drawer
   const [selectedUser, setSelectedUser] = useState(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  
+
   // Recent actions
   const [recentActions, setRecentActions] = useState([])
-  
+  const [showSuspendModal, setShowSuspendModal] = useState(false)
+  const [suspendUser, setSuspendUser] = useState(null)
+  const [suspendReason, setSuspendReason] = useState("")
+  const [suspendDuration, setSuspendDuration] = useState("1d")
+  const [customSuspendUntil, setCustomSuspendUntil] = useState("")
+
+  // Custom action modals
+  const [showUnsuspendModal, setShowUnsuspendModal] = useState(false)
+  const [unsuspendUser, setUnsuspendUser] = useState(null)
+  const [showVerifyModal, setShowVerifyModal] = useState(false)
+  const [verifyUser, setVerifyUser] = useState(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteUser, setDeleteUser] = useState(null)
+  const [showMessageModal, setShowMessageModal] = useState(false)
+  const [messageModal, setMessageModal] = useState({
+    type: 'info',
+    title: '',
+    message: '',
+  })
+
   // Action dropdown
   const [openActionDropdown, setOpenActionDropdown] = useState(null)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 20 })
@@ -46,38 +65,57 @@ export default function Users() {
     return () => clearInterval(interval)
   }, [])
 
+  const openMessageModal = (title, message, type = 'info') => {
+    setMessageModal({ title, message, type })
+    setShowMessageModal(true)
+  }
+
+  const closeMessageModal = () => {
+    setShowMessageModal(false)
+    setMessageModal({ title: '', message: '', type: 'info' })
+  }
+
+  const resetSuspendModalState = () => {
+    setShowSuspendModal(false)
+    setSuspendUser(null)
+    setSuspendReason("")
+    setSuspendDuration("1d")
+    setCustomSuspendUntil("")
+  }
+
   const fetchData = async () => {
     try {
       setError('')
-      
+
       // Fetch stats
       const statsRes = await api.get('/admin/dashboard/stats')
       const statsData = statsRes?.data?.data
-      
+
+      // Fetch all users
+      const providersRes = await api.get('/admin/users')
+      const allUsers = providersRes?.data?.data || []
+
       if (statsData) {
         setStats({
           totalUsers: (statsData.users?.totalUsers || 0) + (statsData.users?.totalProviders || 0),
           totalClients: statsData.users?.totalUsers || 0,
           totalProviders: statsData.users?.totalProviders || 0,
-          verifiedProviders: statsData.users?.activeProviders || 0,
-          suspendedAccounts: 0, // TODO: Add suspended count to backend
+          verifiedProviders: statsData.users?.verifiedProviders || 0,
+          suspendedAccounts: allUsers.filter((u) => u.accountStatus === 'suspended').length,
         })
       }
 
-      // Fetch all providers
-      const providersRes = await api.get('/admin/users')
-      const allUsers = providersRes?.data?.data || []
-      
       // Debug: Log sample user data
       if (allUsers.length > 0) {
         console.log('Sample user data from backend:', {
           profile: allUsers[0].profile,
           avatarUrl: allUsers[0].profile?.avatarUrl,
           photo: allUsers[0].profile?.photo,
-          address: allUsers[0].profile?.address
+          address: allUsers[0].profile?.address,
+          suspension: allUsers[0].suspension,
         });
       }
-      
+
       // Transform users data
       const transformedUsers = allUsers.map(u => ({
         _id: u._id,
@@ -95,6 +133,7 @@ export default function Users() {
         profile: u.profile,
         location: u.location,
         providerStatus: u.providerStatus,
+        suspension: u.suspension || {},
       }))
 
       setUsers(transformedUsers)
@@ -135,12 +174,11 @@ export default function Users() {
     // Verification filter (only applies to providers)
     if (verificationFilter !== 'all') {
       filtered = filtered.filter((user) => {
-        // Skip clients - verification doesn't apply to them
         if (user.role === 'Client') return false
-        
+
         const isVerified = user.badges.includes('verified') || user.verification === 'approved'
         const isPending = (user.verification === 'pending' || user.verification === 'submitted') && !isVerified
-        
+
         if (verificationFilter === 'verified') {
           return isVerified
         }
@@ -160,19 +198,17 @@ export default function Users() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      // Check if click is on the action menu button or inside the dropdown
-      const actionsMenu = e.target.closest('[data-testid="actions-menu"]');
+      const actionsMenu = e.target.closest('[data-testid="actions-menu"]')
       if (!actionsMenu && openActionDropdown) {
-        setOpenActionDropdown(null);
+        setOpenActionDropdown(null)
       }
     }
 
     if (openActionDropdown) {
-      // Small delay to prevent immediate closure from the button click
       setTimeout(() => {
-        document.addEventListener('click', handleClickOutside);
-      }, 0);
-      return () => document.removeEventListener('click', handleClickOutside);
+        document.addEventListener('click', handleClickOutside)
+      }, 0)
+      return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [openActionDropdown])
 
@@ -203,60 +239,222 @@ export default function Users() {
     console.log('Avatar:', user.avatar)
     console.log('Profile:', user.profile)
     console.log('Address:', user.profile?.address)
+    console.log('Suspension:', user.suspension)
     setSelectedUser(user)
     setIsDrawerOpen(true)
     setOpenActionDropdown(null)
   }
 
-  const handleSuspendUser = async (user) => {
-    const action = user.status === 'suspended' ? 'unsuspend' : 'suspend'
-    if (!confirm(`Are you sure you want to ${action} ${user.name}?`)) return
-    
+  const handleSuspendUser = (user) => {
+    if (user.status === 'suspended') {
+      setUnsuspendUser(user)
+      setShowUnsuspendModal(true)
+      return
+    }
+
+    setSuspendUser(user)
+    setSuspendReason("")
+    setSuspendDuration("1d")
+    setCustomSuspendUntil("")
+    setShowSuspendModal(true)
+  }
+
+  const submitUnsuspend = async (user) => {
     try {
-      const res = await api.patch(`/admin/users/${user._id}/suspend`)
+      const res = await api.patch(`/admin/users/${user._id}/suspend`, {
+        action: 'unsuspend',
+      })
+
       if (res.data.success) {
-        addRecentAction(`${action === 'suspend' ? 'Suspended' : 'Reactivated'} account: ${user.name}`)
+        addRecentAction(`Reactivated account: ${user.name}`)
+        setShowUnsuspendModal(false)
+        setUnsuspendUser(null)
         setOpenActionDropdown(null)
-        setIsDrawerOpen(false)
+        if (selectedUser?._id === user._id) {
+          setIsDrawerOpen(false)
+        }
         fetchData()
       }
     } catch (err) {
+      console.error('Failed to unsuspend user:', err)
+      openMessageModal(
+        'Reactivation Failed',
+        err.response?.data?.message || 'Failed to reactivate user',
+        'error'
+      )
+    }
+  }
+
+  const submitSuspend = async () => {
+    if (!suspendUser) return
+
+    const durationMap = {
+      "1h": 60 * 60 * 1000,
+      "1d": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+    }
+
+    let payload = {
+      action: 'suspend',
+      reason: suspendReason,
+      duration: suspendDuration === "permanent" ? null : durationMap[suspendDuration],
+      permanent: suspendDuration === "permanent",
+    }
+
+    if (suspendDuration === 'custom') {
+      if (!customSuspendUntil) {
+        openMessageModal(
+          'Custom Duration Required',
+          'Please select a date and time for the suspension to end.',
+          'error'
+        )
+        return
+      }
+
+      const customDate = new Date(customSuspendUntil)
+      const now = new Date()
+
+      if (Number.isNaN(customDate.getTime()) || customDate <= now) {
+        openMessageModal(
+          'Invalid Custom Time',
+          'Please choose a future date and time for the suspension end.',
+          'error'
+        )
+        return
+      }
+
+      payload.duration = customDate.getTime() - now.getTime()
+      payload.permanent = false
+    }
+
+    try {
+      const res = await api.patch(`/admin/users/${suspendUser._id}/suspend`, payload)
+
+      if (res.data.success) {
+        const impact = res.data?.data?.affectedBookings
+        const summary = impact?.summary || {}
+        addRecentAction(`Suspended account: ${suspendUser.name}`)
+        resetSuspendModalState()
+        setOpenActionDropdown(null)
+        if (selectedUser?._id === suspendUser._id) {
+          setIsDrawerOpen(false)
+        }
+        fetchData()
+
+        if ((summary.autoCancelledCount || 0) > 0 || (summary.manualReviewCount || 0) > 0) {
+          const detailLines = [
+            `${summary.autoCancelledCount || 0} upcoming booking(s) were auto-cancelled.`,
+            `${summary.manualReviewCount || 0} booking(s) need manual admin review.`,
+          ]
+
+          if ((summary.totalRefundAmount || 0) > 0) {
+            detailLines.push(`NPR ${Number(summary.totalRefundAmount).toLocaleString()} was marked for refund.`)
+          }
+
+          openMessageModal(
+            'Suspension Applied',
+            detailLines.join(' '),
+            'success'
+          )
+        }
+      }
+    } catch (err) {
       console.error('Failed to suspend user:', err)
-      alert(err.response?.data?.message || 'Failed to suspend user')
+      openMessageModal(
+        'Suspension Failed',
+        err.response?.data?.message || 'Failed to suspend user',
+        'error'
+      )
     }
   }
 
   const handleVerifyProvider = async (user) => {
-    if (!confirm(`Verify ${user.name} as a provider?`)) return
-    
+    setVerifyUser(user)
+    setShowVerifyModal(true)
+  }
+
+  const submitVerifyProvider = async () => {
+    if (!verifyUser) return
+
     try {
-      const res = await api.patch(`/admin/users/${user._id}/verify`)
+      const res = await api.patch(`/admin/users/${verifyUser._id}/verify`)
       if (res.data.success) {
-        addRecentAction(`Verified provider: ${user.name}`)
+        addRecentAction(`Verified provider: ${verifyUser.name}`)
+        setShowVerifyModal(false)
+        setVerifyUser(null)
         setOpenActionDropdown(null)
-        setIsDrawerOpen(false)
+        if (selectedUser?._id === verifyUser._id) {
+          setIsDrawerOpen(false)
+        }
         fetchData()
       }
     } catch (err) {
       console.error('Failed to verify provider:', err)
-      alert(err.response?.data?.message || 'Failed to verify provider')
+      openMessageModal(
+        'Verification Failed',
+        err.response?.data?.message || 'Failed to verify provider',
+        'error'
+      )
     }
   }
 
   const handleRemoveAccount = async (user) => {
-    if (!confirm(`PERMANENTLY DELETE ${user.name}? This action cannot be undone.`)) return
-    
+    setDeleteUser(user)
+    setShowDeleteModal(true)
+  }
+
+  const submitRemoveAccount = async () => {
+    if (!deleteUser) return
+
     try {
-      const res = await api.delete(`/admin/users/${user._id}`)
+      const res = await api.delete(`/admin/users/${deleteUser._id}`)
       if (res.data.success) {
-        addRecentAction(`Removed account: ${user.name}`)
+        const summary = res.data?.data?.summary
+        const autoCancelledCount = Number(summary?.autoCancelledCount || 0)
+        const disabledServicesCount = Number(summary?.disabledServicesCount || 0)
+        const totalRefundAmount = Number(summary?.totalRefundAmount || 0)
+
+        addRecentAction(`Removed account: ${deleteUser.name}`)
+        setShowDeleteModal(false)
+        setDeleteUser(null)
         setOpenActionDropdown(null)
-        setIsDrawerOpen(false)
+        if (selectedUser?._id === deleteUser._id) {
+          setIsDrawerOpen(false)
+        }
         fetchData()
+
+        if (summary) {
+          const detailParts = []
+          if (autoCancelledCount > 0) {
+            detailParts.push(`${autoCancelledCount} upcoming booking${autoCancelledCount > 1 ? 's were' : ' was'} cancelled`)
+          }
+          if (disabledServicesCount > 0) {
+            detailParts.push(`${disabledServicesCount} service${disabledServicesCount > 1 ? 's were' : ' was'} disabled`)
+          }
+          if (totalRefundAmount > 0) {
+            detailParts.push(`NPR ${totalRefundAmount.toLocaleString()} marked for refund`)
+          }
+
+          openMessageModal(
+            'Account Removed',
+            detailParts.length > 0
+              ? `${deleteUser.name} was removed successfully. ${detailParts.join(', ')}.`
+              : `${deleteUser.name} was removed successfully.`,
+            'success'
+          )
+        }
       }
     } catch (err) {
       console.error('Failed to remove account:', err)
-      alert(err.response?.data?.message || 'Failed to remove account')
+      const blockingSummary = err.response?.data?.data?.summary
+      const blockingCount = Number(blockingSummary?.blockingReviewCount || 0)
+      openMessageModal(
+        'Delete Failed',
+        err.response?.status === 409 && blockingCount > 0
+          ? `${err.response?.data?.message || 'Deletion requires admin review first.'} ${blockingCount} booking${blockingCount > 1 ? 's still need' : ' still needs'} manual handling before this account can be deleted.`
+          : err.response?.data?.message || 'Failed to remove account',
+        'error'
+      )
     }
   }
 
@@ -277,6 +475,27 @@ export default function Users() {
     })
   }
 
+  const formatDateTime = (date) => {
+    if (!date) return 'N/A'
+    const parsed = new Date(date)
+    if (Number.isNaN(parsed.getTime())) return 'N/A'
+    return parsed.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
+  const getSuspensionSummary = (user) => {
+    if (user.status !== 'suspended') return null
+    if (!user.suspension?.endsAt) {
+      return 'Permanent suspension'
+    }
+    return `Until ${formatDateTime(user.suspension.endsAt)}`
+  }
+
   const getStatusBadge = (status) => {
     const styles = {
       active: 'bg-green-100 text-green-800',
@@ -291,12 +510,10 @@ export default function Users() {
   }
 
   const getVerificationBadge = (user) => {
-    // Clients don't need KYC verification
     if (user.role === 'Client') {
       return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">N/A</span>
     }
-    
-    // Only providers need KYC verification
+
     if (user.badges.includes('verified') || user.verification === 'approved') {
       return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset bg-blue-50 text-blue-700 ring-blue-200"><HiCheckCircle className="w-3.5 h-3.5" />Verified</span>
     }
@@ -427,17 +644,17 @@ export default function Users() {
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           {user.avatar ? (
-                            <img 
-                              className="h-10 w-10 rounded-full object-cover" 
-                              src={user.avatar} 
-                              alt="" 
+                            <img
+                              className="h-10 w-10 rounded-full object-cover"
+                              src={user.avatar}
+                              alt=""
                               onError={(e) => {
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'flex';
                               }}
                             />
                           ) : null}
-                          <div 
+                          <div
                             className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold"
                             style={{ display: user.avatar ? 'none' : 'flex' }}
                           >
@@ -447,13 +664,18 @@ export default function Users() {
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{user.name}</div>
                           <div className="text-sm text-gray-500">{user.email}</div>
+                          {user.status === 'suspended' && (
+                            <div className="mt-0.5 text-[10px] text-red-600 font-medium">
+                              {getSuspensionSummary(user)}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-2.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ring-1 ring-inset ${
-                        user.role === 'Provider' 
-                          ? 'bg-green-50 text-green-700 ring-green-200' 
+                        user.role === 'Provider'
+                          ? 'bg-green-50 text-green-700 ring-green-200'
                           : 'bg-purple-50 text-purple-700 ring-purple-200'
                       }`}>
                         {user.role}
@@ -477,11 +699,9 @@ export default function Users() {
                         >
                           <HiEllipsisVertical className="h-4 w-4" />
                         </button>
-                        
-                        {/* Dropdown - render inline */}
+
                         {openActionDropdown === user._id && (
                           <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 z-[999] py-1">
-                              {/* View Details */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -493,7 +713,6 @@ export default function Users() {
                                 <span className="font-medium">View Details</span>
                               </button>
 
-                              {/* Suspend/Unsuspend Account */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -508,7 +727,6 @@ export default function Users() {
                                 )}
                               </button>
 
-                              {/* Verify Provider - Only for unverified providers */}
                               {user.role === 'Provider' && !user.badges.includes('verified') && (
                                 <button
                                   onClick={(e) => {
@@ -522,10 +740,8 @@ export default function Users() {
                                 </button>
                               )}
 
-                              {/* Divider before dangerous action */}
                               <div className="border-t border-gray-100 my-1"></div>
 
-                              {/* Remove Account */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -569,16 +785,13 @@ export default function Users() {
       {/* User Detail Drawer */}
       {isDrawerOpen && selectedUser && (
         <>
-          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40"
             onClick={() => setIsDrawerOpen(false)}
           ></div>
 
-          {/* Drawer */}
           <div className="fixed right-0 top-0 h-full w-full md:w-[480px] bg-white shadow-2xl z-50 overflow-y-auto">
             <div className="p-6">
-              {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-sm font-bold text-gray-900">User Details</h2>
                 <button onClick={() => setIsDrawerOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
@@ -586,7 +799,6 @@ export default function Users() {
                 </button>
               </div>
 
-              {/* User Info */}
               <div className="text-center mb-6">
                 {selectedUser.avatar || selectedUser.profile?.avatarUrl ? (
                   <img
@@ -604,7 +816,6 @@ export default function Users() {
                     {selectedUser.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                {/* Fallback avatar (hidden by default, shown on image error) */}
                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-lg" style={{display: 'none'}}>
                   {selectedUser.name.charAt(0).toUpperCase()}
                 </div>
@@ -616,9 +827,7 @@ export default function Users() {
                 </div>
               </div>
 
-              {/* Details */}
               <div className="space-y-4">
-                {/* Profile Information */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -652,7 +861,6 @@ export default function Users() {
                   </div>
                 </div>
 
-                {/* Contact Information */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -676,11 +884,10 @@ export default function Users() {
                   </div>
                 </div>
 
-                {/* Address */}
                 {selectedUser.profile?.address && (
-                  (selectedUser.profile.address.area || 
-                   selectedUser.profile.address.city || 
-                   selectedUser.profile.address.postalCode || 
+                  (selectedUser.profile.address.area ||
+                   selectedUser.profile.address.city ||
+                   selectedUser.profile.address.postalCode ||
                    selectedUser.profile.address.country) ? (
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -720,10 +927,8 @@ export default function Users() {
                   ) : null
                 )}
 
-                {/* Only show provider-specific sections for providers */}
                 {selectedUser.role === 'Provider' && selectedUser.providerDetails && (
                   <>
-                    {/* Provider Business Info */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -771,7 +976,6 @@ export default function Users() {
                       </div>
                     </div>
 
-                    {/* Provider Stats */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -815,13 +1019,12 @@ export default function Users() {
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Badges:</span>
                           <span className="text-sm font-medium text-gray-900">
-                            {selectedUser.badges && selectedUser.badges !== 'none' ? selectedUser.badges : 'None'}
+                            {selectedUser.badges && selectedUser.badges.length > 0 ? selectedUser.badges.join(', ') : 'None'}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* KYC Verification */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -845,7 +1048,6 @@ export default function Users() {
                   </>
                 )}
 
-                {/* Account Info */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -864,6 +1066,30 @@ export default function Users() {
                         {formatDate(selectedUser.joinedDate)}
                       </span>
                     </div>
+
+                    {selectedUser.status === 'suspended' && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Suspended From:</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {formatDateTime(selectedUser.suspension?.startsAt)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Suspended Until:</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {selectedUser.suspension?.endsAt ? formatDateTime(selectedUser.suspension.endsAt) : 'Permanent'}
+                          </span>
+                        </div>
+                        <div className="pt-1">
+                          <span className="text-sm text-gray-600">Suspension Reason:</span>
+                          <p className="text-sm font-medium text-gray-900 mt-1">
+                            {selectedUser.suspension?.reason || 'No reason provided'}
+                          </p>
+                        </div>
+                      </>
+                    )}
+
                     <div>
                       <span className="text-sm text-gray-600">User ID:</span>
                       <p className="text-xs font-medium text-gray-900 font-mono mt-1 break-all">
@@ -874,7 +1100,6 @@ export default function Users() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="mt-6 space-y-2">
                 <button
                   onClick={() => handleSuspendUser(selectedUser)}
@@ -882,7 +1107,6 @@ export default function Users() {
                 >
                   {selectedUser.status === 'suspended' ? 'Unsuspend Account' : 'Suspend Account'}
                 </button>
-                {/* Only show verify button for unverified providers */}
                 {selectedUser.role === 'Provider' && !selectedUser.badges.includes('verified') && (
                   <button
                     onClick={() => handleVerifyProvider(selectedUser)}
@@ -901,6 +1125,268 @@ export default function Users() {
             </div>
           </div>
         </>
+      )}
+
+      {showSuspendModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Suspend Account</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Restrict {suspendUser?.name || "this user"} from accessing the app.
+                </p>
+              </div>
+              <button
+                onClick={resetSuspendModalState}
+                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              >
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Reason
+                </label>
+                <textarea
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  rows={3}
+                  placeholder="Enter suspension reason"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Duration
+                </label>
+                <select
+                  value={suspendDuration}
+                  onChange={(e) => setSuspendDuration(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                >
+                  <option value="1h">1 Hour</option>
+                  <option value="1d">1 Day</option>
+                  <option value="7d">7 Days</option>
+                  <option value="custom">Custom Date & Time</option>
+                  <option value="permanent">Permanent</option>
+                </select>
+              </div>
+
+              {suspendDuration === 'custom' && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Suspend Until
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={customSuspendUntil}
+                    onChange={(e) => setCustomSuspendUntil(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                  />
+                </div>
+              )}
+
+              <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-700">
+                Suspended users will only be able to access the landing page until the suspension expires or is removed by admin. Any upcoming bookings that fall inside the suspension window will be auto-cancelled when it is safe to do so, and active work that already started will be flagged for manual admin review.
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={resetSuspendModalState}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitSuspend}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+              >
+                Confirm Suspension
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnsuspendModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Reactivate Account</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Restore full access for {unsuspendUser?.name || "this user"}.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowUnsuspendModal(false)
+                  setUnsuspendUser(null)
+                }}
+                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              >
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-xl bg-green-50 p-3 text-sm text-green-700">
+              This will remove the current suspension and allow the user to access the app normally again.
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowUnsuspendModal(false)
+                  setUnsuspendUser(null)
+                }}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => submitUnsuspend(unsuspendUser)}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+              >
+                Reactivate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Verify Provider</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Mark {verifyUser?.name || "this provider"} as verified.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false)
+                  setVerifyUser(null)
+                }}
+                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              >
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-xl bg-blue-50 p-3 text-sm text-blue-700">
+              This will update the provider status and add the verified badge to the account.
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false)
+                  setVerifyUser(null)
+                }}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitVerifyProvider}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                Verify Provider
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Remove Account</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Permanently remove {deleteUser?.name || "this user"}.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDeleteUser(null)
+                }}
+                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              >
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+              This action cannot be undone. The account will be marked as deleted, provider services will be disabled, and cancellable upcoming bookings will be handled automatically where safe.
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDeleteUser(null)
+                }}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitRemoveAccount}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+              >
+                Remove Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMessageModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className={`text-lg font-bold ${
+                  messageModal.type === 'error' ? 'text-red-700' : 'text-gray-900'
+                }`}>
+                  {messageModal.title}
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  {messageModal.message}
+                </p>
+              </div>
+              <button
+                onClick={closeMessageModal}
+                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              >
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={closeMessageModal}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition ${
+                  messageModal.type === 'error'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -13,6 +13,12 @@ import {
 import { FcGoogle } from "react-icons/fc";
 import logo from "../logos/logo.png";
 import toast from "react-hot-toast";
+import {
+  MAX_NAME_LENGTH,
+  validateSignupValues,
+  normalizeEmail,
+  normalizeName,
+} from "../utils/authValidation";
 
 function TermsModal({
   open,
@@ -109,9 +115,19 @@ export default function Signup() {
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
+    let nextValue = type === "checkbox" ? checked : value;
+
+    if (name === "name") {
+      nextValue = value.replace(/\s{2,}/g, " ");
+    }
+
+    if (name === "email") {
+      nextValue = value.trimStart();
+    }
+
     setForm((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: nextValue,
     }));
   }
 
@@ -121,47 +137,12 @@ export default function Signup() {
   }
 
   function getFieldErrors(values) {
-    const errors = {};
-
-    if (!values.name.trim()) {
-      errors.name = "Full name is required.";
-    } else if (/^\d+$/.test(values.name.trim())) {
-      errors.name = "Name cannot contain only numbers.";
-    }
-
-    if (!values.email.trim()) {
-      errors.email = "Email is required.";
-    } else if (!/^\S+@\S+\.\S+$/.test(values.email)) {
-      errors.email = "Please enter a valid email address.";
-    }
-
-    if (!values.password) {
-      errors.password = "Password is required.";
-    } else {
-      if (values.password.length < 8) {
-        errors.password = "Password must be at least 8 characters long.";
-      } else if (!/[A-Z]/.test(values.password)) {
-        errors.password = "Password must include at least one uppercase letter.";
-      } else if (!/\d/.test(values.password)) {
-        errors.password = "Password must include at least one number.";
-      }
-    }
-
-    if (!values.confirmPassword) {
-      errors.confirmPassword = "Please confirm your password.";
-    } else if (values.password !== values.confirmPassword) {
-      errors.confirmPassword = "Passwords do not match.";
-    }
-
-    if (!values.acceptTerms) {
-      errors.acceptTerms = "You must accept the Terms & Conditions.";
-    }
-
-    return errors;
+    return validateSignupValues(values).errors;
   }
 
-  const fieldErrors = useMemo(() => getFieldErrors(form), [form]);
-  const isFormValid = Object.keys(fieldErrors).length === 0;
+  const validation = useMemo(() => validateSignupValues(form), [form]);
+  const fieldErrors = validation.errors;
+  const isFormValid = validation.isValid;
 
   useEffect(() => {
     async function fetchPublicRegistrationStatus() {
@@ -244,12 +225,14 @@ export default function Signup() {
     try {
       setLoading(true);
 
-      await api.post("/auth/register", {
-        email: form.email,
+      const payload = {
+        email: normalizeEmail(form.email),
         password: form.password,
         role: "client",
-        profile: { name: form.name },
-      });
+        profile: { name: normalizeName(form.name) },
+      };
+
+      await api.post("/auth/register", payload);
 
       toast.success("Account created! Please check your email to verify your account.");
       navigate(`/verify-info?email=${encodeURIComponent(form.email)}`);
@@ -391,6 +374,8 @@ export default function Signup() {
                           className={inputBase}
                           placeholder="Enter your full name"
                           disabled={!registrationOpen}
+                          maxLength={MAX_NAME_LENGTH}
+                          autoComplete="name"
                           required
                         />
                       </div>
@@ -412,6 +397,8 @@ export default function Signup() {
                           className={inputBase}
                           placeholder="Enter your email"
                           disabled={!registrationOpen}
+                          autoComplete="email"
+                          inputMode="email"
                           required
                         />
                       </div>
@@ -435,6 +422,7 @@ export default function Signup() {
                           className={inputBase}
                           placeholder="Create a password"
                           disabled={!registrationOpen}
+                          autoComplete="new-password"
                           required
                         />
                         <button
@@ -449,7 +437,7 @@ export default function Signup() {
                         <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
                       ) : (
                         <p className="mt-1 text-[11px] text-slate-400">
-                          Use at least 8 characters, 1 uppercase letter, and 1 number.
+                          Use 8+ characters with uppercase, lowercase, a number, and a symbol.
                         </p>
                       )}
                     </div>
@@ -469,6 +457,7 @@ export default function Signup() {
                           className={inputBase}
                           placeholder="Re-enter your password"
                           disabled={!registrationOpen}
+                          autoComplete="new-password"
                           required
                         />
                         <button

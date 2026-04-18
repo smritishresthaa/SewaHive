@@ -19,7 +19,10 @@ const router = express.Router();
 const CategoryRequest = require("../models/CategoryRequest");
 const ModerationQueue = require("../models/ModerationQueue");
 const skillUpload = require("../middleware/skillUpload");
-const sendEmail = require("../utils/sendEmail");
+const {
+  sendProviderIdVerificationSubmittedEmail,
+  sendProviderSkillVerificationSubmittedEmail,
+} = require("../utils/verificationEmails");
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -466,18 +469,6 @@ router.put(
 
       await user.save();
 
-      if (user.email) {
-        try {
-          await sendEmail(
-            user.email,
-            "SewaHive skill verification submitted",
-            `<p>Your skill proof for <strong>${category.name}</strong> has been submitted successfully and is now pending admin review.</p>`
-          );
-        } catch (mailError) {
-          console.error("Skill submission email failed:", mailError);
-        }
-      }
-
       res.json({
         success: true,
         message: "Skill credibility updated successfully",
@@ -610,6 +601,18 @@ router.post(
       }
 
       await user.save();
+
+      if (user.email) {
+        try {
+          await sendProviderSkillVerificationSubmittedEmail({
+            to: user.email,
+            providerName: user.profile?.name,
+            categoryName: category.name,
+          });
+        } catch (mailError) {
+          console.error("Skill verification submission email failed:", mailError);
+        }
+      }
 
       res.json({
         success: true,
@@ -860,11 +863,11 @@ router.post(
 
       if (req.user.email) {
         try {
-          await sendEmail(
-            req.user.email,
-            "SewaHive ID verification submitted",
-            `<p>Your ID verification request has been submitted successfully. We will email you again when the review is completed.</p>`
-          );
+          await sendProviderIdVerificationSubmittedEmail({
+            to: req.user.email,
+            providerName: req.user.profile?.name,
+            documentType,
+          });
         } catch (mailError) {
           console.error("Verification submission email failed:", mailError);
         }
@@ -908,6 +911,19 @@ router.post(
       await User.findByIdAndUpdate(req.user.id, {
         kycStatus: "pending_review",
       });
+
+      if (req.user.email) {
+        try {
+          await sendProviderIdVerificationSubmittedEmail({
+            to: req.user.email,
+            providerName: req.user.profile?.name,
+            documentType,
+          });
+        } catch (mailError) {
+          console.error("Legacy verification submission email failed:", mailError);
+        }
+      }
+
       res.json({ verification: record });
     } catch (e) {
       next(e);

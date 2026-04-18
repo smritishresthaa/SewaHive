@@ -248,7 +248,7 @@ const BookingSchema = new Schema(
 
         // Terminal states
         "cancelled",
-        "expired", // Request expired before provider accepted
+        "expired", // Scheduled booking expired because scheduled time passed before service completion/start
         "no-show", // Provider accepted/confirmed but did not start in time
         "disputed",
       ],
@@ -265,12 +265,31 @@ const BookingSchema = new Schema(
     providerCompletedAt: Date, // When provider marks as complete
     completedAt: Date, // When client confirms completion
     cancelledAt: Date,
+    expiredAt: Date,
 
     // CANCELLATION DETAILS
     cancellation: {
       cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
+      adminActionBy: { type: Schema.Types.ObjectId, ref: "User" },
+      source: {
+        type: String,
+        enum: ["client", "provider", "admin", "system"],
+        default: "client",
+      },
+      affectedParty: {
+        type: String,
+        enum: ["client", "provider", "both", "none"],
+        default: "none",
+      },
       reason: String,
+      note: String,
       cancelledAt: Date,
+      refundAmount: { type: Number, default: 0 },
+      refundStatus: {
+        type: String,
+        enum: ["none", "processed", "not_required", "failed"],
+        default: "none",
+      },
     },
 
     // EMERGENCY BOOKING DETAILS

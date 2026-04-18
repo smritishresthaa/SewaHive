@@ -380,6 +380,15 @@ export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const suspendedMeta =
+    user?.accountStatus === "suspended"
+      ? {
+          reason: user?.suspension?.reason || "Access restricted by admin.",
+          endsAt: user?.suspension?.endsAt || null,
+          permanent: !user?.suspension?.endsAt,
+        }
+      : null;
+
   const handleLeaderboardClick = React.useCallback(() => {
     if (!user) {
       navigate("/signup");
@@ -568,6 +577,40 @@ React.useEffect(() => {
   return (
     <div className="min-h-screen bg-white">
       <TopNavbar />
+
+      {suspendedMeta && (
+        <section className="bg-red-50 border-b border-red-200">
+          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+            <div className="rounded-2xl border border-red-200 bg-red-100 px-4 py-4 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-red-800 font-poppins">
+                    Your account has been suspended
+                  </h2>
+                  <p className="mt-1 text-sm text-red-700 font-inter">
+                    You can only access the landing page until the suspension is removed or expires.
+                  </p>
+                  <div className="mt-2 space-y-1 text-sm text-red-800 font-inter">
+                    <p>
+                      <span className="font-semibold">Reason:</span>{" "}
+                      {suspendedMeta.reason}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Access restore:</span>{" "}
+                      {suspendedMeta.permanent
+                        ? "This suspension is permanent until admin removes it."
+                        : new Date(suspendedMeta.endsAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="inline-flex h-fit rounded-full bg-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                  Blocked
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="relative flex min-h-[88vh] w-full items-center overflow-hidden bg-[#164f2b] text-white sm:min-h-[90vh]">
         <img

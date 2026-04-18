@@ -109,7 +109,7 @@ export default function TopNavbar() {
           <button
             onClick={() => setShowMobileMenu(true)}
             className="rounded-lg p-2 text-gray-700 hover:bg-gray-100 md:hidden"
-            aria-label="Open menu"
+            data-onboarding="provider-menu-button" aria-label="Open menu"
           >
             <HiBars3 className="h-6 w-6" />
           </button>

@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { normalizeRoles, hasRole } = require("../utils/roles");
 
 function buildAccountMeta(user) {
   return {
@@ -41,10 +42,9 @@ async function resolveAccountAccess(user) {
       await user.save();
     } else {
       return {
-        allowed: false,
-        status: 403,
-        message: "Account suspended",
+        allowed: true,
         code: "ACCOUNT_SUSPENDED",
+        message: "Account suspended",
         meta: buildAccountMeta(user),
       };
     }
@@ -60,7 +60,7 @@ async function resolveAccountAccess(user) {
     };
   }
 
-  return { allowed: true };
+  return { allowed: true, meta: buildAccountMeta(user) };
 }
 
 async function attachUserFromToken(token) {
@@ -81,7 +81,8 @@ async function attachUserFromToken(token) {
       user,
       reqUser: {
         id: String(user._id),
-        role: user.role,
+        role: hasRole(user, payload.role) ? payload.role : normalizeRoles(user.roles, user.role)[0],
+        roles: normalizeRoles(user.roles, user.role),
         email: user.email,
         phone: user.phone,
         profile: user.profile,
@@ -140,11 +141,36 @@ function roleGuard(allowedRoles = []) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const userRole = req.user.role;
+    if (req.user.accountStatus === "suspended") {
+      return res.status(403).json({
+        message: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        meta: {
+          accountStatus: req.user.accountStatus,
+          isDeleted: false,
+          suspension: {
+            reason: req.user.suspension?.reason || "",
+            startsAt: req.user.suspension?.startsAt || null,
+            endsAt: req.user.suspension?.endsAt || null,
+          },
+        },
+      });
+    }
 
-    if (userRole === "admin") return next();
+    const activeRole = req.user.role;
 
-    if (!allowedRoles.includes(userRole)) {
+    if (activeRole === "admin") return next();
+
+    if (!allowedRoles.includes(activeRole)) {
+      if (allowedRoles.some((role) => hasRole(req.user, role))) {
+        return res.status(403).json({
+          message: "Forbidden: Switch to the required role to continue",
+          code: "ACTIVE_ROLE_REQUIRED",
+          activeRole,
+          availableRoles: normalizeRoles(req.user.roles, req.user.role),
+        });
+      }
+
       return res.status(403).json({ message: "Forbidden: Insufficient role" });
     }
 
@@ -155,6 +181,22 @@ function roleGuard(allowedRoles = []) {
 function requireAdmin(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (req.user.accountStatus === "suspended") {
+    return res.status(403).json({
+      message: "Account suspended",
+      code: "ACCOUNT_SUSPENDED",
+      meta: {
+        accountStatus: req.user.accountStatus,
+        isDeleted: false,
+        suspension: {
+          reason: req.user.suspension?.reason || "",
+          startsAt: req.user.suspension?.startsAt || null,
+          endsAt: req.user.suspension?.endsAt || null,
+        },
+      },
+    });
   }
 
   if (req.user.role !== "admin") {
@@ -170,8 +212,33 @@ async function requireVerifiedProvider(req, res, next) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (req.user.role !== "provider") {
+    if (req.user.accountStatus === "suspended") {
+      return res.status(403).json({
+        message: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        meta: {
+          accountStatus: req.user.accountStatus,
+          isDeleted: false,
+          suspension: {
+            reason: req.user.suspension?.reason || "",
+            startsAt: req.user.suspension?.startsAt || null,
+            endsAt: req.user.suspension?.endsAt || null,
+          },
+        },
+      });
+    }
+
+    if (!hasRole(req.user, "provider")) {
       return next();
+    }
+
+    if (req.user.role !== "provider") {
+      return res.status(403).json({
+        message: "Switch to provider mode to continue",
+        code: "ACTIVE_ROLE_REQUIRED",
+        activeRole: req.user.role,
+        availableRoles: normalizeRoles(req.user.roles, req.user.role),
+      });
     }
 
     const { resolveProviderKycStatus, isKycApproved } = require("../utils/kyc");

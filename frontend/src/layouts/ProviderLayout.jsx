@@ -1,5 +1,6 @@
 import TopNavbar from "../components/Navbar/TopNavbar";
 import ProviderSidebar from "../components/Navbar/ProviderSidebar";
+import SpotlightOnboarding from "../components/onboarding/SpotlightOnboarding";
 
 export default function ProviderLayout({ children }) {
   return (
@@ -18,9 +19,11 @@ export default function ProviderLayout({ children }) {
         <ProviderSidebar />
 
         {/* Main Content */}
-        <main className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6 lg:ml-60 lg:px-8 lg:py-8 xl:ml-64">
+        <main data-onboarding="provider-main" className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-6 lg:ml-60 lg:px-8 lg:py-8 xl:ml-64">
           {children}
         </main>
+
+        <SpotlightOnboarding role="provider" />
       </div>
     </div>
   );

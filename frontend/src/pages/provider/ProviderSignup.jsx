@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../utils/axios";
 import { useAuth } from "../../context/AuthContext";
+import { hasRole } from "../../utils/roles";
 import {
   HiMail,
   HiLockClosed,
@@ -80,7 +81,7 @@ function TermsModal({
 
 export default function ProviderSignup() {
   const navigate = useNavigate();
-  const { loginWithGoogle, getRedirectPath } = useAuth();
+  const { user, loginWithGoogle, enableProviderCapability, getRedirectPath } = useAuth();
 
   const [form, setForm] = useState({
     name: "",
@@ -128,6 +129,23 @@ export default function ProviderSignup() {
     fetchPublicRegistrationStatus();
   }, []);
 
+
+  useEffect(() => {
+    if (!user) return;
+
+    setForm((prev) => ({
+      ...prev,
+      name: user?.profile?.name || prev.name,
+      email: user?.email || prev.email,
+      password: "Current session secured",
+      confirmPassword: "Current session secured",
+    }));
+
+    if (hasRole(user, "provider") && user.role === "provider") {
+      navigate(getRedirectPath("provider", user), { replace: true });
+    }
+  }, [user, navigate, getRedirectPath]);
+
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({
@@ -144,34 +162,36 @@ export default function ProviderSignup() {
   function getFieldErrors(values) {
     const errors = {};
 
-    if (!values.name.trim()) {
-      errors.name = "Full name is required.";
-    } else if (/^\d+$/.test(values.name.trim())) {
-      errors.name = "Name cannot contain only numbers.";
-    }
-
-    if (!values.email.trim()) {
-      errors.email = "Email is required.";
-    } else if (!/^\S+@\S+\.\S+$/.test(values.email)) {
-      errors.email = "Please enter a valid email address.";
-    }
-
-    if (!values.password) {
-      errors.password = "Password is required.";
-    } else {
-      if (values.password.length < 8) {
-        errors.password = "Password must be at least 8 characters long.";
-      } else if (!/[A-Z]/.test(values.password)) {
-        errors.password = "Password must include at least one uppercase letter.";
-      } else if (!/\d/.test(values.password)) {
-        errors.password = "Password must include at least one number.";
+    if (!user) {
+      if (!values.name.trim()) {
+        errors.name = "Full name is required.";
+      } else if (/^\d+$/.test(values.name.trim())) {
+        errors.name = "Name cannot contain only numbers.";
       }
-    }
 
-    if (!values.confirmPassword) {
-      errors.confirmPassword = "Please confirm your password.";
-    } else if (values.password !== values.confirmPassword) {
-      errors.confirmPassword = "Passwords do not match.";
+      if (!values.email.trim()) {
+        errors.email = "Email is required.";
+      } else if (!/^\S+@\S+\.\S+$/.test(values.email)) {
+        errors.email = "Please enter a valid email address.";
+      }
+
+      if (!values.password) {
+        errors.password = "Password is required.";
+      } else {
+        if (values.password.length < 8) {
+          errors.password = "Password must be at least 8 characters long.";
+        } else if (!/[A-Z]/.test(values.password)) {
+          errors.password = "Password must include at least one uppercase letter.";
+        } else if (!/\d/.test(values.password)) {
+          errors.password = "Password must include at least one number.";
+        }
+      }
+
+      if (!values.confirmPassword) {
+        errors.confirmPassword = "Please confirm your password.";
+      } else if (values.password !== values.confirmPassword) {
+        errors.confirmPassword = "Passwords do not match.";
+      }
     }
 
     if (!values.acceptTerms) {
@@ -204,6 +224,17 @@ export default function ProviderSignup() {
 
     setLoading(true);
     try {
+      if (user) {
+        const upgradedUser = await enableProviderCapability();
+        toast.success(
+          hasRole(user, "provider")
+            ? "Provider mode is already enabled for your account."
+            : "Provider mode enabled successfully!"
+        );
+        navigate(getRedirectPath("provider", upgradedUser));
+        return;
+      }
+
       await api.post("/auth/register", {
         email: form.email,
         password: form.password,
@@ -263,6 +294,10 @@ export default function ProviderSignup() {
   }, [showTermsModal]);
 
   function handleGoogleSignup() {
+    if (user) {
+      handleSignup({ preventDefault: () => {} });
+      return;
+    }
     setError("");
 
     if (!window.google) {
@@ -374,10 +409,12 @@ export default function ProviderSignup() {
             <div className="relative md:w-1/2 px-6 md:px-8 py-7 md:py-9 bg-white">
               <div>
                 <h2 className="text-xl md:text-2xl font-semibold text-slate-900">
-                  Provider Sign Up
+                  {user ? "Enable Provider Mode" : "Provider Sign Up"}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Create your provider account to start getting jobs.
+                  {user
+                    ? "Enable provider capability on your existing account without creating a second login."
+                    : "Create your provider account to start getting jobs."}
                 </p>
               </div>
 
@@ -389,6 +426,11 @@ export default function ProviderSignup() {
                 )}
 
                 <form className="space-y-5" onSubmit={handleSignup} noValidate>
+                  {user ? (
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      You are signed in as <span className="font-semibold">{user.email}</span>. Continuing will enable provider capability on this same account so you can use both client and provider flows.
+                    </div>
+                  ) : null}
                   <div>
                     <label className="text-xs font-medium text-slate-700">
                       Full Name
@@ -404,6 +446,7 @@ export default function ProviderSignup() {
                         className={inputBase}
                         placeholder="Enter your full name"
                         required
+                        disabled={!!user}
                       />
                     </div>
                     {touched.name && fieldErrors.name && (
@@ -426,6 +469,7 @@ export default function ProviderSignup() {
                         className={inputBase}
                         placeholder="Enter your email"
                         required
+                        disabled={!!user}
                       />
                     </div>
                     {touched.email && fieldErrors.email && (
@@ -446,8 +490,9 @@ export default function ProviderSignup() {
                         onChange={handleChange}
                         onBlur={handleBlur}
                         className={inputBase}
-                        placeholder="Create a password"
+                        placeholder={user ? "Using your current signed-in account" : "Create a password"}
                         required
+                        disabled={!!user}
                       />
                       <button
                         type="button"
@@ -461,7 +506,9 @@ export default function ProviderSignup() {
                       <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>
                     ) : (
                       <p className="mt-1 text-[11px] text-slate-400">
-                        Use at least 8 characters, 1 uppercase letter, and 1 number.
+                        {user
+                          ? "We’ll use your existing authenticated account and keep your current session active."
+                          : "Use at least 8 characters, 1 uppercase letter, and 1 number."}
                       </p>
                     )}
                   </div>
@@ -479,8 +526,9 @@ export default function ProviderSignup() {
                         onChange={handleChange}
                         onBlur={handleBlur}
                         className={inputBase}
-                        placeholder="Re-enter your password"
+                        placeholder={user ? "Using your current signed-in account" : "Re-enter your password"}
                         required
+                        disabled={!!user}
                       />
                       <button
                         type="button"
@@ -537,7 +585,13 @@ export default function ProviderSignup() {
                     disabled={loading || !isFormValid}
                     className="mt-1 w-full rounded-xl bg-emerald-700 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(4,120,87,0.45)] hover:bg-emerald-800 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    {loading ? "Creating account..." : "Sign Up as Provider"}
+                    {loading
+                      ? user
+                        ? "Enabling provider mode..."
+                        : "Creating account..."
+                      : user
+                      ? "Enable Provider Mode"
+                      : "Sign Up as Provider"}
                   </button>
 
                   <div className="flex items-center gap-3 pt-1">
@@ -556,7 +610,7 @@ export default function ProviderSignup() {
                   >
                     <FcGoogle className="text-xl" />
                     <span>
-                      {googleLoading ? "Connecting..." : "Continue with Google"}
+                      {googleLoading ? "Connecting..." : user ? "Continue and Enable Provider Mode" : "Continue with Google"}
                     </span>
                   </button>
                 </form>

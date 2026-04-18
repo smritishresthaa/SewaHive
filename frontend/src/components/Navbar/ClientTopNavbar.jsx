@@ -25,7 +25,7 @@ export default function ClientTopNavbar() {
           <button
             onClick={() => setMobileOpen(true)}
             className="rounded-lg p-2 text-gray-700 hover:bg-gray-100 lg:hidden"
-            aria-label="Open client navigation"
+            data-onboarding="client-menu-button" aria-label="Open client navigation"
           >
             <HiBars3 className="h-6 w-6" />
           </button>
@@ -42,6 +42,7 @@ export default function ClientTopNavbar() {
           <button
             onClick={() => navigate("/client/profile")}
             className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-600 font-semibold text-white"
+            data-onboarding="client-profile-button"
             aria-label="Open profile"
           >
             {avatarUrl ? (
@@ -71,6 +72,7 @@ export default function ClientTopNavbar() {
           <button
             onClick={() => navigate("/client/profile")}
             className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-600 text-sm font-semibold text-white"
+            data-onboarding="client-profile-button"
             aria-label="Open profile"
           >
             {avatarUrl ? (
