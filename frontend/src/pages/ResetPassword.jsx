@@ -77,7 +77,7 @@ export default function ResetPassword() {
               Back to login
             </Link>
 
-            <div className="mt-16 space-y-4 max-w-sm">
+            <div className="mt-8 md:mt-16 space-y-4 max-w-sm">
               <p className="text-xs tracking-[0.22em] text-emerald-700 uppercase font-semibold">
                 FINAL STEP
               </p>

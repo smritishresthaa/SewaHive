@@ -35,6 +35,7 @@ export default function Categories() {
   const [categoryServices, setCategoryServices] = useState([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showDisableConfirm, setShowDisableConfirm] = useState(null);
+  const [showSubcategoryDeleteConfirm, setShowSubcategoryDeleteConfirm] = useState(null);
   const [loadingServices, setLoadingServices] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
@@ -452,6 +453,19 @@ export default function Categories() {
     }
   }
 
+  async function handleDeleteSubcategory(subcategoryId) {
+    try {
+      await api.delete(`/admin/subcategories/${subcategoryId}`);
+      await fetchCategories();
+      toast.success("Subcategory deleted successfully");
+      setShowSubcategoryDeleteConfirm(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to delete subcategory");
+    }
+  }
+
+
   function formatDate(dateString) {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -839,9 +853,9 @@ export default function Categories() {
                                   {(category.subcategoriesDetailed || []).map((sub) => (
                                     <div
                                       key={sub._id}
-                                      className="flex items-center justify-between bg-white border rounded-lg px-3 py-2 gap-3"
+                                      className="flex items-center justify-between bg-white border rounded-lg px-3 py-2 gap-3 overflow-hidden"
                                     >
-                                      <div className="flex items-center gap-3 min-w-0">
+                                      <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
                                         {sub.image ? (
                                           <img
                                             src={sub.image}
@@ -854,8 +868,8 @@ export default function Categories() {
                                           </div>
                                         )}
 
-                                        <div className="min-w-0">
-                                          <div className="text-sm font-medium text-gray-800">{sub.name}</div>
+                                        <div className="min-w-0 flex-1 overflow-hidden">
+                                          <div className="text-sm font-medium text-gray-800 truncate">{sub.name}</div>
                                           {sub.description && (
                                             <div className="text-xs text-gray-500 truncate">
                                               {sub.description}
@@ -869,7 +883,7 @@ export default function Categories() {
                                         </div>
                                       </div>
 
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2 flex-shrink-0">
                                         <span
                                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                                             sub.status === "active"
@@ -911,6 +925,13 @@ export default function Categories() {
                                           ) : (
                                             <HiEye className="w-4 h-4" />
                                           )}
+                                        </button>
+                                        <button
+                                          onClick={() => setShowSubcategoryDeleteConfirm(sub)}
+                                          className="p-1 hover:bg-red-100 text-red-600 rounded"
+                                          title="Delete subcategory"
+                                        >
+                                          <HiTrash className="w-4 h-4" />
                                         </button>
                                       </div>
                                     </div>
@@ -1463,6 +1484,43 @@ export default function Categories() {
                 }`}
               >
                 Delete Category
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {showSubcategoryDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <HiTrash className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Delete Subcategory</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="text-gray-700 mb-2">
+              Are you sure you want to delete{" "}
+              <strong>{showSubcategoryDeleteConfirm.name}</strong>?
+            </p>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowSubcategoryDeleteConfirm(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteSubcategory(showSubcategoryDeleteConfirm._id)}
+                className="flex-1 px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700"
+              >
+                Delete Subcategory
               </button>
             </div>
           </div>

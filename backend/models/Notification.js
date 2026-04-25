@@ -4,7 +4,6 @@ const NotificationSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
 
-    // Notification category
     category: {
       type: String,
       enum: [
@@ -19,7 +18,6 @@ const NotificationSchema = new Schema(
       default: "booking",
     },
 
-    // Type of event
     type: {
       type: String,
       enum: [
@@ -30,6 +28,8 @@ const NotificationSchema = new Schema(
         "booking_started",
         "booking_completed",
         "booking_cancelled",
+        "booking_rejected",
+        "booking_expired",
         "booking_rescheduled",
         "booking_no_show",
         "provider_en_route",
@@ -56,6 +56,7 @@ const NotificationSchema = new Schema(
         "payment_released",
         "payment_confirmed",
         "refund_processed",
+        "refund_failed",
         "payment_refunded",
         "refund_request",
 
@@ -84,31 +85,25 @@ const NotificationSchema = new Schema(
       required: true,
     },
 
-    // Display content
     title: { type: String, required: true },
     message: { type: String, required: true },
 
-    // Related entities
     bookingId: { type: Schema.Types.ObjectId, ref: "Booking" },
     disputeId: { type: Schema.Types.ObjectId, ref: "Dispute" },
     reviewId: { type: Schema.Types.ObjectId, ref: "Review" },
     fromUserId: { type: Schema.Types.ObjectId, ref: "User" },
 
-    // Deep linking
     targetRoute: {
       type: String,
       default: "/dashboard",
     },
     targetRouteParams: { type: Schema.Types.Mixed },
 
-    // Metadata
     metadata: { type: Schema.Types.Mixed },
 
-    // Read status
     isRead: { type: Boolean, default: false },
     readAt: Date,
 
-    // External notification status
     emailSent: { type: Boolean, default: false },
     smsSent: { type: Boolean, default: false },
     pushSent: { type: Boolean, default: false },

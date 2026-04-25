@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useState } from 'react'
 import {
   HiChartBarSquare,
   HiTrophy,
@@ -14,6 +15,8 @@ import {
   HiExclamationTriangle,
   HiChatBubbleLeftRight,
   HiCog6Tooth,
+  HiBars3,
+  HiXMark,
 } from 'react-icons/hi2'
 
 const nav = [
@@ -45,46 +48,128 @@ const nav = [
 
 export default function AdminSidebar() {
   const { pathname } = useLocation()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <aside className="w-60 bg-[#f8fafc] border-r border-gray-200 flex flex-col h-screen fixed left-0 top-16 overflow-y-auto">
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {nav.map((section, si) => (
-          <div key={si}>
-            {si > 0 && <div className="h-px bg-gray-100 my-2" />}
-            {section.heading && (
-              <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                {section.heading}
-              </p>
-            )}
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const active = pathname === item.to
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
-                      active
-                        ? 'bg-emerald-50 text-emerald-700 border-l-[3px] border-emerald-600'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                  >
-                    <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${
-                      active ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'
-                    }`} />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-
-      <div className="px-4 py-3 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center">SewaHive Admin v2.0</p>
+    <>
+      {/* ── Mobile trigger bar (hidden on desktop) ── */}
+      <div className="sticky top-0 z-40 border-b bg-white px-4 py-3 lg:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          aria-label="Open admin menu"
+        >
+          <HiBars3 className="h-5 w-5" />
+          Menu
+        </button>
       </div>
-    </aside>
+
+      {/* ── Mobile overlay backdrop ── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* ── Mobile slide-in drawer (hidden on desktop) ── */}
+      <aside
+        className={`fixed left-0 top-0 z-[60] h-full w-[85%] max-w-xs bg-[#f8fafc] shadow-xl transition-transform duration-300 lg:hidden ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-end border-b border-gray-200 bg-white px-5 py-4">
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="rounded-lg p-2 text-gray-600 hover:bg-gray-100"
+            aria-label="Close admin menu"
+          >
+            <HiXMark className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex h-[calc(100%-73px)] flex-col overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1">
+            {nav.map((section, si) => (
+              <div key={si}>
+                {si > 0 && <div className="h-px bg-gray-100 my-2" />}
+                {section.heading && (
+                  <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    {section.heading}
+                  </p>
+                )}
+                <div className="space-y-0.5">
+                  {section.items.map((item) => {
+                    const active = pathname === item.to
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setMobileOpen(false)}
+                        className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
+                          active
+                            ? 'bg-emerald-50 text-emerald-700 border-l-[3px] border-emerald-600'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${
+                          active ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'
+                        }`} />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+
+          <div className="px-4 py-3 border-t border-gray-100">
+            <p className="text-[10px] text-gray-400 text-center">SewaHive Admin v2.0</p>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Desktop sidebar — UNCHANGED except hidden lg:flex added ── */}
+      <aside className="w-60 bg-[#f8fafc] border-r border-gray-200 flex-col h-screen fixed left-0 top-16 overflow-y-auto hidden lg:flex">
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {nav.map((section, si) => (
+            <div key={si}>
+              {si > 0 && <div className="h-px bg-gray-100 my-2" />}
+              {section.heading && (
+                <p className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  {section.heading}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const active = pathname === item.to
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
+                        active
+                          ? 'bg-emerald-50 text-emerald-700 border-l-[3px] border-emerald-600'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                    >
+                      <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${
+                        active ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'
+                      }`} />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="px-4 py-3 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400 text-center">SewaHive Admin v2.0</p>
+        </div>
+      </aside>
+    </>
   )
 }

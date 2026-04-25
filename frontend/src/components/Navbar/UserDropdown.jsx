@@ -77,7 +77,7 @@ export default function UserDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-64 rounded-2xl border border-gray-200 bg-white p-3 shadow-xl">
+        <div className="absolute right-0 z-50 mt-3 w-64 max-w-[calc(100vw-1rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-xl">
           <div className="px-3 py-2">
             <p className="text-sm font-semibold capitalize text-gray-900">
               {user.profile?.name || "User"}

@@ -15,23 +15,23 @@ const BookingSchema = new Schema(
     },
 
     // BOOKING SCHEDULE
-    scheduledAt: { type: Date }, // For normal bookings when confirmed
+    scheduledAt: { type: Date },
     schedule: {
       date: Date,
       slot: String,
     },
 
-    // BOOKING LOCATION (GeoJSON for geographic queries)
+    // BOOKING LOCATION
     location: {
       type: { type: String, enum: ["Point"], default: "Point" },
-      coordinates: { type: [Number], required: true }, // [longitude, latitude]
+      coordinates: { type: [Number], required: true },
     },
 
-    // ADDRESS TEXT & LANDMARK (human-readable)
-    addressText: { type: String, default: "" }, // Full address string
-    landmark: { type: String, default: "" }, // "near Bhatbhateni", etc.
+    // ADDRESS TEXT & LANDMARK
+    addressText: { type: String, default: "" },
+    landmark: { type: String, default: "" },
 
-    // SERVICE ADDRESS (structured)
+    // SERVICE ADDRESS
     address: {
       country: { type: String, default: "" },
       city: { type: String, default: "" },
@@ -42,7 +42,7 @@ const BookingSchema = new Schema(
     // DISTANCE FROM PROVIDER TO CLIENT
     distanceKm: { type: Number },
 
-    // PROVIDER LIVE LOCATION (real-time GPS during en_route)
+    // PROVIDER LIVE LOCATION
     providerLiveLocation: {
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },
@@ -54,13 +54,12 @@ const BookingSchema = new Schema(
     // NOTES
     notes: { type: String, default: "" },
 
-    // TIME TRACKING (seconds precision)
+    // TIME TRACKING
     timeTracking: {
-      totalSeconds: { type: Number, default: 0 }, // Total seconds worked
+      totalSeconds: { type: Number, default: 0 },
       isTimerRunning: { type: Boolean, default: false },
-      timerStartedAt: { type: Date }, // When current session started
+      timerStartedAt: { type: Date },
       timerSessions: [
-        // History of work sessions
         {
           startedAt: Date,
           pausedAt: Date,
@@ -69,7 +68,7 @@ const BookingSchema = new Schema(
       ],
     },
 
-    // QUOTE SYSTEM (for uncertain jobs)
+    // QUOTE SYSTEM
     quote: {
       status: {
         type: String,
@@ -84,9 +83,9 @@ const BookingSchema = new Schema(
         ],
         default: "none",
       },
-      quotedPrice: Number, // Price quoted by provider
-      approvedPrice: Number, // Price approved by admin
-      quoteMessage: String, // Provider's explanation
+      quotedPrice: Number,
+      approvedPrice: Number,
+      quoteMessage: String,
       createdAt: Date,
       sentAt: Date,
       approvedAt: Date,
@@ -116,6 +115,7 @@ const BookingSchema = new Schema(
       finalPrice: { type: Number, default: 0 },
       escrowHeldAmount: { type: Number, default: 0 },
       additionalEscrowRequired: { type: Number, default: 0 },
+
       adjustment: {
         status: {
           type: String,
@@ -139,6 +139,7 @@ const BookingSchema = new Schema(
         proposedAt: Date,
         clientDecisionAt: Date,
       },
+
       adjustmentHistory: [
         {
           proposedPrice: Number,
@@ -163,9 +164,11 @@ const BookingSchema = new Schema(
           decidedAt: Date,
         },
       ],
+
       maxRangeExceeded: { type: Boolean, default: false },
       requiresAdminReview: { type: Boolean, default: false },
       adminReviewReason: String,
+
       paymentAuditTrail: [
         {
           event: {
@@ -174,6 +177,8 @@ const BookingSchema = new Schema(
               "escrow_released",
               "escrow_adjusted",
               "escrow_frozen_on_dispute",
+              "escrow_refunded",
+              "escrow_refund_failed",
             ],
           },
           amount: Number,
@@ -196,60 +201,52 @@ const BookingSchema = new Schema(
     paymentStatus: {
       type: String,
       enum: [
-        "pending", // Not yet paid
-        "initiated", // Payment in progress
-        "funds_held", // Escrow: funds held for service
-        "released", // Escrow: funds released to provider
-        "failed", // Payment failed
-        "refunded", // Full refund issued
-        "partially_refunded", // Partial refund (dispute resolved)
+        "pending",
+        "initiated",
+        "funds_held",
+        "released",
+        "failed",
+        "refunded",
+        "partially_refunded",
       ],
       default: "pending",
     },
 
-    paymentRef: String, // Khalti/eSewa token
+    paymentRef: String,
 
-    // ESCROW SPECIFIC (Confirmation timestamp)
-    clientConfirmedAt: Date, // When client confirmed service completion
+    // ESCROW SPECIFIC
+    clientConfirmedAt: Date,
 
-    // BOOKING STATUS (expanded with quote states)
+    // BOOKING STATUS
     status: {
       type: String,
       enum: [
-        // Payment states
-        "pending_payment", // Booking created, awaiting payment
-
-        // Initial states
+        "pending_payment",
         "requested",
         "rejected",
 
-        // Quote workflow
         "quote_requested",
         "quote_sent",
         "quote_pending_admin_review",
         "quote_rejected",
         "quote_accepted",
 
-        // Confirmed workflow
         "accepted",
         "confirmed",
-        "provider_en_route", // Provider is on the way to client location
+        "provider_en_route",
         "in-progress",
 
-        // Escrow-specific states
-        "provider_completed", // Provider marked complete, awaiting client confirmation
-        "awaiting_client_confirmation", // Explicitly waiting for client to confirm/dispute
-        "pending-completion", // Alias for awaiting_client_confirmation (UI-friendly)
+        "provider_completed",
+        "awaiting_client_confirmation",
+        "pending-completion",
 
-        "completed", // Service completed + client confirmed/payment released
+        "completed",
 
-        // Dispute resolution states
-        "resolved_refunded", // Dispute resolved with refund outcome
+        "resolved_refunded",
 
-        // Terminal states
         "cancelled",
-        "expired", // Scheduled booking expired because scheduled time passed before service completion/start
-        "no-show", // Provider accepted/confirmed but did not start in time
+        "expired",
+        "no-show",
         "disputed",
       ],
       default: "pending_payment",
@@ -260,10 +257,10 @@ const BookingSchema = new Schema(
     requestedAt: Date,
     acceptedAt: Date,
     confirmedAt: Date,
-    enRouteAt: Date, // When provider started traveling to client
+    enRouteAt: Date,
     startedAt: Date,
-    providerCompletedAt: Date, // When provider marks as complete
-    completedAt: Date, // When client confirms completion
+    providerCompletedAt: Date,
+    completedAt: Date,
     cancelledAt: Date,
     expiredAt: Date,
 
@@ -287,7 +284,15 @@ const BookingSchema = new Schema(
       refundAmount: { type: Number, default: 0 },
       refundStatus: {
         type: String,
-        enum: ["none", "processed", "not_required", "failed"],
+        enum: [
+          "none",
+          "pending",
+          "processed",
+          "refunded",
+          "partially_refunded",
+          "not_required",
+          "failed",
+        ],
         default: "none",
       },
     },
@@ -307,11 +312,11 @@ const BookingSchema = new Schema(
     // OPTIONAL SAFETY FEATURE
     otp: String,
 
-    // PHASE 2B: REMINDER TRACKING
+    // REMINDER TRACKING
     reminders: {
-      confirmationSent: { type: Boolean, default: false }, // Sent after booking confirmed
-      oneHourSent: { type: Boolean, default: false }, // Sent 1 hour before scheduledAt
-      oneDaySent: { type: Boolean, default: false }, // Sent 24 hours before scheduledAt
+      confirmationSent: { type: Boolean, default: false },
+      oneHourSent: { type: Boolean, default: false },
+      oneDaySent: { type: Boolean, default: false },
     },
   },
   { timestamps: true }

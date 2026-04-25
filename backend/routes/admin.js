@@ -132,9 +132,10 @@ router.put('/skills-review/:providerId/:categoryId', authenticate, requireAdmin,
     const user = await User.findById(providerId).populate('providerDetails.skillProofs.categoryId', 'name');
     if (!user) return res.status(404).json({ message: 'Provider not found' });
 
-    const proofIndex = user.providerDetails.skillProofs.findIndex(
-      p => p.categoryId.toString() === categoryId
-    );
+    const proofIndex = user.providerDetails.skillProofs.findIndex((p) => {
+      const proofCategoryId = p.categoryId?._id || p.categoryId;
+      return proofCategoryId?.toString() === categoryId;
+    });
 
     if (proofIndex === -1) {
       return res.status(404).json({ message: 'Skill proof not found for this category' });
@@ -1009,6 +1010,7 @@ router.post('/subcategories', authenticate, requireAdmin, async (req, res, next)
       suggestedPriceMode,
     });
 
+   
     res.status(201).json({ success: true, data: subcategory });
   } catch (err) {
     next(err);
@@ -1216,6 +1218,21 @@ router.post('/category-requests/:requestId/approve', authenticate, requireAdmin,
         status: 'active',
         sortOrder: 0,
       });
+
+      await Service.updateMany(
+        {
+          providerId: request.providerId,
+          categoryId: parentCategory._id,
+          title: { $regex: `^${escapeRegex(request.name)}$`, $options: 'i' },
+          $or: [
+            { subcategoryId: { $exists: false } },
+            { subcategoryId: null },
+          ],
+        },
+        {
+          $set: { subcategoryId: subcategory._id },
+        }
+      );
 
       request.status = 'approved';
       request.categoryId = parentCategory._id;

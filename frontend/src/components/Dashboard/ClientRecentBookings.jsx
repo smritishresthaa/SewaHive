@@ -29,16 +29,16 @@ export default function ClientRecentBookings() {
           {list.map((b) => (
             <div
               key={b._id}
-              className="bg-white p-5 rounded-xl shadow flex justify-between"
+              className="bg-white p-3 sm:p-5 rounded-xl shadow flex flex-wrap justify-between gap-2"
             >
               <div>
-                <p className="font-semibold">Booking ID: {b._id}</p>
+                <p className="font-semibold break-all">Booking ID: {b._id}</p>
                 <p className="text-gray-600">
                   {b.schedule?.date?.slice(0, 10)} – {b.schedule?.slot}
                 </p>
               </div>
 
-              <span className="text-brand-700 font-medium capitalize">
+              <span className="text-brand-700 font-medium capitalize shrink-0">
                 {b.status}
               </span>
             </div>

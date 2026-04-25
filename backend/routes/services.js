@@ -6,6 +6,7 @@ const Category = require("../models/Category");
 const Subcategory = require("../models/Subcategory");
 const ProviderVerification = require("../models/ProviderVerification");
 const serviceImageUpload = require("../middleware/serviceImageUpload");
+const { isWithinCoverage } = require("../utils/geo");
 
 const router = express.Router();
 
@@ -273,7 +274,7 @@ router.get("/list", async (req, res, next) => {
       .populate("subcategoryId", "name status")
       .populate(
         "providerId",
-        "kycStatus profile.name profile.avatarUrl providerDetails.badges providerDetails.rating providerDetails.metrics providerDetails.approvedCategories"
+        "kycStatus profile.name profile.avatarUrl providerDetails.badges providerDetails.rating providerDetails.metrics providerDetails.approvedCategories providerDetails.coverage providerDetails.trustScore"
       )
       .limit(100);
 
@@ -283,50 +284,23 @@ router.get("/list", async (req, res, next) => {
     });
 
     if (lng && lat) {
-      const approvedProviderIds = new Set(services.map((s) => String(s.providerId._id)));
-      if (approvedProviderIds.size === 0) {
-        return res.json({ services: [] });
-      }
+      const clientLocation = [Number(lng), Number(lat)];
 
-      const providers = await User.find({
-        role: "provider",
-        _id: { $in: Array.from(approvedProviderIds) },
-        location: {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: [Number(lng), Number(lat)],
-            },
-            $maxDistance: Number(radius),
-          },
-        },
-      }).select("_id providerDetails.trustScore");
-
-      const providerMap = new Map(
-        providers.map((p) => [String(p._id), p.providerDetails?.trustScore || 0])
-      );
-
-      services = services.filter((s) => providerMap.has(String(s.providerId._id)));
+      services = services.filter((service) => {
+        const coverage = service.providerId?.providerDetails?.coverage;
+        const check = isWithinCoverage(coverage, clientLocation);
+        return check.isWithinRange;
+      });
 
       services.sort((a, b) => {
-        const scoreA = providerMap.get(String(a.providerId._id)) || 0;
-        const scoreB = providerMap.get(String(b.providerId._id)) || 0;
+        const scoreA = a.providerId?.providerDetails?.trustScore || 0;
+        const scoreB = b.providerId?.providerDetails?.trustScore || 0;
         return scoreB - scoreA;
       });
     } else {
-      const approvedProviderIds = new Set(services.map((s) => String(s.providerId._id)));
-      const providers = await User.find({
-        role: "provider",
-        _id: { $in: Array.from(approvedProviderIds) },
-      }).select("_id providerDetails.trustScore");
-
-      const providerMap = new Map(
-        providers.map((p) => [String(p._id), p.providerDetails?.trustScore || 0])
-      );
-
       services.sort((a, b) => {
-        const scoreA = providerMap.get(String(a.providerId._id)) || 0;
-        const scoreB = providerMap.get(String(b.providerId._id)) || 0;
+        const scoreA = a.providerId?.providerDetails?.trustScore || 0;
+        const scoreB = b.providerId?.providerDetails?.trustScore || 0;
         return scoreB - scoreA;
       });
     }

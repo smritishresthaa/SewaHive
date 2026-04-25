@@ -10,6 +10,7 @@ const Service = require("../models/Service");
 const User = require("../models/User");
 const { haversineDistance } = require("../utils/geo");
 const { createNotification } = require("../utils/createNotification");
+const { refundEscrowForBooking } = require("../utils/refundEscrowForBooking");
 const {
   resolveProviderKycStatus,
   isKycApproved,
@@ -718,13 +719,62 @@ router.post(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      booking.emergency.respondedProviders =
-        booking.emergency.respondedProviders || [];
-      booking.emergency.respondedProviders.push(req.user.id);
+      if (String(booking.providerId) !== req.user.id) {
+        return res.status(403).json({ message: "Not your booking" });
+      }
+
+      if (booking.type !== "emergency") {
+        return res.status(400).json({ message: "Not an emergency booking" });
+      }
+
+      if (!["requested", "accepted", "pending_payment", "confirmed"].includes(booking.status)) {
+        return res.status(400).json({ message: "Emergency already handled" });
+      }
+
+      booking.emergency = booking.emergency || {};
+      booking.emergency.respondedProviders = booking.emergency.respondedProviders || [];
+
+      if (!booking.emergency.respondedProviders.some((id) => String(id) === req.user.id)) {
+        booking.emergency.respondedProviders.push(req.user.id);
+      }
+
+      booking.status = "rejected";
+      booking.cancelledAt = new Date();
+      booking.cancellation = {
+        cancelledBy: req.user.id,
+        source: "provider",
+        affectedParty: "client",
+        reason: req.body.reason || "Emergency request declined by provider",
+        cancelledAt: new Date(),
+        refundStatus: "refunded",
+      };
+
+      const refundedAmount = await refundEscrowForBooking(
+        booking,
+        "Emergency request declined by provider"
+      );
 
       await booking.save();
 
-      res.json({ ok: true });
+      await createNotification({
+        userId: booking.clientId,
+        type: "booking_rejected",
+        title: "Emergency Request Declined",
+        message:
+          refundedAmount > 0
+            ? `Provider declined your emergency request. NPR ${refundedAmount} has been refunded.`
+            : "Provider declined your emergency request.",
+        category: "booking",
+        bookingId: booking._id,
+        fromUserId: req.user.id,
+        sendEmail: true,
+      });
+
+      res.json({
+        ok: true,
+        booking,
+        refundedAmount,
+      });
     } catch (e) {
       next(e);
     }
@@ -810,16 +860,43 @@ router.post(
         return res.status(403).json({ message: "Not your booking" });
       }
 
-      if (booking.status !== "requested") {
+      if (!["requested", "accepted", "pending_payment", "confirmed"].includes(booking.status)) {
         return res.status(400).json({ message: "Booking already handled" });
       }
 
       booking.status = "rejected";
       booking.cancelledAt = new Date();
+      booking.cancellation = {
+        cancelledBy: req.user.id,
+        source: "provider",
+        affectedParty: "client",
+        reason: req.body.reason || "Booking rejected by provider",
+        cancelledAt: new Date(),
+        refundStatus: "refunded",
+      };
+
+      const refundedAmount = await refundEscrowForBooking(
+        booking,
+        "Booking rejected by provider"
+      );
 
       await booking.save();
 
-      res.json({ ok: true });
+      await createNotification({
+        userId: booking.clientId,
+        type: "booking_rejected",
+        title: "Booking Rejected",
+        message:
+          refundedAmount > 0
+            ? `Provider rejected your booking. NPR ${refundedAmount} has been refunded.`
+            : "Provider rejected your booking.",
+        category: "booking",
+        bookingId: booking._id,
+        fromUserId: req.user.id,
+        sendEmail: true,
+      });
+
+      res.json({ ok: true, booking, refundedAmount });
     } catch (e) {
       next(e);
     }
@@ -2207,9 +2284,11 @@ router.patch(
 
       booking.scheduledAt = nextSchedule;
 
-      if (booking.schedule) {
-        booking.schedule.date = nextSchedule;
-      }
+      booking.schedule = booking.schedule || {};
+      booking.schedule.date = nextSchedule;
+      booking.schedule.slot = `${String(nextSchedule.getHours()).padStart(2, "0")}:${String(
+        nextSchedule.getMinutes()
+      ).padStart(2, "0")}`;
 
       booking.updatedAt = new Date();
 

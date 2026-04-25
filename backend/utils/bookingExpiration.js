@@ -1,5 +1,6 @@
 const Booking = require("../models/Booking");
 const { createNotification } = require("../utils/createNotification");
+const { refundEscrowForBooking } = require("./refundEscrowForBooking");
 
 const PRE_SERVICE_EXPIRABLE_STATUSES = [
   "pending_payment",
@@ -63,7 +64,10 @@ function resolveScheduledDateTime(booking) {
       booking.schedule.date,
       booking.schedule.slot
     );
-    if (combined && !Number.isNaN(combined.getTime())) return combined;
+
+    if (combined && !Number.isNaN(combined.getTime())) {
+      return combined;
+    }
   }
 
   return null;
@@ -74,16 +78,25 @@ function isBookingExpiredCandidate(booking, now = new Date()) {
 
   const status = String(booking.status || "").toLowerCase();
 
+  if (status === "expired") return false;
   if (NON_EXPIRABLE_STATUSES.includes(status)) return false;
   if (!PRE_SERVICE_EXPIRABLE_STATUSES.includes(status)) return false;
 
   const scheduled = resolveScheduledDateTime(booking);
   if (!scheduled) return false;
 
-  return now.getTime() > scheduled.getTime();
+  return now.getTime() >= scheduled.getTime();
 }
 
 async function expireBookingIfNeeded(booking, now = new Date()) {
+  if (!booking) {
+    return { changed: false, booking };
+  }
+
+  if (String(booking.status || "").toLowerCase() === "expired") {
+    return { changed: false, booking };
+  }
+
   if (!isBookingExpiredCandidate(booking, now)) {
     return { changed: false, booking };
   }
@@ -102,17 +115,37 @@ async function expireBookingIfNeeded(booking, now = new Date()) {
     booking.cancellation.note ||
     "Automatically marked as expired by the system.";
   booking.cancellation.cancelledAt = booking.cancellation.cancelledAt || now;
-  booking.cancellation.refundStatus = booking.cancellation.refundStatus || "none";
+  booking.cancellation.refundStatus =
+    booking.cancellation.refundStatus || "none";
+
+  let refundedAmount = 0;
+
+  try {
+    refundedAmount = await refundEscrowForBooking(
+      booking,
+      "Booking expired automatically"
+    );
+
+    booking.cancellation.refundStatus =
+      refundedAmount > 0 ? "refunded" : "not_required";
+  } catch (err) {
+    booking.cancellation.refundStatus = "failed";
+    console.error("[EXPIRY REFUND ERROR]", err.message);
+  }
 
   await booking.save();
+
+  const expiryMessage =
+    refundedAmount > 0
+      ? `Booking expired. NPR ${refundedAmount} has been refunded automatically.`
+      : "Booking expired because the scheduled time passed without completion.";
 
   try {
     await createNotification({
       userId: booking.clientId,
       type: "booking_expired",
       title: "Booking Expired",
-      message:
-        "This booking expired because the scheduled time passed without completion.",
+      message: expiryMessage,
       category: "booking",
       bookingId: booking._id,
       sendEmail: false,
@@ -122,8 +155,7 @@ async function expireBookingIfNeeded(booking, now = new Date()) {
       userId: booking.providerId,
       type: "booking_expired",
       title: "Booking Expired",
-      message:
-        "This booking expired because the scheduled time passed without completion.",
+      message: expiryMessage,
       category: "booking",
       bookingId: booking._id,
       sendEmail: false,

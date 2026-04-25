@@ -128,14 +128,14 @@ export default function AdminTopNavbar() {
 
   return (
     <header className="w-full bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
-      <div className="px-8 py-4 flex items-center justify-between gap-6">
+      <div className="px-4 py-3 sm:px-8 sm:py-4 flex items-center justify-between gap-2 sm:gap-6">
         {/* LEFT - Logo */}
         <Link to="/dashboard" className="flex-shrink-0">
           <img src={logo} alt="SewaHive Admin" className="h-8" />
         </Link>
 
         {/* CENTER - Enhanced Search Bar */}
-        <div className="flex-1 max-w-sm" ref={searchRef}>
+        <div className="flex-1 min-w-0 max-w-sm" ref={searchRef}>
           <div className="relative group">
             <div className={`absolute inset-y-0 left-3 flex items-center transition-colors ${
               searchFocused ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'
