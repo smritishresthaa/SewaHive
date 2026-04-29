@@ -1379,7 +1379,7 @@ export default function ClientTransactions() {
   return (
     <ClientLayout>
       <div
-        className="mx-auto max-w-6xl space-y-4"
+        className="mx-auto max-w-6xl space-y-4 px-4 sm:px-6 lg:px-8"
         style={{ backgroundColor: "#f8fafc" }}
       >
         <div className="flex flex-col gap-3">

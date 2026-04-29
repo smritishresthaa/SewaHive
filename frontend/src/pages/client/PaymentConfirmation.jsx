@@ -186,7 +186,7 @@ export default function PaymentConfirmation() {
 
           <div className="grid lg:grid-cols-5 gap-6">
             <div className="lg:col-span-3 space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm border p-6">
+              <div className="bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Booking Summary
                 </h2>
@@ -281,7 +281,7 @@ export default function PaymentConfirmation() {
             </div>
 
             <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl shadow-sm border p-6 sticky top-6">
+              <div className="bg-white rounded-2xl shadow-sm border p-4 sm:p-6 sticky top-6">
                 <div className="flex items-center gap-2 mb-6">
                   <svg
                     className="w-6 h-6 text-emerald-600"

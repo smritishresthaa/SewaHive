@@ -10,9 +10,9 @@ export default function PaymentProcessing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-white flex items-center justify-center px-6">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-white flex items-center justify-center px-4 sm:px-6">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 text-center">
           {/* Animated Logo/Icon */}
           <div className="mb-6 flex justify-center">
             <div className="relative">

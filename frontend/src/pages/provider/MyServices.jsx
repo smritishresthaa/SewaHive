@@ -302,7 +302,7 @@ export default function MyServices() {
                       )}
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap sm:flex-nowrap gap-2">
                       <button
                         onClick={() =>
                           navigate(`/provider/services/edit/${service._id}`)

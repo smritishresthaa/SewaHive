@@ -9,7 +9,7 @@ export default function ClientLayout({ children }) {
       <ClientTopNavbar />
 
       {/* Main Layout */}
-      <div className="flex w-full">
+      <div className="flex flex-col lg:flex-row w-full">
         {/* Sidebar
            ClientSidebar already handles:
            - desktop sidebar

@@ -99,7 +99,7 @@ export default function EditProfile() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Full Name
@@ -178,7 +178,7 @@ export default function EditProfile() {
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Profile Picture
             </label>
@@ -190,13 +190,15 @@ export default function EditProfile() {
             />
           </div>
 
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="mt-6 w-full rounded-lg bg-emerald-600 py-2 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Saving..." : "Save Changes"}
-          </button>
+          <div className="sm:col-span-2 mt-2">
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="w-full rounded-lg bg-emerald-600 py-3 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-8"
+            >
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
         </div>
       </div>
     </ClientLayout>

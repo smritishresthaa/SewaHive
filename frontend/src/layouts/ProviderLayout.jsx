@@ -9,7 +9,7 @@ export default function ProviderLayout({ children }) {
       <TopNavbar />
 
       {/* Main Layout */}
-      <div className="flex w-full">
+      <div className="flex flex-col lg:flex-row w-full">
         {/* Sidebar
            ProviderSidebar already handles:
            - desktop sidebar

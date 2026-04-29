@@ -201,7 +201,7 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
 
                 {/* Document Review Controls */}
                 <div className="border rounded-lg p-3 bg-white space-y-2">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-2">
                     <button
                       onClick={() => handleDocReview(selectedDoc._id, "approved")}
                       className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg transition ${
@@ -279,7 +279,7 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
               <HiUser className="w-5 h-5 text-amber-600" />
               <h3 className="font-semibold text-gray-900">Profile Validation</h3>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <div>
                 <p className="text-gray-600">Name Match</p>
                 <p className="font-semibold">
@@ -384,7 +384,7 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
         )}
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t p-4 flex gap-2 justify-end">
+        <div className="sticky bottom-0 bg-gray-50 border-t p-4 flex flex-wrap sm:flex-nowrap gap-2 justify-end">
           <button
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition"

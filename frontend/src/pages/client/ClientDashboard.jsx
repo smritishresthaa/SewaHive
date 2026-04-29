@@ -501,7 +501,7 @@ export default function ClientDashboard() {
                 <p className="text-sm font-medium text-gray-600">
                   {upcomingCard.label}
                 </p>
-                <p className={`mt-2 text-4xl font-bold ${upcomingCard.valueColor}`}>
+                <p className={`mt-2 text-3xl sm:text-4xl font-bold ${upcomingCard.valueColor}`}>
                   {stats.upcomingBookings}
                 </p>
                 <p className="mt-2 text-xs text-gray-500">
@@ -535,7 +535,7 @@ export default function ClientDashboard() {
                 <p className="text-sm font-medium text-gray-600">
                   {completedCard.label}
                 </p>
-                <p className={`mt-2 text-4xl font-bold ${completedCard.valueColor}`}>
+                <p className={`mt-2 text-3xl sm:text-4xl font-bold ${completedCard.valueColor}`}>
                   {stats.completedBookings}
                 </p>
                 <p className="mt-2 text-xs text-gray-500">
@@ -569,7 +569,7 @@ export default function ClientDashboard() {
                 <p className="text-sm font-medium text-gray-600">
                   {pendingCard.label}
                 </p>
-                <p className={`mt-2 text-4xl font-bold ${pendingCard.valueColor}`}>
+                <p className={`mt-2 text-3xl sm:text-4xl font-bold ${pendingCard.valueColor}`}>
                   {stats.pendingBookings}
                 </p>
                 <p className="mt-2 text-xs text-gray-500">
@@ -622,7 +622,7 @@ export default function ClientDashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <MdEmojiEvents className="text-2xl text-amber-500" />
-                <h2 className="text-lg font-bold text-gray-900">
+                <h2 className="text-base sm:text-lg font-bold text-gray-900">
                   Top Providers (
                   {getLeaderboardHeadingLabel(
                     appliedRange,

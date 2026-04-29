@@ -1490,7 +1490,7 @@ export default function ProviderEarnings() {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5 lg:col-span-8">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5 lg:col-span-8 min-w-0">
                 <div className="mb-4 flex items-center gap-2">
                   <HiChartBar className="h-4 w-4 text-gray-400" />
                   <span className="text-sm font-semibold text-gray-700">
@@ -1547,7 +1547,7 @@ export default function ProviderEarnings() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5 lg:col-span-4">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-5 lg:col-span-4 min-w-0">
                 <p className="mb-4 text-sm font-semibold text-gray-700">
                   Payout Breakdown
                 </p>

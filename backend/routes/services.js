@@ -127,6 +127,7 @@ async function getServiceStatsMap(serviceIds = []) {
 
   const { Types } = require("mongoose");
   const Booking = require("../models/Booking");
+  const Review = require("../models/Review");
 
   const objectIds = ids.map((id) => new Types.ObjectId(id));
 
@@ -162,19 +163,64 @@ async function getServiceStatsMap(serviceIds = []) {
     },
   ]);
 
+  const reviewsAgg = await Review.aggregate([
+    {
+      $lookup: {
+        from: "bookings",
+        localField: "bookingId",
+        foreignField: "_id",
+        as: "booking",
+      },
+    },
+    { $unwind: "$booking" },
+    {
+      $match: {
+        "booking.serviceId": { $in: objectIds },
+      },
+    },
+    {
+      $group: {
+        _id: "$booking.serviceId",
+        ratingCount: { $sum: 1 },
+        ratingAvg: { $avg: "$rating" },
+      },
+    },
+  ]);
+
   const bookingsMap = new Map(
     bookingsAgg.map((item) => [String(item._id), Number(item.bookingsCount || 0)])
   );
 
-  return new Map(ids.map((id) => [id, { bookingsCount: bookingsMap.get(id) || 0 }]));
+  const reviewsMap = new Map(
+    reviewsAgg.map((item) => [
+      String(item._id),
+      {
+        ratingCount: Number(item.ratingCount || 0),
+        ratingAvg: Number(item.ratingAvg || 0),
+      },
+    ])
+  );
+
+  return new Map(
+    ids.map((id) => [
+      id,
+      {
+        bookingsCount: bookingsMap.get(id) || 0,
+        ratingCount: reviewsMap.get(id)?.ratingCount || 0,
+        ratingAvg: reviewsMap.get(id)?.ratingAvg || 0,
+      },
+    ])
+  );
 }
 
 async function withDynamicServiceStats(services = []) {
   const statsMap = await getServiceStatsMap(services.map((s) => s._id));
   return services.map((serviceDoc) => {
     const service = attachEmergencyMeta(serviceDoc);
-    const stats = statsMap.get(String(service._id)) || { bookingsCount: 0 };
+    const stats = statsMap.get(String(service._id)) || { bookingsCount: 0, ratingCount: 0, ratingAvg: 0 };
     service.bookingsCount = stats.bookingsCount;
+    service.ratingCount = stats.ratingCount || service.ratingCount || 0;
+    service.ratingAvg = stats.ratingAvg || service.ratingAvg || 0;
     service.views = Number(service.views || 0);
     return service;
   });
@@ -210,7 +256,7 @@ router.get("/popular", async (req, res, next) => {
     const statsMap = await getServiceStatsMap(services.map((s) => s._id));
     const formatted = services.map((s) => {
       const emergencyMeta = buildEmergencyMeta(s);
-      const dynamicStats = statsMap.get(String(s._id)) || { bookingsCount: 0 };
+      const dynamicStats = statsMap.get(String(s._id)) || { bookingsCount: 0, ratingCount: 0, ratingAvg: 0 };
 
       return {
         _id: s._id,
@@ -223,8 +269,8 @@ router.get("/popular", async (req, res, next) => {
         priceMode: s.priceMode,
         priceRange: s.priceRange || {},
         views: Number(s.views || 0),
-        ratingAvg: s.ratingAvg || 0,
-        ratingCount: s.ratingCount || 0,
+        ratingAvg: dynamicStats.ratingAvg || s.ratingAvg || 0,
+        ratingCount: dynamicStats.ratingCount || s.ratingCount || 0,
         bookingsCount: dynamicStats.bookingsCount,
         emergencyMeta,
         category: s.categoryId

@@ -386,7 +386,7 @@ export default function LocationPicker({
 
       {showMap && coords && (
         <div className="mt-2 relative rounded-lg overflow-hidden border-2 border-gray-300 shadow-lg">
-          <div className="w-full h-64 bg-gray-100">
+          <div className="w-full h-64 sm:h-80 lg:h-96 bg-gray-100">
             <MapPreview coords={coords} />
           </div>
           <p className="text-xs text-gray-500 p-2 bg-gray-50 flex items-center gap-2">

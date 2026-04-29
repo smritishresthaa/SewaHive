@@ -360,7 +360,7 @@ export default function BrowseServices() {
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-brand-500"
                 />
               </div>
-              <div className="flex flex-col gap-3 md:col-span-2 sm:flex-row sm:justify-end">
+              <div className="flex flex-col gap-3 md:col-span-2 sm:flex-row sm:flex-wrap sm:justify-end">
                 <button
                   onClick={() => {
                     setPriceRange({ min: "", max: "" });

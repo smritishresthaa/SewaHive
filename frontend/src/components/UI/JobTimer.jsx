@@ -130,7 +130,7 @@ export default function JobTimer({ booking, onTimerChange }) {
       </div>
 
       {/* Control Buttons */}
-      <div className="flex gap-3">
+      <div className="flex flex-wrap sm:flex-nowrap gap-3">
         {!isRunning ? (
           <button
             onClick={handleStartTimer}

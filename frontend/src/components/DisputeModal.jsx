@@ -151,7 +151,7 @@ export default function DisputeModal({ booking, onClose, onDisputeSubmitted }) {
             <label className="block text-sm font-semibold text-gray-900 mb-3">
               Issue category
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
               {categories.map((cat) => (
                 <button
                   key={cat.value}

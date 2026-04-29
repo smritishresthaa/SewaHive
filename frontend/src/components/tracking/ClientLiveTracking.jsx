@@ -249,7 +249,7 @@ export default function ClientLiveTracking({ booking, providerPos, lastUpdate, i
     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mb-4">
       {/* ── Banner ── */}
       <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
               <HiTruck className="h-5 w-5 text-white" />
@@ -361,7 +361,7 @@ export default function ClientLiveTracking({ booking, providerPos, lastUpdate, i
       )}
 
       {/* ── Legend ── */}
-      <div className="border-t px-5 py-3 flex items-center gap-4 text-xs text-gray-500">
+      <div className="border-t px-5 py-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full" style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)" }} />
           Your location

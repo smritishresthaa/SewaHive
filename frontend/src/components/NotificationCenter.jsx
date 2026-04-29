@@ -393,7 +393,7 @@ export default function NotificationCenter() {
       {/* Notification Dropdown */}
       {isOpen && (
         <div
-          className="absolute right-0 top-12 w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg bg-white rounded-2xl shadow-2xl z-50 border border-gray-200 max-h-[80vh] flex flex-col mx-2 sm:mx-0"
+          className="absolute right-0 top-12 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-2xl shadow-2xl z-50 border border-gray-200 max-h-[80vh] flex flex-col mx-2 sm:mx-0"
         >
           {/* Header */}
           <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">

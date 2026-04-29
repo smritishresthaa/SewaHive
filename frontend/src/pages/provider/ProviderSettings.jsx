@@ -700,7 +700,7 @@ export default function ProviderSettings() {
               <button
                 onClick={handleSaveNotifications}
                 disabled={savingNotifications}
-                className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-5 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {savingNotifications ? (
                   <>
@@ -842,7 +842,7 @@ export default function ProviderSettings() {
             <button
               onClick={handleSaveCoverage}
               disabled={savingCoverage || !coverageArea.lat || !coverageArea.lng}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {savingCoverage ? (
                 <>

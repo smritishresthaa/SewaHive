@@ -1660,7 +1660,7 @@ export default function ClientBookingDetail() {
 
   return (
     <ClientLayout>
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl px-3 sm:px-5 lg:px-8">
         <div className="mb-6 flex items-center gap-3">
           <button
             onClick={() => navigate("/client/bookings")}
@@ -1734,7 +1734,7 @@ export default function ClientBookingDetail() {
               </div>
             )}
 
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="mb-1 flex items-center gap-2">
                 <h4 className="text-lg font-semibold text-gray-900">
                   {booking.providerId?.profile?.name ||
@@ -1772,7 +1772,7 @@ export default function ClientBookingDetail() {
               {booking.providerId?.email && (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <HiEnvelope className="text-gray-400" />
-                  <span>{booking.providerId.email}</span>
+                  <span className="break-words">{booking.providerId.email}</span>
                 </div>
               )}
             </div>
@@ -1843,9 +1843,9 @@ export default function ClientBookingDetail() {
                 <HiMapPin className="mt-0.5 flex-shrink-0 text-gray-400" />
                 <div className="flex flex-col">
                   {booking.landmark && (
-                    <span className="font-medium text-gray-800">{booking.landmark}</span>
+                    <span className="font-medium text-gray-800 break-words">{booking.landmark}</span>
                   )}
-                  <span className="text-gray-600">
+                  <span className="text-gray-600 break-words">
                     {booking.addressText ||
                       [
                         booking.address?.area,
@@ -1867,7 +1867,7 @@ export default function ClientBookingDetail() {
               )}
             </div>
 
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-2xl font-bold text-gray-900">
                 NPR {Number(booking.totalAmount || 0).toLocaleString()}
               </p>
@@ -1986,13 +1986,13 @@ export default function ClientBookingDetail() {
                 )}
 
                 {booking.quote.quoteMessage && (
-                  <p className="mt-2 italic text-blue-700">
+                  <p className="mt-2 italic text-blue-700 break-words">
                     "{booking.quote.quoteMessage}"
                   </p>
                 )}
 
                 {booking.quote.rejectionReason && (
-                  <p className="mt-2 text-red-700">
+                  <p className="mt-2 text-red-700 break-words">
                     Rejection Reason: {booking.quote.rejectionReason}
                   </p>
                 )}

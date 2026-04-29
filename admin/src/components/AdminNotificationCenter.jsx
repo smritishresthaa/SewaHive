@@ -171,7 +171,7 @@ export default function AdminNotificationCenter() {
       {/* Notification Dropdown */}
       {isOpen && (
         <>
-          <div className="absolute right-0 top-12 w-96 bg-white rounded-lg shadow-2xl z-50 border border-gray-200 max-h-[32rem] flex flex-col">
+          <div className="absolute right-0 top-12 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-lg shadow-2xl z-50 border border-gray-200 max-h-[32rem] flex flex-col mx-2 sm:mx-0">
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-emerald-50 to-green-50">
               <h3 className="font-semibold text-gray-900">

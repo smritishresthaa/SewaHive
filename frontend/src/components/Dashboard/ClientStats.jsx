@@ -32,21 +32,21 @@ export default function ClientStats() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-      <div className="bg-white p-6 rounded-xl shadow">
-        <p className="text-gray-500 text-sm">Total Bookings</p>
-        <p className="text-2xl font-bold mt-1">{stats.total}</p>
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow">
+        <p className="text-gray-500 text-xs sm:text-sm">Total Bookings</p>
+        <p className="text-xl sm:text-2xl font-bold mt-1">{stats.total}</p>
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow">
-        <p className="text-gray-500 text-sm">Completed</p>
-        <p className="text-2xl font-bold mt-1 text-emerald-600">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow">
+        <p className="text-gray-500 text-xs sm:text-sm">Completed</p>
+        <p className="text-xl sm:text-2xl font-bold mt-1 text-emerald-600">
           {stats.completed}
         </p>
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow">
-        <p className="text-gray-500 text-sm">Active</p>
-        <p className="text-2xl font-bold mt-1 text-brand-700">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow">
+        <p className="text-gray-500 text-xs sm:text-sm">Active</p>
+        <p className="text-xl sm:text-2xl font-bold mt-1 text-brand-700">
           {stats.active}
         </p>
       </div>

@@ -225,7 +225,7 @@ export default function ClientSettings() {
         </div>
 
         {/* Notifications */}
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm">
           <div className="mb-5 flex items-start gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50">
               <HiBell className="text-xl text-emerald-600" />
@@ -300,7 +300,7 @@ export default function ClientSettings() {
         </section>
 
         {/* Security */}
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm">
           <div className="mb-5 flex items-start gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50">
               <HiShieldCheck className="text-xl text-blue-600" />
@@ -391,7 +391,7 @@ export default function ClientSettings() {
         </section>
 
         {/* Danger Zone */}
-        <section className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-red-200 bg-white p-4 sm:p-6 shadow-sm">
           <div className="mb-5 flex items-start gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50">
               <HiExclamationTriangle className="text-xl text-red-600" />

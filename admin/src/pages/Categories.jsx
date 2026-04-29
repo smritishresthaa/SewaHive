@@ -483,7 +483,7 @@ export default function Categories() {
           <p className="text-gray-600 mt-1">Manage service categories (Auto-updates every 30s)</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           {pendingRequestsCount > 0 && (
             <button
               onClick={() => navigate("/category-requests")}

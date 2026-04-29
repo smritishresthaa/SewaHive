@@ -400,16 +400,16 @@ export default function BookingWizard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-6">
           <div>
             <p className="text-sm text-gray-500">Booking</p>
             <h1 className="text-3xl font-bold text-gray-900 mt-1">{service.title}</h1>
             <p className="text-gray-600 mt-2 max-w-3xl">{service.description}</p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right mt-2 sm:mt-0">
             <p className="text-xs text-gray-500">{pricingDisplay.headerLabel}</p>
-            <p className="text-3xl font-bold text-gray-900">{pricingDisplay.summaryValue}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-gray-900 break-words">{pricingDisplay.summaryValue}</p>
             {showEmergencyPriceInHeader && (
               <p className="text-sm text-orange-600 font-medium">
                 Emergency: NPR{" "}

@@ -224,17 +224,17 @@ export default function DisputePanel({ dispute, onClose, onResolved }) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t p-6 flex gap-3">
+        <div className="sticky bottom-0 bg-gray-50 border-t p-6 flex flex-wrap sm:flex-nowrap gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition font-medium"
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition font-medium w-full sm:w-auto"
           >
             Cancel
           </button>
           <button
             onClick={handleResolve}
             disabled={!decision || resolving}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 w-full sm:w-auto"
           >
             <HiCheckCircle className="w-5 h-5" />
             {resolving ? 'Resolving...' : 'Resolve Dispute'}

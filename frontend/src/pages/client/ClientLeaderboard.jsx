@@ -83,8 +83,8 @@ export default function ClientLeaderboard() {
 
   return (
     <ClientLayout>
-      <div className="max-w-5xl mx-auto">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl border bg-white p-4 sm:p-6 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div style={{ fontFamily: "Satoshi, 'Space Grotesk', 'Segoe UI', sans-serif" }}>
               <h1 className="text-3xl font-semibold text-gray-900">Top Service Providers</h1>

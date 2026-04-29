@@ -737,7 +737,7 @@ export default function DisputeDetail() {
 
         {/* Tabs */}
         <div className="mb-8 border-b border-gray-200">
-          <div className="flex gap-8">
+          <div className="flex gap-4 sm:gap-8 overflow-x-auto pb-2">
             <button
               onClick={() => setTab("details")}
               className={`pb-4 font-medium transition ${

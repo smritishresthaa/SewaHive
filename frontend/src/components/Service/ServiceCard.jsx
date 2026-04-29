@@ -103,12 +103,12 @@ export default function ServiceCard({ service, provider, onBook }) {
           <span className="truncate">{categoryName}</span>
         </div>
 
-        {provider.rating?.average > 0 && (
+        {Number(service.ratingAvg || service.rating?.average || provider?.rating?.average || service.provider?.rating?.average || service.providerId?.providerDetails?.rating?.average || service.providerId?.rating?.average || 0) > 0 && (
           <div className="absolute right-2 top-2 xs:right-3 xs:top-3 inline-flex max-w-[40vw] sm:max-w-[42%] items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold backdrop-blur xs:px-2.5 xs:py-1.5 sm:px-3 sm:text-sm">
             <HiStar className="flex-shrink-0 text-yellow-500" />
-            <span>{provider.rating.average.toFixed(1)}</span>
+            <span>{Number(service.ratingAvg || service.rating?.average || provider?.rating?.average || service.provider?.rating?.average || service.providerId?.providerDetails?.rating?.average || service.providerId?.rating?.average || 0).toFixed(1)}</span>
             <span className="truncate text-[10px] xs:text-[11px] text-gray-600 sm:text-xs">
-              ({provider.rating.count})
+              ({service.ratingCount || service.rating?.count || provider?.rating?.count || service.provider?.rating?.count || service.providerId?.providerDetails?.rating?.count || service.providerId?.rating?.count || service.reviews?.length || 0})
             </span>
           </div>
         )}

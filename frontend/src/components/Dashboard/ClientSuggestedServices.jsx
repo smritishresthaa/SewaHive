@@ -20,19 +20,19 @@ export default function ClientSuggestedServices() {
 
   return (
     <section className="mt-10">
-      <h3 className="text-xl font-semibold mb-4">Suggested Services</h3>
+      <h3 className="text-lg sm:text-xl font-semibold mb-4">Suggested Services</h3>
 
       {services.length === 0 ? (
         <p className="text-gray-500">No services found.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
           {services.map((s) => (
             <div
               key={s._id}
-              className="bg-white p-5 rounded-xl shadow hover:shadow-md transition"
+              className="bg-white p-4 sm:p-5 rounded-xl shadow hover:shadow-md transition"
             >
-              <p className="font-semibold text-lg">{s.title}</p>
-              <p className="text-gray-600 text-sm mt-1">{s.category}</p>
+              <p className="font-semibold text-base sm:text-lg">{s.title}</p>
+              <p className="text-gray-600 text-xs sm:text-sm mt-1">{s.category}</p>
               <p className="text-brand-700 font-semibold mt-2">
                 Rs. {s.basePrice}
               </p>

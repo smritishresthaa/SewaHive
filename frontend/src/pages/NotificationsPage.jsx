@@ -1576,7 +1576,7 @@ export default function NotificationsPage() {
               Showing {startIndex + 1}-{Math.min(endIndex, filteredNotifications.length)} of{" "}
               {filteredNotifications.length} notifications
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}

@@ -69,7 +69,7 @@ export default function ReviewModal({ booking, onClose, onReviewSubmitted }) {
             <label className="block text-sm font-semibold text-gray-900 mb-3">
               Rate your experience <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2 justify-center py-2 sm:py-4">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2 justify-center py-2 sm:py-4">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}

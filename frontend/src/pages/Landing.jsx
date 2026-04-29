@@ -1076,7 +1076,7 @@ React.useEffect(() => {
                     </div>
                   )}
 
-                  {svc.ratingAvg > 0 && (
+                  {Number(svc.ratingAvg ?? svc.rating?.average ?? svc.provider?.rating?.average ?? svc.providerId?.providerDetails?.rating?.average ?? svc.providerId?.rating?.average ?? 0) > 0 && (
                     <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-brand-700 px-2 py-1 text-xs text-white">
                       <svg
                         width="14"
@@ -1087,7 +1087,7 @@ React.useEffect(() => {
                       >
                         <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
                       </svg>
-                      {svc.ratingAvg.toFixed(1)}
+                      {Number(svc.ratingAvg ?? svc.rating?.average ?? svc.provider?.rating?.average ?? svc.providerId?.providerDetails?.rating?.average ?? svc.providerId?.rating?.average ?? 0).toFixed(1)}
                     </div>
                   )}
 
@@ -1114,7 +1114,7 @@ React.useEffect(() => {
                       >
                         <path d="M12 17.3l6.18 3.64-1.64-7.03L21 9.24l-7.19-.61L12 2 10.19 8.63 3 9.24l4.46 4.67-1.64 7.03L12 17.3z" />
                       </svg>
-                      <span>{svc.ratingCount || 0} reviews</span>
+                      <span>{svc.ratingCount ?? svc.rating?.count ?? svc.provider?.rating?.count ?? svc.providerId?.providerDetails?.rating?.count ?? svc.providerId?.rating?.count ?? svc.reviews?.length ?? 0} reviews</span>
                     </div>
 
                     <div className="flex items-center gap-2">

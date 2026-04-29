@@ -317,7 +317,7 @@ export default function ProviderNavigationPanel({ booking, onStatusChange }) {
     <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mb-4">
       {/* ── Header ── */}
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
               <HiMapPin className="text-emerald-600" />

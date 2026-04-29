@@ -22,7 +22,7 @@ export default function PaymentFailure() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-8 md:p-12">
+      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 md:p-12">
         {/* Error Icon */}
         <div className="flex justify-center mb-6">
           <div className="relative">

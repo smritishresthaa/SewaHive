@@ -1430,7 +1430,7 @@ export default function BookingChat() {
 
             {!isMediaActive && (
               <div className="border-t bg-white px-3 py-3">
-                <div className="flex items-end gap-2">
+                <div className="flex flex-wrap sm:flex-nowrap items-end gap-2">
                   <input
                     ref={imageInputRef}
                     type="file"
@@ -1484,7 +1484,7 @@ export default function BookingChat() {
                     placeholder={canSendMessages ? "Type a message..." : "Sending is disabled while this chat is blocked"}
                     rows={1}
                     disabled={!canSendMessages}
-                    className="min-h-[40px] max-h-24 flex-1 resize-none rounded-2xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500"
+                    className="min-h-[40px] max-h-24 flex-1 min-w-[150px] sm:min-w-0 resize-none rounded-2xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500"
                   />
 
                   <button
