@@ -282,4 +282,6 @@ async function handleAccountDeletionImpact({ user, adminUserId }) {
   };
 }
 
-module.exports = handleAccountDeletionImpact;
+module.exports = {
+  handleAccountDeletionImpact,
+};

@@ -53,7 +53,7 @@ export default function AdminSidebar() {
   return (
     <>
       {/* ── Mobile trigger bar (hidden on desktop) ── */}
-      <div className="sticky top-0 z-40 border-b bg-white px-4 py-3 lg:hidden">
+      <div className="sticky top-0 z-40 border-b bg-white px-4 py-3 max-lg:block lg:hidden">
         <button
           onClick={() => setMobileOpen(true)}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -130,9 +130,10 @@ export default function AdminSidebar() {
         </div>
       </aside>
 
-      {/* ── Desktop sidebar — UNCHANGED except hidden lg:flex added ── */}
-      <aside className="w-60 bg-[#f8fafc] border-r border-gray-200 flex-col h-screen fixed left-0 top-16 overflow-y-auto hidden lg:flex">
-        <nav className="flex-1 px-3 py-4 space-y-1">
+      {/* ── Desktop sidebar ── */}
+      <aside className="fixed left-0 top-[72px] bottom-0 z-40 w-60 bg-white border-r border-gray-200 shadow-[1px_0_10px_rgba(0,0,0,0.02)] max-lg:hidden">
+        <div className="flex h-full flex-col overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1">
           {nav.map((section, si) => (
             <div key={si}>
               {si > 0 && <div className="h-px bg-gray-100 my-2" />}
@@ -164,10 +165,11 @@ export default function AdminSidebar() {
               </div>
             </div>
           ))}
-        </nav>
+          </nav>
 
-        <div className="px-4 py-3 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 text-center">SewaHive Admin v2.0</p>
+          <div className="px-4 py-3 border-t border-gray-100">
+            <p className="text-[10px] text-gray-400 text-center">SewaHive Admin v2.0</p>
+          </div>
         </div>
       </aside>
     </>

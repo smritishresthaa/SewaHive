@@ -569,9 +569,16 @@ export default function Users() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[180px]">
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search</label>
-            <div className="relative">
-              <HiMagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <input type="text" placeholder="Name, email, phone..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400" />
+            <div className="relative flex items-center">
+              <HiMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+              <input
+                type="text"
+                placeholder="Name, email, phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-xs text-gray-900 placeholder-gray-400 outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              />
             </div>
           </div>
           <div>
