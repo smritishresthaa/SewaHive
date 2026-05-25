@@ -7,6 +7,7 @@ import {
   HiSparkles,
   HiMapPin,
   HiClock,
+  HiNoSymbol,
   HiCalendarDays,
   HiCheckCircle,
 } from "react-icons/hi2";
@@ -420,8 +421,11 @@ export default function BookingWizard() {
         </div>
 
         {!isProviderVerified && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            🚫 Not Verified - Booking Disabled. This provider cannot be booked until KYC is approved.
+          <div className="flex items-start gap-2">
+            <HiNoSymbol className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <span>
+              Not Verified - Booking Disabled. This provider cannot be booked until KYC is approved.
+            </span>
           </div>
         )}
 

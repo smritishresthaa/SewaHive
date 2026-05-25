@@ -1,6 +1,14 @@
 // components/UI/LocationPicker.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { HiMapPin, HiCheckCircle } from "react-icons/hi2";
+import {
+  HiMapPin,
+  HiCheckCircle,
+  HiHome,
+  HiMagnifyingGlass,
+  HiBuildingOffice2,
+  HiLightBulb,
+  HiMap,
+} from "react-icons/hi2";
 import toast from "react-hot-toast";
 
 /**
@@ -234,7 +242,7 @@ export default function LocationPicker({
                 : "border-gray-300 bg-white text-gray-700 hover:border-emerald-400"
             }`}
           >
-            <span>🏠</span>
+            <HiHome className="w-4 h-4" />
             <span>Enter Address</span>
             {locationMode === "manual" && addressText && (
               <HiCheckCircle className="text-emerald-600 text-lg" />
@@ -290,8 +298,9 @@ export default function LocationPicker({
         <div className="space-y-3">
           {/* Location Search */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              🔍 Search for Location
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+              <HiMagnifyingGlass className="w-4 h-4 text-gray-500" />
+              <span>Search for Location</span>
             </label>
             <div className="relative">
               <input
@@ -352,8 +361,9 @@ export default function LocationPicker({
 
       {/* Landmark - Available in Both Modes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          🏢 Landmark (Optional)
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+          <HiBuildingOffice2 className="w-4 h-4 text-gray-500" />
+          <span>Landmark (Optional)</span>
         </label>
         <input
           type="text"
@@ -363,7 +373,7 @@ export default function LocationPicker({
           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-400"
         />
         <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-          <span>💡</span>
+          <HiLightBulb className="w-3.5 h-3.5 text-gray-400 shrink-0" />
           <span>Add landmarks to help your provider find the location easily</span>
         </p>
       </div>
@@ -373,9 +383,10 @@ export default function LocationPicker({
         type="button"
         onClick={() => coords && setShowMap(!showMap)}
         disabled={!coords}
-        className="w-full px-4 py-2 border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent"
+        className="w-full px-4 py-2 border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 rounded-lg font-medium transition disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 disabled:hover:bg-transparent inline-flex items-center justify-center gap-2"
       >
-        {showMap ? "🗺️ Hide Map Preview" : "🗺️ Show on Map"}
+        <HiMap className="w-4 h-4" />
+        <span>{showMap ? "Hide Map Preview" : "Show on Map"}</span>
       </button>
 
       {!coords && (
@@ -454,4 +465,3 @@ function MapPreview({ coords }) {
 
   return <div ref={mapRef} style={{ width: "100%", height: "100%" }} />;
 }
-

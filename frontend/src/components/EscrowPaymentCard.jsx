@@ -3,6 +3,10 @@ import { HiCheckCircle, HiShieldCheck, HiInformationCircle, HiCreditCard, HiWren
 import EsewaPaymentButton from './EsewaPaymentButton';
 
 export default function EscrowPaymentCard({ booking, disabled = false }) {
+  const payableNow =
+    Number(booking?.additionalEscrowDue || 0) > 0
+      ? Number(booking.additionalEscrowDue)
+      : Number(booking?.totalAmount || 0);
   return (
     <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-4 sm:p-6 border border-emerald-200 w-full max-w-md mx-auto">
       {/* Header */}
@@ -50,7 +54,7 @@ export default function EscrowPaymentCard({ booking, disabled = false }) {
         <div className="border-t border-gray-200 pt-2 flex justify-between">
           <span className="font-semibold text-gray-900">Total (Held Securely)</span>
           <span className="text-base sm:text-lg font-bold text-emerald-600">
-            NPR {booking.totalAmount?.toLocaleString()}
+            NPR {payableNow.toLocaleString()}
           </span>
         </div>
       </div>
@@ -58,7 +62,7 @@ export default function EscrowPaymentCard({ booking, disabled = false }) {
       {/* Payment Button */}
       <EsewaPaymentButton
         bookingId={booking._id}
-        amount={booking.totalAmount}
+        amount={payableNow}
         disabled={disabled}
         className="w-full"
       />

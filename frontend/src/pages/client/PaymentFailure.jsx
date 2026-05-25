@@ -1,6 +1,7 @@
 // pages/client/PaymentFailure.jsx
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { HiXCircle } from 'react-icons/hi';
+import { HiExclamationTriangle, HiLightBulb } from 'react-icons/hi2';
 
 export default function PaymentFailure() {
   const [searchParams] = useSearchParams();
@@ -44,7 +45,7 @@ export default function PaymentFailure() {
         {/* Error Details */}
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-8">
           <h3 className="font-semibold text-red-900 mb-3 flex items-center gap-2">
-            <span>⚠️</span>
+            <HiExclamationTriangle className="w-5 h-5 text-red-600 shrink-0" />
             <span>What Happened?</span>
           </h3>
           <ul className="space-y-2 text-sm text-red-800">
@@ -75,7 +76,7 @@ export default function PaymentFailure() {
         {/* Troubleshooting Tips */}
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mb-8">
           <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-            <span>💡</span>
+            <HiLightBulb className="w-5 h-5 text-blue-600 shrink-0" />
             <span>Troubleshooting Tips</span>
           </h3>
           <ul className="space-y-2 text-sm text-blue-800">

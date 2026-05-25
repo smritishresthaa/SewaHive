@@ -129,7 +129,6 @@ export default function ProviderSignup() {
     fetchPublicRegistrationStatus();
   }, []);
 
-
   useEffect(() => {
     if (!user) return;
 
@@ -353,7 +352,7 @@ export default function ProviderSignup() {
   }
 
   const inputBase =
-    "w-full bg-transparent py-3 text-sm outline-none";
+    "w-full bg-transparent py-3 text-sm outline-none appearance-none [&::-ms-reveal]:hidden [&::-ms-clear]:hidden [&::-webkit-credentials-auto-fill-button]:invisible [&::-webkit-contacts-auto-fill-button]:invisible [&::-webkit-caps-lock-indicator]:hidden";
   const wrapperBase =
     "mt-1 flex items-center rounded-xl border bg-slate-50/60 px-3 transition-all";
   const getWrapperClass = (field) =>
@@ -497,7 +496,8 @@ export default function ProviderSignup() {
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="text-slate-500 hover:text-slate-700"
+                        className="ml-2 flex shrink-0 items-center justify-center text-slate-500 hover:text-slate-700"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? <HiEyeOff size={18} /> : <HiEye size={18} />}
                       </button>
@@ -533,7 +533,8 @@ export default function ProviderSignup() {
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword((prev) => !prev)}
-                        className="text-slate-500 hover:text-slate-700"
+                        className="ml-2 flex shrink-0 items-center justify-center text-slate-500 hover:text-slate-700"
+                        aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                       >
                         {showConfirmPassword ? <HiEyeOff size={18} /> : <HiEye size={18} />}
                       </button>

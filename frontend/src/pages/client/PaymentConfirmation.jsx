@@ -49,6 +49,7 @@ export default function PaymentConfirmation() {
     try {
       const { data } = await api.post("/payment/esewa/initiate", {
         bookingId: booking._id,
+        amount: payableNow,
       });
 
       if (!data.success) {
@@ -158,10 +159,38 @@ export default function PaymentConfirmation() {
     };
   }, [booking]);
 
-  const paymentButtonLabel = useMemo(() => {
-    const amount = Number(booking?.totalAmount || 0).toLocaleString();
-    return `Pay NPR ${amount} via eSewa`;
+  const payableNow = useMemo(() => {
+    if (!booking) return 0;
+
+    const additionalRequired = Number(
+      booking?.pricing?.additionalEscrowRequired || 0
+    );
+
+    // THIS is the remaining amount client must pay
+    if (additionalRequired > 0) {
+      return additionalRequired;
+    }
+
+    // Initial payment case
+    const agreedAmount = Number(
+      booking?.pricing?.finalApprovedPrice ||
+      booking?.totalAmount ||
+      0
+    );
+
+    const escrowHeld = Number(
+      booking?.pricing?.escrowHeldAmount || 0
+    );
+
+    const remaining = agreedAmount - escrowHeld;
+
+    return remaining > 0 ? remaining : agreedAmount;
   }, [booking]);
+  
+const paymentButtonLabel = useMemo(() => {
+  const amount = Number(payableNow || 0).toLocaleString();
+  return `Pay NPR ${amount} via eSewa`;
+}, [payableNow]);
 
   if (loading || !booking) {
     return (
@@ -317,7 +346,7 @@ export default function PaymentConfirmation() {
                   <div className="flex justify-between text-lg font-bold pt-3 border-t">
                     <span className="text-gray-900">Escrow payment now</span>
                     <span className="text-emerald-600">
-                      NPR {pricingSummary.totalAmount.toLocaleString()}
+                      NPR {payableNow.toLocaleString()}
                     </span>
                   </div>
                 </div>

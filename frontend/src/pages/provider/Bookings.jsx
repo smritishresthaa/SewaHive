@@ -10,7 +10,10 @@ import {
   HiStar,
   HiExclamationTriangle,
   HiPlay,
+  HiBuildingOffice2,
+  HiBolt,
 } from "react-icons/hi2";
+import { HiClipboardList } from "react-icons/hi";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
 import JobTimer from "../../components/UI/JobTimer";
@@ -729,7 +732,8 @@ export default function ProviderBookings() {
                         {getStatusBadge(booking.status)}
                         {booking.type === "emergency" && (
                           <span className="flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
-                            ⚡ Emergency
+                            <HiBolt className="h-3.5 w-3.5 shrink-0" />
+                            Emergency
                           </span>
                         )}
                       </div>
@@ -742,8 +746,9 @@ export default function ProviderBookings() {
 
                       {booking.notes && (
                         <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                          <p className="mb-1 text-sm font-semibold text-emerald-900">
-                            📋 Client Requirements:
+                          <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                            <HiClipboardList className="h-4 w-4 shrink-0 text-emerald-600" />
+                            Client Requirements:
                           </p>
                           <p className="text-sm text-emerald-800">{booking.notes}</p>
                         </div>
@@ -759,7 +764,7 @@ export default function ProviderBookings() {
 
                         {!!String(booking.landmark || "").trim() && (
                           <div className="flex items-center gap-2">
-                            <span className="text-base text-emerald-600">🏢</span>
+                            <HiBuildingOffice2 className="h-4 w-4 shrink-0 text-emerald-600" />
                             <span className="break-words">
                               Landmark: {String(booking.landmark).trim()}
                             </span>
