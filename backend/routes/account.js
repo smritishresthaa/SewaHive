@@ -73,21 +73,30 @@ router.patch("/notifications", authGuard, async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const allowedKeys = [
+      "bookingUpdates",
+      "messages",
+      "reviews",
+      "email",
+      "emergencyAlerts",
+    ];
+
     const currentNotifications = {
       ...buildDefaultNotifications(user.role),
       ...(user.settings?.notifications || {}),
     };
 
-    const nextNotifications = {
-      bookingUpdates: incoming.bookingUpdates ?? currentNotifications.bookingUpdates,
-      messages: incoming.messages ?? currentNotifications.messages,
-      reviews: incoming.reviews ?? currentNotifications.reviews,
-      email: incoming.email ?? currentNotifications.email,
-      emergencyAlerts: incoming.emergencyAlerts ?? currentNotifications.emergencyAlerts,
-    };
+    const nextNotifications = { ...currentNotifications };
+
+    for (const key of allowedKeys) {
+      if (Object.prototype.hasOwnProperty.call(incoming, key)) {
+        nextNotifications[key] = Boolean(incoming[key]);
+      }
+    }
 
     user.settings = user.settings || {};
     user.settings.notifications = nextNotifications;
+    user.markModified("settings.notifications");
 
     let emergencyDisabled = false;
     let providerNotificationsEnabled = null;

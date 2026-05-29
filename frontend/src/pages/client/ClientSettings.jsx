@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ClientLayout from "../../layouts/ClientLayout";
 import { useAuth } from "../../context/AuthContext";
@@ -90,15 +90,54 @@ export default function ClientSettings() {
   const { user, updateUser, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [notifications, setNotifications] = useState({
+   const [notifications, setNotifications] = useState({
     bookingUpdates: user?.settings?.notifications?.bookingUpdates ?? true,
     messages: user?.settings?.notifications?.messages ?? true,
     reviews: user?.settings?.notifications?.reviews ?? true,
     email: user?.settings?.notifications?.email ?? true,
+    emergencyAlerts: user?.settings?.notifications?.emergencyAlerts ?? false,
   });
 
+  const [loadingNotifications, setLoadingNotifications] = useState(true);
   const [savingNotifications, setSavingNotifications] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadNotificationSettings() {
+      setLoadingNotifications(true);
+      try {
+        const res = await api.get("/account/settings");
+        const savedNotifications = res.data?.notifications || {};
+
+        if (!isMounted) return;
+
+        setNotifications({
+          bookingUpdates: savedNotifications.bookingUpdates ?? true,
+          messages: savedNotifications.messages ?? true,
+          reviews: savedNotifications.reviews ?? true,
+          email: savedNotifications.email ?? true,
+          emergencyAlerts: savedNotifications.emergencyAlerts ?? false,
+        });
+
+        if (res.data?.user) {
+          updateUser(res.data.user);
+        }
+      } catch (err) {
+        toast.error(err?.response?.data?.message || "Failed to load notification settings");
+      } finally {
+        if (isMounted) {
+          setLoadingNotifications(false);
+        }
+      }
+    }
+
+    loadNotificationSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?._id]);
   const [form, setForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -255,10 +294,15 @@ export default function ClientSettings() {
                 title: "Reviews and service updates",
                 desc: "Receive review-related and service activity notifications.",
               },
-              {
+                            {
                 key: "email",
                 title: "Email notifications",
                 desc: "Receive important updates through email.",
+              },
+              {
+                key: "emergencyAlerts",
+                title: "Emergency alerts",
+                desc: "Receive urgent service and emergency booking alerts.",
               },
             ].map((item) => (
               <div
@@ -277,7 +321,7 @@ export default function ClientSettings() {
                       [item.key]: !prev[item.key],
                     }))
                   }
-                  disabled={savingNotifications}
+                  disabled={savingNotifications || loadingNotifications}
                 />
               </div>
             ))}
@@ -285,7 +329,7 @@ export default function ClientSettings() {
 
           <button
             onClick={handleSaveNotifications}
-            disabled={savingNotifications}
+            disabled={savingNotifications || loadingNotifications}
             className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {savingNotifications ? (

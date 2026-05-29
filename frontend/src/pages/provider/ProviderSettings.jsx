@@ -279,6 +279,7 @@ export default function ProviderSettings() {
     email: user?.settings?.notifications?.email ?? true,
     emergencyAlerts: user?.settings?.notifications?.emergencyAlerts ?? true,
   });
+  const [loadingNotifications, setLoadingNotifications] = useState(true);
   const [savingNotifications, setSavingNotifications] = useState(false);
 
   // Services
@@ -316,7 +317,9 @@ export default function ProviderSettings() {
     return !!user?.googleId && !user?.passwordHash;
   }, [user]);
 
-  useEffect(() => {
+    useEffect(() => {
+    let isMounted = true;
+
     setCoverageArea({
       lat: user?.providerDetails?.coverage?.lat || "",
       lng: user?.providerDetails?.coverage?.lng || "",
@@ -332,8 +335,42 @@ export default function ProviderSettings() {
     });
 
     setKycStatus(normalizeKycStatus(user?.kycStatus));
-  }, [user]);
 
+        async function loadAccountSettings() {
+      setLoadingNotifications(true);
+
+      try {
+        const res = await api.get("/account/settings");
+        if (!isMounted) return;
+
+        const savedNotifications = res.data?.notifications || {};
+
+        setNotifications({
+          bookingUpdates: savedNotifications.bookingUpdates ?? true,
+          messages: savedNotifications.messages ?? true,
+          reviews: savedNotifications.reviews ?? true,
+          email: savedNotifications.email ?? true,
+          emergencyAlerts: savedNotifications.emergencyAlerts ?? true,
+        });
+
+        if (res.data?.user) {
+          updateUser(res.data.user);
+        }
+      } catch (err) {
+        toast.error(err?.response?.data?.message || "Failed to load notification settings");
+      } finally {
+        if (isMounted) {
+          setLoadingNotifications(false);
+        }
+      }
+    }
+
+    loadAccountSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?._id]);
   useEffect(() => {
     let isMounted = true;
 
@@ -681,7 +718,7 @@ export default function ProviderSettings() {
                           [item.key]: !prev[item.key],
                         }))
                       }
-                      disabled={savingNotifications}
+                      disabled={savingNotifications || loadingNotifications}
                     />
                   </div>
                 ))}
@@ -699,7 +736,7 @@ export default function ProviderSettings() {
 
               <button
                 onClick={handleSaveNotifications}
-                disabled={savingNotifications}
+                disabled={savingNotifications || loadingNotifications}
                 className="mt-5 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {savingNotifications ? (

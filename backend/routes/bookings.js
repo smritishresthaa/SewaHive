@@ -110,6 +110,93 @@ function isWithinBounds(value, bounds) {
   return date >= bounds.start && date < bounds.end;
 }
 
+const PROVIDER_SLOT_CONFLICT_STATUSES = [
+  "pending_payment",
+  "requested",
+  "quote_requested",
+  "quote_sent",
+  "quote_pending_admin_review",
+  "quote_accepted",
+  "accepted",
+  "confirmed",
+  "provider_en_route",
+  "in-progress",
+  "provider_completed",
+  "awaiting_client_confirmation",
+  "pending-completion",
+  "disputed",
+];
+
+function combineBookingDateAndSlot(dateValue, slotValue) {
+  if (!dateValue || !slotValue) return null;
+
+  const baseDate = new Date(dateValue);
+  if (Number.isNaN(baseDate.getTime())) return null;
+
+  const [hoursRaw, minutesRaw] = String(slotValue).split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+
+  const combined = new Date(baseDate);
+  combined.setHours(hours, minutes, 0, 0);
+  return combined;
+}
+
+function getDayBounds(dateValue) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+}
+
+async function hasProviderScheduleConflict({ providerId, schedule }) {
+  if (!providerId || !schedule?.date || !schedule?.slot) return false;
+
+  const requestedStart = combineBookingDateAndSlot(schedule.date, schedule.slot);
+  const dayBounds = getDayBounds(schedule.date);
+
+  if (!requestedStart || !dayBounds) return false;
+
+  const existingBookings = await Booking.find({
+    providerId,
+    status: { $in: PROVIDER_SLOT_CONFLICT_STATUSES },
+    $or: [
+      {
+        "schedule.date": {
+          $gte: dayBounds.start,
+          $lt: dayBounds.end,
+        },
+      },
+      {
+        scheduledAt: {
+          $gte: dayBounds.start,
+          $lt: dayBounds.end,
+        },
+      },
+    ],
+  }).select("schedule scheduledAt status");
+
+  return existingBookings.some((booking) => {
+    const existingStart =
+      booking.scheduledAt ||
+      combineBookingDateAndSlot(booking.schedule?.date, booking.schedule?.slot);
+
+    if (!existingStart) return false;
+
+    return new Date(existingStart).getTime() === requestedStart.getTime();
+  });
+}
+
 function getUpcomingRelevantDate(booking) {
   return (
     resolveScheduledDateTime(booking) ||
@@ -441,6 +528,17 @@ router.post(
           normalizedBookingLocation.coordinates
         );
         distanceKm = Math.round(distanceKm * 100) / 100; // Round to 2 decimals
+      }
+
+      const hasConflict = await hasProviderScheduleConflict({
+        providerId,
+        schedule,
+      });
+
+      if (hasConflict) {
+        return res.status(409).json({
+          message: "Provider unavailable for this slot.",
+        });
       }
 
       const pricingResolved = resolveBookingPricing(service, "normal");

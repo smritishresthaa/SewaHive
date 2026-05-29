@@ -177,6 +177,58 @@ function buildSmsMessage({ type, title, message, metadata = {} }) {
   return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
 }
 
+function getDefaultNotificationPreferences(role = "client") {
+  return {
+    bookingUpdates: true,
+    messages: true,
+    reviews: true,
+    email: true,
+    emergencyAlerts: role === "provider",
+  };
+}
+
+function getPreferenceKeyForNotification({ type = "", category = "", metadata = {} }) {
+  const normalizedType = String(type).toLowerCase();
+  const normalizedCategory = String(category).toLowerCase();
+
+  if (metadata?.isEmergency || normalizedType.includes("emergency")) {
+    return "emergencyAlerts";
+  }
+
+  if (
+    normalizedType.includes("chat") ||
+    normalizedType.includes("message") ||
+    normalizedCategory === "chat" ||
+    normalizedCategory === "message"
+  ) {
+    return "messages";
+  }
+
+  if (
+    normalizedType.includes("review") ||
+    normalizedType.includes("rating") ||
+    normalizedType.includes("service_activity") ||
+    normalizedCategory === "review" ||
+    normalizedCategory === "reviews" ||
+    normalizedCategory === "service"
+  ) {
+    return "reviews";
+  }
+
+  if (
+    normalizedType.includes("booking") ||
+    normalizedType.includes("quote") ||
+    normalizedType.includes("payment") ||
+    normalizedType.includes("refund") ||
+    normalizedCategory === "booking" ||
+    normalizedCategory === "payment"
+  ) {
+    return "bookingUpdates";
+  }
+
+  return null;
+}
+
 /**
  * Create an in-app notification and optionally send email/SMS
  */
@@ -202,6 +254,53 @@ async function createNotification({
     const finalRoute = targetRoute || routeConfig.route;
     const finalParams = targetRouteParams || routeConfig.params;
 
+        const user = await User.findById(userId);
+    if (!user) {
+      console.log("[NOTIFICATION] User not found for notification:", {
+        userId: String(userId),
+        type,
+        bookingId: bookingId ? String(bookingId) : null,
+      });
+      return null;
+    }
+
+    const notificationPreferences = {
+      ...getDefaultNotificationPreferences(user.role),
+      ...(user.settings?.notifications || {}),
+    };
+
+    const preferenceKey = getPreferenceKeyForNotification({
+      type,
+      category,
+      metadata,
+    });
+
+    if (preferenceKey && notificationPreferences[preferenceKey] === false) {
+      console.log("[NOTIFICATION] Skipped by user preference:", {
+        userId: String(user._id),
+        role: user.role,
+        type,
+        category,
+        preferenceKey,
+        bookingId: bookingId ? String(bookingId) : null,
+      });
+      return null;
+    }
+
+    if (
+      user.role === "provider" &&
+      user.providerDetails &&
+      user.providerDetails.notificationsEnabled === false
+    ) {
+      console.log("[NOTIFICATION] Provider notifications disabled:", {
+        userId: String(user._id),
+        role: user.role,
+        type,
+        bookingId: bookingId ? String(bookingId) : null,
+      });
+      return null;
+    }
+
     const notification = await Notification.create({
       userId,
       category,
@@ -223,32 +322,8 @@ async function createNotification({
       notification,
     });
 
-    const user = await User.findById(userId);
-    if (!user) {
-      console.log("[NOTIFICATION] User not found for notification:", {
-        userId: String(userId),
-        type,
-        bookingId: bookingId ? String(bookingId) : null,
-      });
-      return notification;
-    }
-
-    if (
-      user.role === "provider" &&
-      user.providerDetails &&
-      user.providerDetails.notificationsEnabled === false
-    ) {
-      console.log("[NOTIFICATION] Provider notifications disabled:", {
-        userId: String(user._id),
-        role: user.role,
-        type,
-        bookingId: bookingId ? String(bookingId) : null,
-      });
-      return notification;
-    }
-
     // EMAIL
-    if (shouldSendEmail && user.email) {
+      if (shouldSendEmail && user.email && notificationPreferences.email !== false) {
       try {
         const appLink = `${process.env.CLIENT_URL}${finalRoute}`;
 

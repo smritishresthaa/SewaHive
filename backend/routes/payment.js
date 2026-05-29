@@ -1801,14 +1801,13 @@ async function finalizeSuccessfulPayment(payment, receipt = {}) {
   booking.pricing.escrowHeldAmount = updatedHeld;
   booking.pricing.additionalEscrowRequired = additionalRequired;
 
-  if (
-    payment.purpose === "initial_escrow" &&
-    booking.status === "pending_payment"
-  ) {
+   if (booking.status === "pending_payment" && additionalRequired <= 0) {
     booking.status = resolvePostInitialEscrowStatus(booking);
+
     if (booking.status === "confirmed") {
       booking.confirmedAt = booking.confirmedAt || new Date();
     }
+
     if (booking.status === "requested") {
       booking.requestedAt = booking.requestedAt || new Date();
     }

@@ -173,7 +173,7 @@ export default function ProviderProfile() {
 
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <h1 className="break-words text-2xl font-bold sm:text-3xl">
-              Hello, {user?.profile?.name} 👋
+              Hello, {user?.profile?.name} 
             </h1>
             <p className="mt-1 break-all text-sm text-white/80 sm:text-base">
               {user?.email}

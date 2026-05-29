@@ -159,32 +159,33 @@ export default function PaymentConfirmation() {
     };
   }, [booking]);
 
-  const payableNow = useMemo(() => {
+    const payableNow = useMemo(() => {
     if (!booking) return 0;
+
+    const paymentStatus = String(booking?.paymentStatus || "").toLowerCase();
+
+    if (["funds_held", "paid", "released", "refunded"].includes(paymentStatus)) {
+      return 0;
+    }
 
     const additionalRequired = Number(
       booking?.pricing?.additionalEscrowRequired || 0
     );
 
-    // THIS is the remaining amount client must pay
     if (additionalRequired > 0) {
       return additionalRequired;
     }
 
-    // Initial payment case
     const agreedAmount = Number(
       booking?.pricing?.finalApprovedPrice ||
-      booking?.totalAmount ||
-      0
+        booking?.totalAmount ||
+        0
     );
 
-    const escrowHeld = Number(
-      booking?.pricing?.escrowHeldAmount || 0
-    );
+    const escrowHeld = Number(booking?.pricing?.escrowHeldAmount || 0);
+    const remaining = Math.max(0, agreedAmount - escrowHeld);
 
-    const remaining = agreedAmount - escrowHeld;
-
-    return remaining > 0 ? remaining : agreedAmount;
+    return remaining;
   }, [booking]);
   
 const paymentButtonLabel = useMemo(() => {
@@ -412,50 +413,64 @@ const paymentButtonLabel = useMemo(() => {
                   </div>
                 </div>
 
-                <button
-                  onClick={handlePayment}
-                  disabled={paying}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {paying ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
+                                {payableNow > 0 ? (
+                  <button
+                    onClick={handlePayment}
+                    disabled={paying}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {paying ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        <span>Redirecting to eSewa...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-5 h-5"
                           fill="none"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      <span>Redirecting to eSewa...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span>{paymentButtonLabel}</span>
-                    </>
-                  )}
-                </button>
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"
+                          />
+                        </svg>
+                        <span>{paymentButtonLabel}</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
+                    <p className="text-sm font-semibold text-emerald-800">
+                      Payment already secured in escrow.
+                    </p>
+                    <button
+                      onClick={() => navigate(`/client/bookings/${booking._id}`)}
+                      className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                    >
+                      Back to Booking Details
+                    </button>
+                  </div>
+                )}
 
                 <p className="text-xs text-center text-gray-500 mt-4">
                   Funds are held safely until job completion. You can raise a dispute if

@@ -363,7 +363,11 @@ export default function BookingWizard() {
     } catch (err) {
       console.error("Booking error:", err?.response?.data);
 
-      const errorMsg = err?.response?.data?.message || "Failed to create booking";
+      const errorMsg =
+        err?.response?.status === 409
+          ? "Provider unavailable for this slot."
+          : err?.response?.data?.message || "Failed to create booking";
+
       const errors = err?.response?.data?.errors;
 
       if (errors && Array.isArray(errors)) {

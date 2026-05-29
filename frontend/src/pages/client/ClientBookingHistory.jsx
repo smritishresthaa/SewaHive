@@ -78,9 +78,11 @@ function getPaymentBadge(paymentStatus) {
 }
 
 function isEscrowProtected(paymentStatus) {
-  return ["paid", "escrow", "funds_held"].includes(
-    String(paymentStatus || "").toLowerCase()
-  );
+  const normalized = String(paymentStatus || "")
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+  return ["paid", "escrow", "funds_held", "released"].includes(normalized);
 }
 
 function getStatusMessage(booking) {
@@ -145,11 +147,15 @@ export default function ClientBookingHistory() {
 
     if (filterValue === "all") return true;
 
-    if (filterValue === "pending_payment") {
+        if (filterValue === "pending_payment") {
       const needsPayment =
         booking.paymentStatus === "pending" || booking.paymentStatus === "initiated";
+
+      if (isEscrowProtected(booking.paymentStatus)) return false;
+
       if (booking.status === "pending_payment") return true;
       if (normalized === "pending_payment") return true;
+
       return booking.status === "accepted" && needsPayment;
     }
 
@@ -521,10 +527,21 @@ export default function ClientBookingHistory() {
     const isQuote = pricingType === PRICING_TYPES.QUOTE;
     const normalizedStatus = normalizeStatusForTab(booking.status);
 
+    const hasEscrowHeld = ["funds_held", "paid", "released"].includes(
+      String(booking.paymentStatus || "").toLowerCase()
+    );
+
+    const hasAdditionalEscrowDue =
+      Number(booking.pricing?.additionalEscrowRequired || 0) > 0;
+
     if (
-      booking.status === "pending_payment" ||
-      booking.status === "quote_accepted" ||
-      (needsPayment && (booking.status === "accepted" || booking.status === "confirmed"))
+      !hasEscrowHeld &&
+      (
+        booking.status === "pending_payment" ||
+        booking.status === "quote_accepted" ||
+        hasAdditionalEscrowDue ||
+        (needsPayment && (booking.status === "accepted" || booking.status === "confirmed"))
+      )
     ) {
       return (
         <div className="flex min-w-0 flex-col gap-2 sm:min-w-[200px]">
@@ -922,7 +939,12 @@ export default function ClientBookingHistory() {
                           {booking.serviceId?.title || "Service"}
                         </h3>
 
-                        {getStatusBadge(booking.status)}
+                        {getStatusBadge(
+                          isEscrowProtected(booking.paymentStatus) &&
+                            booking.status === "pending_payment"
+                            ? "confirmed"
+                            : booking.status
+                        )}
 
                         {booking.type === "emergency" && (
                           <span className="flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
@@ -931,7 +953,7 @@ export default function ClientBookingHistory() {
                         )}
                       </div>
 
-                      {booking.status === "pending_payment" && (
+                      {booking.status === "pending_payment" && !isEscrowProtected(booking.paymentStatus) && (
                         <div className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
                           <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-yellow-800">
                             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">

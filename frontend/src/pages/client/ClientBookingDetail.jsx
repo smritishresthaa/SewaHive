@@ -1596,7 +1596,17 @@ export default function ClientBookingDetail() {
   const isRange = pricingType === PRICING_TYPES.RANGE;
   const isQuote = pricingType === PRICING_TYPES.QUOTE;
 
+    const hasEscrowHeld = ["funds_held", "paid", "released"].includes(
+    String(booking?.paymentStatus || "").toLowerCase()
+  );
+
+  const remainingEscrowDue = Number(
+    booking?.pricing?.additionalEscrowRequired || 0
+  );
+
   const canPayNow =
+    !hasEscrowHeld &&
+    remainingEscrowDue <= 0 &&
     booking?.status === "pending_payment" &&
     (!isQuote || booking?.quote?.status === "accepted");
 
@@ -2259,7 +2269,7 @@ export default function ClientBookingDetail() {
                 </button>
               )}
 
-            {Number(booking.pricing?.additionalEscrowRequired || 0) > 0 && (
+            {!hasEscrowHeld && Number(booking.pricing?.additionalEscrowRequired || 0) > 0 && (
               <button
                 onClick={() => navigate(`/payment/confirm/${booking._id}`)}
                 className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"

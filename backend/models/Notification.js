@@ -31,6 +31,7 @@ const NotificationSchema = new Schema(
         "booking_rejected",
         "booking_expired",
         "booking_rescheduled",
+        "booking_reminder",
         "booking_no_show",
         "provider_en_route",
         "provider_completed_service",

@@ -76,6 +76,16 @@ export default function ServiceCard({ service, provider, onBook }) {
     return { style: "bg-gray-100 text-gray-600", label: badge };
   }
 
+    function getHighestBadge(badges = []) {
+    if (!Array.isArray(badges)) return null;
+    if (badges.includes("top-rated") || badges.includes("Top Rated")) return "top-rated";
+    if (badges.includes("pro") || badges.includes("Pro Provider")) return "pro";
+    if (badges.includes("verified") || badges.includes("Verified Provider")) return "verified";
+    return null;
+  }
+
+  const highestBadge = getHighestBadge(provider.badges);
+
   const providerResponse =
     provider.responseTimeMinutes || provider.responseTimeMinutes === 0
       ? `${Math.round(provider.responseTimeMinutes)}m avg response`
@@ -143,11 +153,10 @@ export default function ServiceCard({ service, provider, onBook }) {
                 <p className="truncate text-sm font-semibold text-gray-900 break-words max-w-full">
                   {provider.name}
                 </p>
-                {provider.kycStatus === "approved" && (
-                  <HiCheckCircle
-                    className="h-4 w-4 flex-shrink-0 text-emerald-500"
-                    title="Verified"
-                  />
+                {highestBadge && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getBadgeStyles(highestBadge).style}`}>
+                    {getBadgeIcon(highestBadge)} {getBadgeStyles(highestBadge).label}
+                  </span>
                 )}
               </div>
               <p className="mt-0.5 text-xs text-gray-500">
@@ -156,20 +165,14 @@ export default function ServiceCard({ service, provider, onBook }) {
             </div>
           </div>
 
-          {provider.badges?.length > 0 && (
+          {highestBadge && (
             <div className="mt-2 flex flex-wrap gap-2">
-              {provider.badges.map((badge, i) => {
-                const { style, label } = getBadgeStyles(badge);
-
-                return (
-                  <span
-                    key={i}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style}`}
-                  >
-                    {getBadgeIcon(badge)} {label}
-                  </span>
-                );
-              })}
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getBadgeStyles(highestBadge).style}`}
+              >
+                {getBadgeIcon(highestBadge)}{" "}
+                {getBadgeStyles(highestBadge).label}
+              </span>
             </div>
           )}
         </div>

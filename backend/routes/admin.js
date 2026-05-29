@@ -2570,7 +2570,7 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
     }
 
     const users = await User.find(filter)
-      .select('profile email phone role providerDetails accountStatus suspension createdAt location providerStatus deletedAt')
+      .select('profile email phone role providerDetails accountStatus suspension createdAt location providerStatus kycStatus deletedAt')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: users });
@@ -2813,6 +2813,55 @@ router.delete('/users/:id', authenticate, requireAdmin, async (req, res, next) =
       success: true,
       message: 'User account deleted successfully',
       data: deletionImpact,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/users/:id/badge', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const User = require('../models/User');
+    const { badge } = req.body;
+
+    const allowedBadges = ['verified', 'pro', 'top-rated'];
+    if (!allowedBadges.includes(badge)) {
+      return res.status(400).json({ success: false, message: 'Invalid provider badge' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.role !== 'provider') {
+      return res.status(400).json({ success: false, message: 'Can only assign badges to providers' });
+    }
+
+    if (badge !== 'verified' && user.kycStatus !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Provider must be KYC approved before assigning Pro or Top Rated badge',
+      });
+    }
+
+    user.providerDetails = user.providerDetails || {};
+    user.providerDetails.badges = [badge];
+
+    if (badge === 'verified') {
+      user.providerStatus = 'verified';
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Provider badge updated successfully',
+      data: {
+        badges: user.providerDetails.badges,
+        providerStatus: user.providerStatus,
+        kycStatus: user.kycStatus,
+      },
     });
   } catch (err) {
     next(err);

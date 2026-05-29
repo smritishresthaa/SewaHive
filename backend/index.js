@@ -139,8 +139,8 @@ async function start() {
       }
     });
 
-    // Reminders – every hour
-    cron.schedule("0 * * * *", async () => {
+    // Reminders – every 5 minutes
+    cron.schedule("*/5 * * * *", async () => {
       try {
         await runReminders(async (booking) => {
           // Demo notifications

@@ -904,36 +904,53 @@ export default function ProviderBookings() {
                         View Details
                       </button>
 
-                      {statusMatchesTab(booking.status, "requested") && (
+                                            {statusMatchesTab(booking.status, "requested") && (
                         <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => handleAccept(booking._id, booking.type)}
-                            disabled={
-                              processing[booking._id] ||
-                              !canAcceptBookings ||
-                              normalizedStatus === "expired"
-                            }
-                            className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <HiCheck className="text-lg" />
-                            Accept
-                          </button>
-                          <button
-                            onClick={() => handleReject(booking._id, booking.type)}
-                            disabled={
-                              processing[booking._id] ||
-                              !canAcceptBookings ||
-                              normalizedStatus === "expired"
-                            }
-                            className="flex items-center justify-center gap-2 rounded-lg bg-red-100 px-4 py-2 font-medium text-red-700 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <HiXMark className="text-lg" />
-                            Reject
-                          </button>
-                          {!canAcceptBookings && (
-                            <p className="text-center text-xs text-amber-700">
-                              KYC approval required to respond.
-                            </p>
+                          {booking.status === "quote_requested" ? (
+                            <>
+                              <button
+                                onClick={() => navigate(`/provider/bookings/${booking._id}`)}
+                                disabled={!canAcceptBookings || normalizedStatus === "expired"}
+                                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <HiCheck className="text-lg" />
+                                Submit Quote
+                              </button>
+
+                              <button
+                                onClick={() => navigate(`/provider/bookings/${booking._id}`)}
+                                className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
+                              >
+                                View Quote Request
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleAccept(booking._id, booking.type)}
+                                disabled={
+                                  processing[booking._id] ||
+                                  !canAcceptBookings ||
+                                  normalizedStatus === "expired"
+                                }
+                                className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <HiCheck className="text-lg" />
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => handleReject(booking._id, booking.type)}
+                                disabled={
+                                  processing[booking._id] ||
+                                  !canAcceptBookings ||
+                                  normalizedStatus === "expired"
+                                }
+                                className="flex items-center justify-center gap-2 rounded-lg bg-red-100 px-4 py-2 font-medium text-red-700 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <HiXMark className="text-lg" />
+                                Reject
+                              </button>
+                            </>
                           )}
                         </div>
                       )}

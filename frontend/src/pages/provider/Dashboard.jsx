@@ -561,9 +561,43 @@ export default function ProviderDashboard() {
     return trustData.badges;
   }, [trustData]);
 
-  const hasProBadge = providerBadges.some(
-    (badge) => String(badge).trim().toLowerCase() === "pro"
-  );
+    const highestProviderBadge = useMemo(() => {
+    const normalizedBadges = providerBadges.map((badge) =>
+      String(badge).trim().toLowerCase()
+    );
+
+    if (normalizedBadges.includes("top-rated")) {
+      return {
+        label: "Top Rated",
+        tone: "border-amber-200 bg-amber-50",
+        iconWrap: "bg-amber-500",
+        text: "text-amber-800",
+        Icon: HiTrophy,
+      };
+    }
+
+    if (normalizedBadges.includes("pro")) {
+      return {
+        label: "Pro",
+        tone: "border-sky-200 bg-sky-50",
+        iconWrap: "bg-sky-600",
+        text: "text-sky-800",
+        Icon: HiShieldCheck,
+      };
+    }
+
+    if (normalizedKycStatus === "approved" || normalizedBadges.includes("verified")) {
+      return {
+        label: "Verified",
+        tone: "border-emerald-200 bg-emerald-50",
+        iconWrap: "bg-emerald-600",
+        text: "text-emerald-800",
+        Icon: HiMiniCheckBadge,
+      };
+    }
+
+    return null;
+  }, [providerBadges, normalizedKycStatus]);
 
   const topThree = useMemo(() => {
     return (leaderboardData || []).slice(0, 3);
@@ -689,21 +723,14 @@ export default function ProviderDashboard() {
                 Provider Dashboard
               </h1>
 
-              {normalizedKycStatus === "approved" && (
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600">
-                    <HiMiniCheckBadge className="h-3.5 w-3.5 text-white" />
+                            {highestProviderBadge && (
+                <div className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 ${highestProviderBadge.tone}`}>
+                  <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${highestProviderBadge.iconWrap}`}>
+                    <highestProviderBadge.Icon className="h-3.5 w-3.5 text-white" />
                   </span>
-                  <span className="text-sm font-semibold text-emerald-800">Verified</span>
-                </div>
-              )}
-
-              {hasProBadge && (
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-600">
-                    <HiShieldCheck className="h-3.5 w-3.5 text-white" />
+                  <span className={`text-sm font-semibold ${highestProviderBadge.text}`}>
+                    {highestProviderBadge.label}
                   </span>
-                  <span className="text-sm font-semibold text-sky-800">Pro</span>
                 </div>
               )}
             </div>

@@ -45,6 +45,9 @@ export default function Users() {
   const [unsuspendUser, setUnsuspendUser] = useState(null)
   const [showVerifyModal, setShowVerifyModal] = useState(false)
   const [verifyUser, setVerifyUser] = useState(null)
+  const [showBadgeModal, setShowBadgeModal] = useState(false)
+  const [badgeUser, setBadgeUser] = useState(null)
+  const [selectedBadge, setSelectedBadge] = useState('verified')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteUser, setDeleteUser] = useState(null)
   const [showMessageModal, setShowMessageModal] = useState(false)
@@ -133,6 +136,7 @@ export default function Users() {
         profile: u.profile,
         location: u.location,
         providerStatus: u.providerStatus,
+        kycStatus: u.kycStatus,
         suspension: u.suspension || {},
       }))
 
@@ -393,6 +397,39 @@ export default function Users() {
       openMessageModal(
         'Verification Failed',
         err.response?.data?.message || 'Failed to verify provider',
+        'error'
+      )
+    }
+  }
+
+    const handleAssignBadge = (user) => {
+    setBadgeUser(user)
+    setSelectedBadge(user.badges?.includes('top-rated') ? 'top-rated' : user.badges?.includes('pro') ? 'pro' : 'verified')
+    setShowBadgeModal(true)
+  }
+
+  const submitAssignBadge = async () => {
+    if (!badgeUser) return
+
+    try {
+      const res = await api.patch(`/admin/users/${badgeUser._id}/badge`, {
+        badge: selectedBadge,
+      })
+
+      if (res.data.success) {
+        addRecentAction(`Assigned ${selectedBadge.replace('-', ' ')} badge to ${badgeUser.name}`)
+        setShowBadgeModal(false)
+        setBadgeUser(null)
+        setOpenActionDropdown(null)
+        if (selectedUser?._id === badgeUser._id) {
+          setIsDrawerOpen(false)
+        }
+        fetchData()
+      }
+    } catch (err) {
+      openMessageModal(
+        'Badge Assignment Failed',
+        err.response?.data?.message || 'Failed to assign provider badge',
         'error'
       )
     }
@@ -789,104 +826,134 @@ export default function Users() {
         </div>
       )}
 
-      {/* User Detail Drawer */}
+        {/* User Detail Drawer */}
       {isDrawerOpen && selectedUser && (
         <>
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            className="fixed inset-0 bg-black/40 z-40"
             onClick={() => setIsDrawerOpen(false)}
           ></div>
 
-          <div className="fixed right-0 top-0 h-full w-full md:w-[480px] bg-white shadow-2xl z-50 overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-5">
+          <div className="fixed right-0 top-0 h-full w-full xl:w-[980px] lg:w-[860px] md:w-[720px] bg-gray-50 shadow-2xl z-50 overflow-y-auto">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur">
+              <div>
                 <h2 className="text-sm font-bold text-gray-900">User Details</h2>
-                <button onClick={() => setIsDrawerOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
-                  <HiXMark className="h-5 w-5" />
-                </button>
+                <p className="text-xs text-gray-500">Review account, provider status, and admin actions</p>
               </div>
+              <button onClick={() => setIsDrawerOpen(false)} className="rounded-xl p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600">
+                <HiXMark className="h-5 w-5" />
+              </button>
+            </div>
 
-              <div className="text-center mb-6">
-                {selectedUser.avatar || selectedUser.profile?.avatarUrl ? (
-                  <img
-                    className="h-24 w-24 rounded-full mx-auto object-cover mb-4 border-4 border-white shadow-lg"
-                    src={selectedUser.avatar || selectedUser.profile?.avatarUrl}
-                    alt={selectedUser.name}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextElementSibling.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                {!selectedUser.avatar && !selectedUser.profile?.avatarUrl && (
-                  <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-lg">
-                    {selectedUser.name.charAt(0).toUpperCase()}
+            <div className="space-y-5 p-4 sm:p-6">
+              <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+                    {selectedUser.avatar || selectedUser.profile?.avatarUrl ? (
+                      <img
+                        className="h-20 w-20 rounded-2xl object-cover shadow-md ring-4 ring-white"
+                        src={selectedUser.avatar || selectedUser.profile?.avatarUrl}
+                        alt={selectedUser.name}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+
+                    {!selectedUser.avatar && !selectedUser.profile?.avatarUrl && (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 text-3xl font-bold text-white shadow-md">
+                        {selectedUser.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 text-3xl font-bold text-white shadow-md" style={{ display: 'none' }}>
+                      {selectedUser.name.charAt(0).toUpperCase()}
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{selectedUser.name}</h3>
+                      <p className="mt-0.5 text-sm text-gray-500">{selectedUser.email}</p>
+                      <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${
+                          selectedUser.role === 'Provider'
+                            ? 'bg-green-50 text-green-700 ring-green-200'
+                            : 'bg-purple-50 text-purple-700 ring-purple-200'
+                        }`}>
+                          {selectedUser.role}
+                        </span>
+                        {getStatusBadge(selectedUser.status)}
+                        {getVerificationBadge(selectedUser)}
+                      </div>
+                    </div>
                   </div>
-                )}
-                <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 items-center justify-center text-white text-3xl font-bold mx-auto mb-4 shadow-lg" style={{display: 'none'}}>
-                  {selectedUser.name.charAt(0).toUpperCase()}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">{selectedUser.name}</h3>
-                <p className="text-sm text-gray-500">{selectedUser.email}</p>
-                <div className="mt-2 flex items-center justify-center gap-2">
-                  {getStatusBadge(selectedUser.status)}
-                  {getVerificationBadge(selectedUser)}
+
+                  {selectedUser.role === 'Provider' && (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-center sm:text-right">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Provider Badge</p>
+                      <p className="mt-1 text-sm font-bold text-emerald-900">
+                        {selectedUser.badges?.includes('top-rated')
+                          ? 'Top Rated'
+                          : selectedUser.badges?.includes('pro')
+                          ? 'Pro'
+                          : selectedUser.badges?.includes('verified')
+                          ? 'Verified'
+                          : 'None'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                    <HiUsers className="h-4 w-4 text-emerald-600" />
                     Profile Information
                   </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Full Name:</span>
-                      <span className="text-sm font-medium text-gray-900">{selectedUser.name}</span>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm text-gray-500">Full Name</span>
+                      <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.name}</span>
                     </div>
                     {selectedUser.profile?.gender && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Gender:</span>
-                        <span className="text-sm font-medium text-gray-900 capitalize">{selectedUser.profile.gender}</span>
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="text-sm text-gray-500">Gender</span>
+                        <span className="text-right text-sm font-semibold capitalize text-gray-900">{selectedUser.profile.gender}</span>
                       </div>
                     )}
                     {selectedUser.profile?.dob && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Date of Birth:</span>
-                        <span className="text-sm font-medium text-gray-900">{new Date(selectedUser.profile.dob).toLocaleDateString()}</span>
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="text-sm text-gray-500">Date of Birth</span>
+                        <span className="text-right text-sm font-semibold text-gray-900">{new Date(selectedUser.profile.dob).toLocaleDateString()}</span>
                       </div>
                     )}
                     {selectedUser.profile?.bio && (
-                      <div className="pt-2">
-                        <span className="text-sm text-gray-600">Bio:</span>
-                        <p className="text-sm text-gray-900 mt-1">{selectedUser.profile.bio}</p>
+                      <div className="border-t border-gray-100 pt-3">
+                        <span className="text-sm text-gray-500">Bio</span>
+                        <p className="mt-1 text-sm leading-6 text-gray-900">{selectedUser.profile.bio}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                    <HiBriefcase className="h-4 w-4 text-emerald-600" />
                     Contact Information
                   </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Email:</span>
-                      <span className="text-sm font-medium text-gray-900 break-all">{selectedUser.email}</span>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm text-gray-500">Email</span>
+                      <span className="text-right text-sm font-semibold break-all text-gray-900">{selectedUser.email}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Phone:</span>
-                      <span className="text-sm font-medium text-gray-900">{selectedUser.phone || 'N/A'}</span>
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm text-gray-500">Phone</span>
+                      <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.phone || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Role:</span>
-                      <span className="text-sm font-medium text-gray-900">{selectedUser.role}</span>
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm text-gray-500">Role</span>
+                      <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.role}</span>
                     </div>
                   </div>
                 </div>
@@ -896,37 +963,34 @@ export default function Users() {
                    selectedUser.profile.address.city ||
                    selectedUser.profile.address.postalCode ||
                    selectedUser.profile.address.country) ? (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                        <HiShieldCheck className="h-4 w-4 text-emerald-600" />
                         Address
                       </h4>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {selectedUser.profile.address.area && selectedUser.profile.address.area.trim() !== '' && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Area:</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedUser.profile.address.area}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Area</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.profile.address.area}</span>
                           </div>
                         )}
                         {selectedUser.profile.address.city && selectedUser.profile.address.city.trim() !== '' && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">City:</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedUser.profile.address.city}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">City</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.profile.address.city}</span>
                           </div>
                         )}
                         {selectedUser.profile.address.postalCode && selectedUser.profile.address.postalCode.trim() !== '' && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Postal Code:</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedUser.profile.address.postalCode}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Postal Code</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.profile.address.postalCode}</span>
                           </div>
                         )}
                         {selectedUser.profile.address.country && selectedUser.profile.address.country.trim() !== '' && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Country:</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedUser.profile.address.country}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Country</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.profile.address.country}</span>
                           </div>
                         )}
                       </div>
@@ -936,118 +1000,115 @@ export default function Users() {
 
                 {selectedUser.role === 'Provider' && selectedUser.providerDetails && (
                   <>
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                        <HiBriefcase className="h-4 w-4 text-emerald-600" />
                         Provider Business Info
                       </h4>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {selectedUser.providerDetails.categories && selectedUser.providerDetails.categories.length > 0 && (
                           <div>
-                            <span className="text-sm text-gray-600">Categories:</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="text-sm text-gray-500">Categories</span>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
                               {selectedUser.providerDetails.categories.map((cat, idx) => (
-                                <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{cat}</span>
+                                <span key={idx} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">{cat}</span>
                               ))}
                             </div>
                           </div>
                         )}
                         {selectedUser.providerDetails.hourlyRate && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Hourly Rate:</span>
-                            <span className="text-sm font-medium text-gray-900">NPR {selectedUser.providerDetails.hourlyRate}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Hourly Rate</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">NPR {selectedUser.providerDetails.hourlyRate}</span>
                           </div>
                         )}
                         {selectedUser.providerDetails.basePrice && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Base Price:</span>
-                            <span className="text-sm font-medium text-gray-900">NPR {selectedUser.providerDetails.basePrice}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Base Price</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">NPR {selectedUser.providerDetails.basePrice}</span>
                           </div>
                         )}
                         {selectedUser.providerDetails.experienceYears !== undefined && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Experience:</span>
-                            <span className="text-sm font-medium text-gray-900">{selectedUser.providerDetails.experienceYears} years</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Experience</span>
+                            <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.providerDetails.experienceYears} years</span>
                           </div>
                         )}
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Emergency Available:</span>
-                          <span className="text-sm font-medium text-gray-900">{selectedUser.providerDetails.emergencyAvailable ? 'Yes' : 'No'}</span>
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-sm text-gray-500">Emergency Available</span>
+                          <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.providerDetails.emergencyAvailable ? 'Yes' : 'No'}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Featured:</span>
-                          <span className="text-sm font-medium text-gray-900">{selectedUser.providerDetails.featured ? 'Yes' : 'No'}</span>
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-sm text-gray-500">Featured</span>
+                          <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.providerDetails.featured ? 'Yes' : 'No'}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                        <HiStar className="h-4 w-4 text-emerald-600" />
                         Performance Stats
                       </h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Completed Bookings:</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {selectedUser.completedBookings}
-                          </span>
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-sm text-gray-500">Completed Bookings</span>
+                          <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.completedBookings}</span>
                         </div>
                         {selectedUser.providerDetails.rating && (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-sm text-gray-600">Average Rating:</span>
-                              <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                                <HiStar className="w-4 h-4 text-yellow-400" /> {selectedUser.providerDetails.rating.average.toFixed(1)} ({selectedUser.providerDetails.rating.count} reviews)
-                              </span>
-                            </div>
-                          </>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Average Rating</span>
+                            <span className="flex items-center gap-1 text-right text-sm font-semibold text-gray-900">
+                              <HiStar className="h-4 w-4 text-yellow-400" />
+                              {selectedUser.providerDetails.rating.average.toFixed(1)} ({selectedUser.providerDetails.rating.count} reviews)
+                            </span>
+                          </div>
                         )}
                         {selectedUser.providerDetails.analytics && (
                           <>
                             {selectedUser.providerDetails.analytics.totalEarnings > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Total Earnings:</span>
-                                <span className="text-sm font-medium text-gray-900">NPR {selectedUser.providerDetails.analytics.totalEarnings}</span>
+                              <div className="flex items-start justify-between gap-4">
+                                <span className="text-sm text-gray-500">Total Earnings</span>
+                                <span className="text-right text-sm font-semibold text-gray-900">NPR {selectedUser.providerDetails.analytics.totalEarnings}</span>
                               </div>
                             )}
                             {selectedUser.providerDetails.analytics.jobsThisMonth > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-sm text-gray-600">Jobs This Month:</span>
-                                <span className="text-sm font-medium text-gray-900">{selectedUser.providerDetails.analytics.jobsThisMonth}</span>
+                              <div className="flex items-start justify-between gap-4">
+                                <span className="text-sm text-gray-500">Jobs This Month</span>
+                                <span className="text-right text-sm font-semibold text-gray-900">{selectedUser.providerDetails.analytics.jobsThisMonth}</span>
                               </div>
                             )}
                           </>
                         )}
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Badges:</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {selectedUser.badges && selectedUser.badges.length > 0 ? selectedUser.badges.join(', ') : 'None'}
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-sm text-gray-500">Badges</span>
+                          <span className="text-right text-sm font-semibold text-gray-900">
+                            {selectedUser.badges?.includes('top-rated')
+                              ? 'Top Rated'
+                              : selectedUser.badges?.includes('pro')
+                              ? 'Pro'
+                              : selectedUser.badges?.includes('verified')
+                              ? 'Verified'
+                              : 'None'}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
+                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                        <HiCheckBadge className="h-4 w-4 text-emerald-600" />
                         KYC Verification
                       </h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Status:</span>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-sm text-gray-500">Status</span>
                           {getVerificationBadge(selectedUser)}
                         </div>
                         {selectedUser.providerStatus && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Provider Status:</span>
-                            <span className="text-sm font-medium text-gray-900 capitalize">{selectedUser.providerStatus}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-sm text-gray-500">Provider Status</span>
+                            <span className="text-right text-sm font-semibold capitalize text-gray-900">{selectedUser.providerStatus}</span>
                           </div>
                         )}
                       </div>
@@ -1055,79 +1116,82 @@ export default function Users() {
                   </>
                 )}
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                    </svg>
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                  <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-900">
+                    <HiShieldCheck className="h-4 w-4 text-emerald-600" />
                     Account Information
                   </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Account Status:</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-gray-500">Account Status</span>
                       {getStatusBadge(selectedUser.status)}
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Joined:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatDate(selectedUser.joinedDate)}
-                      </span>
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-sm text-gray-500">Joined</span>
+                      <span className="text-right text-sm font-semibold text-gray-900">{formatDate(selectedUser.joinedDate)}</span>
                     </div>
 
                     {selectedUser.status === 'suspended' && (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Suspended From:</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatDateTime(selectedUser.suspension?.startsAt)}
-                          </span>
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-sm text-gray-500">Suspended From</span>
+                          <span className="text-right text-sm font-semibold text-gray-900">{formatDateTime(selectedUser.suspension?.startsAt)}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Suspended Until:</span>
-                          <span className="text-sm font-medium text-gray-900">
+                        <div className="flex items-start justify-between gap-4">
+                          <span className="text-sm text-gray-500">Suspended Until</span>
+                          <span className="text-right text-sm font-semibold text-gray-900">
                             {selectedUser.suspension?.endsAt ? formatDateTime(selectedUser.suspension.endsAt) : 'Permanent'}
                           </span>
                         </div>
-                        <div className="pt-1">
-                          <span className="text-sm text-gray-600">Suspension Reason:</span>
-                          <p className="text-sm font-medium text-gray-900 mt-1">
-                            {selectedUser.suspension?.reason || 'No reason provided'}
-                          </p>
+                        <div className="border-t border-gray-100 pt-3">
+                          <span className="text-sm text-gray-500">Suspension Reason</span>
+                          <p className="mt-1 text-sm font-semibold text-gray-900">{selectedUser.suspension?.reason || 'No reason provided'}</p>
                         </div>
                       </>
                     )}
 
-                    <div>
-                      <span className="text-sm text-gray-600">User ID:</span>
-                      <p className="text-xs font-medium text-gray-900 font-mono mt-1 break-all">
-                        {selectedUser._id}
-                      </p>
+                    <div className="border-t border-gray-100 pt-3">
+                      <span className="text-sm text-gray-500">User ID</span>
+                      <p className="mt-1 break-all font-mono text-xs font-semibold text-gray-900">{selectedUser._id}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-2">
-                <button
-                  onClick={() => handleSuspendUser(selectedUser)}
-                  className="w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-                >
-                  {selectedUser.status === 'suspended' ? 'Unsuspend Account' : 'Suspend Account'}
-                </button>
-                {selectedUser.role === 'Provider' && !selectedUser.badges.includes('verified') && (
+              <div className="sticky bottom-0 rounded-3xl border border-gray-100 bg-white/95 p-4 shadow-lg backdrop-blur">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <button
-                    onClick={() => handleVerifyProvider(selectedUser)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    onClick={() => handleSuspendUser(selectedUser)}
+                    className="rounded-xl bg-yellow-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-yellow-700"
                   >
-                    Verify Provider
+                    {selectedUser.status === 'suspended' ? 'Unsuspend Account' : 'Suspend Account'}
                   </button>
-                )}
-                <button
-                  onClick={() => handleRemoveAccount(selectedUser)}
-                  className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                >
-                  Remove Account
-                </button>
+
+                  {selectedUser.role === 'Provider' && !selectedUser.badges.includes('verified') && (
+                    <button
+                      onClick={() => handleVerifyProvider(selectedUser)}
+                      className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    >
+                      Verify Provider
+                    </button>
+                  )}
+
+                  {selectedUser.role === 'Provider' && (
+                    <button
+                      onClick={() => handleAssignBadge(selectedUser)}
+                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                    >
+                      Assign Provider Badge
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => handleRemoveAccount(selectedUser)}
+                    className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+                  >
+                    Remove Account
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1306,6 +1370,48 @@ export default function Users() {
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
               >
                 Verify Provider
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+            {showBadgeModal && badgeUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Assign Provider Badge</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              Select one trust badge for {badgeUser.name}.
+            </p>
+
+            <select
+              value={selectedBadge}
+              onChange={(e) => setSelectedBadge(e.target.value)}
+              className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="verified">Verified</option>
+              <option value="pro" disabled={badgeUser.kycStatus !== 'approved'}>Pro</option>
+              <option value="top-rated" disabled={badgeUser.kycStatus !== 'approved'}>Top Rated</option>
+            </select>
+
+            {badgeUser.kycStatus !== 'approved' && (
+              <p className="mt-2 text-xs text-amber-700">
+                Pro and Top Rated require approved KYC verification.
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShowBadgeModal(false)}
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAssignBadge}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700"
+              >
+                Save Badge
               </button>
             </div>
           </div>
