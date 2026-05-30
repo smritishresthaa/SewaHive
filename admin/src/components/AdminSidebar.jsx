@@ -15,6 +15,7 @@ import {
   HiExclamationTriangle,
   HiChatBubbleLeftRight,
   HiCog6Tooth,
+  HiBell,
   HiBars3,
   HiXMark,
 } from 'react-icons/hi2'
@@ -34,6 +35,7 @@ const nav = [
     { to: '/payments', label: 'Payments', icon: HiCreditCard },
     { to: '/reviews', label: 'Reviews', icon: HiStar },
     { to: '/support', label: 'Support', icon: HiChatBubbleLeftRight },
+    { to: '/notifications', label: 'Notifications', icon: HiBell },
   ]},
   { heading: 'Compliance', items: [
     { to: '/verification', label: 'Verifications', icon: HiShieldCheck },

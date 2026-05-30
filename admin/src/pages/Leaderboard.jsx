@@ -7,16 +7,33 @@ import bronzeMedal from "../assets/bronze.png";
 const medalImages = [goldMedal, silverMedal, bronzeMedal];
 const medalNames = ["Gold", "Silver", "Bronze"];
 
+const rangeOptions = [
+  { label: "Today", value: "today" },
+  { label: "This Week", value: "week" },
+  { label: "This Month", value: "month" },
+  { label: "This Year", value: "year" },
+  { label: "Custom Range", value: "custom" },
+];
+
 const MedalBadge = ({ medalSrc, medalName }) => (
   <div className="relative flex items-center justify-center h-12 w-12">
-    <img src={medalSrc} alt={`${medalName} Medal`} className="h-full w-full object-contain" />
+    <img
+      src={medalSrc}
+      alt={`${medalName} Medal`}
+      className="h-full w-full object-contain"
+    />
   </div>
 );
 
 export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState("overall");
+
+  const [range, setRange] = useState("month");
+  const [category, setCategory] = useState("all");
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -24,8 +41,18 @@ export default function LeaderboardPage() {
     const fetchLeaderboard = async () => {
       try {
         setLoading(true);
-        const res = await api.get("/leaderboard/current?range=30d");
+
+        const params = new URLSearchParams();
+        params.set("range", range);
+
+        if (range === "custom" && fromDate && toDate) {
+          params.set("from", fromDate);
+          params.set("to", toDate);
+        }
+
+        const res = await api.get(`/leaderboard/current?${params.toString()}`);
         const data = res.data?.data || [];
+
         if (isMounted) {
           setLeaderboard(data);
         }
@@ -41,21 +68,36 @@ export default function LeaderboardPage() {
       }
     };
 
-    fetchLeaderboard();
+    if (range !== "custom" || (fromDate && toDate)) {
+      fetchLeaderboard();
+    }
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [range, fromDate, toDate]);
+
+  const categories = useMemo(() => {
+    const unique = new Set();
+
+    leaderboard.forEach((entry) => {
+      if (entry.categoryName) {
+        unique.add(entry.categoryName);
+      }
+    });
+
+    return Array.from(unique);
+  }, [leaderboard]);
 
   const filteredLeaderboard = useMemo(() => {
-    if (viewMode === "qualified") {
-      return leaderboard.filter((entry) => entry.qualifiesForLeaderboard);
-    }
-    if (viewMode === "rising") {
-      return leaderboard.filter((entry) => entry.isRisingProvider);
-    }
-    return leaderboard;
-  }, [leaderboard, viewMode]);
+    return leaderboard.filter((entry) => {
+      if (category !== "all" && entry.categoryName !== category) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [leaderboard, category]);
 
   const topThree = filteredLeaderboard.slice(0, 3);
   const remaining = filteredLeaderboard.slice(3);
@@ -78,7 +120,10 @@ export default function LeaderboardPage() {
   };
 
   const formatScore = (entry) =>
-    Math.round(entry.scores?.totalScore ?? entry.points ?? 0);
+    Math.round(entry.points ?? entry.scores?.totalScore ?? 0);
+
+  const activeRangeLabel =
+    rangeOptions.find((item) => item.value === range)?.label || "This Month";
 
   return (
     <div className="min-h-screen">
@@ -87,34 +132,95 @@ export default function LeaderboardPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-900">Leaderboard</h1>
-              <p className="text-[11px] text-gray-500 mt-0.5">Top performing providers</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                Top performing providers
+              </p>
             </div>
+
             <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-lg font-semibold">
               LB
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <span className="text-sm text-gray-500">Showing :</span>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {rangeOptions.map((item) => (
+              <button
+                key={item.value}
+                onClick={() => setRange(item.value)}
+                className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
+                  range === item.value
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {range === "custom" && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-gray-500">
+                  From
+                </label>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => setFromDate(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500">
+                  To
+                </label>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(event) => setToDate(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5">
             <select
-              value={viewMode}
-              onChange={(event) => setViewMode(event.target.value)}
-              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              className="w-full md:w-80 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm"
             >
-              <option value="overall">Overall</option>
-              <option value="qualified">Qualified</option>
-              <option value="rising">Rising</option>
+              <option value="all">All Categories</option>
+              {categories.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
           </div>
 
+          <p className="mt-3 text-xs text-gray-500">
+            Showing leaderboard for{" "}
+            <span className="font-semibold text-gray-700">
+              {activeRangeLabel}
+            </span>
+          </p>
+
           {loading ? (
-            <div className="mt-10 text-center text-gray-500">Loading leaderboard...</div>
+            <div className="mt-10 text-center text-gray-500">
+              Loading leaderboard...
+            </div>
           ) : topThree.length === 0 ? (
-            <div className="mt-10 text-center text-gray-500">No leaderboard data yet.</div>
+            <div className="mt-10 text-center text-gray-500">
+              No leaderboard data for this filter.
+            </div>
           ) : (
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               {podiumSlots.map((slot) => {
                 const entry = topThree[slot];
+
                 return (
                   <div
                     key={entry?._id || `podium-${slot}`}
@@ -125,13 +231,21 @@ export default function LeaderboardPage() {
                         medalSrc={medalImages[slot]}
                         medalName={medalNames[slot]}
                       />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
                           {entry ? getProviderUsername(entry) : "---"}
                         </p>
-                        <p className="text-xs text-gray-500">
+
+                        <p className="text-xs text-gray-500 truncate">
                           {entry ? getProviderName(entry) : "No data yet"}
                         </p>
+
+                        {entry?.categoryName && (
+                          <p className="text-[11px] text-emerald-600 mt-1">
+                            {entry.categoryName}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -146,6 +260,7 @@ export default function LeaderboardPage() {
               <span className="text-center">Rank</span>
               <span className="text-right">Score</span>
             </div>
+
             <div className="mt-3 space-y-3">
               {remaining.length === 0 && !loading ? (
                 <div className="rounded-full bg-slate-100 px-4 py-3 text-sm text-gray-500 text-center">
@@ -154,13 +269,20 @@ export default function LeaderboardPage() {
               ) : (
                 remaining.map((entry, index) => {
                   const rank = entry.rank || index + topThree.length + 1;
+
                   return (
                     <div
                       key={entry._id}
                       className="grid gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm md:grid-cols-3 md:items-center md:rounded-full"
                     >
-                      <span className="text-gray-900">{getProviderUsername(entry)}</span>
-                      <span className="text-center text-gray-700">{rank}</span>
+                      <span className="text-gray-900 truncate">
+                        {getProviderUsername(entry)}
+                      </span>
+
+                      <span className="text-center text-gray-700">
+                        {rank}
+                      </span>
+
                       <span className="text-right text-gray-900 font-semibold">
                         {formatScore(entry)}
                       </span>

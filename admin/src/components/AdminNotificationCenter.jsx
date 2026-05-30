@@ -171,7 +171,7 @@ export default function AdminNotificationCenter() {
       {/* Notification Dropdown */}
       {isOpen && (
         <>
-          <div className="absolute right-0 top-12 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-lg shadow-2xl z-50 border border-gray-200 max-h-[32rem] flex flex-col mx-2 sm:mx-0">
+          <div className="absolute right-0 top-12 w-[400px] max-w-[90vw] bg-white rounded-xl shadow-2xl z-[9999] border border-gray-200 max-h-[500px] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-emerald-50 to-green-50">
               <h3 className="font-semibold text-gray-900">
@@ -248,6 +248,15 @@ export default function AdminNotificationCenter() {
                   disabled={unreadCount === 0}
                 >
                   Mark All Read
+                </button>
+                <button
+                  onClick={() => {
+                  navigate("/notifications");
+                  setIsOpen(false);
+                }}
+                  className="flex-1 text-sm py-2 text-center bg-white border rounded-lg hover:bg-gray-50"
+                >
+                  View All
                 </button>
               </div>
             )}

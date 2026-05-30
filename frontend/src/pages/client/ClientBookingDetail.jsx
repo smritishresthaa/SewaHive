@@ -1468,16 +1468,22 @@ export default function ClientBookingDetail() {
 
       if (action === "accept") {
         const due = Number(res?.data?.amountDue || 0);
+
         toast.success(
           due > 0
             ? `Additional charges approved. Additional NPR ${due} escrow payment required.`
             : "Additional charges approved"
         );
-      } else {
-        toast.success("Additional charges rejected");
-      }
 
-      await fetchBooking();
+      if (due > 0) {
+        navigate(`/payment/confirm/${bookingId}`);
+        return;
+      }
+    } else {
+      toast.success("Additional charges rejected");
+    }
+
+    await fetchBooking();
     } catch (err) {
       toast.error(
         err?.response?.data?.message || "Failed to update additional charge request"
@@ -2269,7 +2275,7 @@ export default function ClientBookingDetail() {
                 </button>
               )}
 
-            {!hasEscrowHeld && Number(booking.pricing?.additionalEscrowRequired || 0) > 0 && (
+            {Number(booking.pricing?.additionalEscrowRequired || 0) > 0 && (
               <button
                 onClick={() => navigate(`/payment/confirm/${booking._id}`)}
                 className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"

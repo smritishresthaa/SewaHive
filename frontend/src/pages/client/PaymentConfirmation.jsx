@@ -159,34 +159,33 @@ export default function PaymentConfirmation() {
     };
   }, [booking]);
 
-    const payableNow = useMemo(() => {
-    if (!booking) return 0;
+  const payableNow = useMemo(() => {
+  if (!booking) return 0;
 
-    const paymentStatus = String(booking?.paymentStatus || "").toLowerCase();
+  const additionalRequired = Number(
+    booking?.pricing?.additionalEscrowRequired || 0
+  );
 
-    if (["funds_held", "paid", "released", "refunded"].includes(paymentStatus)) {
-      return 0;
-    }
+  if (additionalRequired > 0) {
+    return additionalRequired;
+  }
 
-    const additionalRequired = Number(
-      booking?.pricing?.additionalEscrowRequired || 0
-    );
+  const paymentStatus = String(booking?.paymentStatus || "").toLowerCase();
 
-    if (additionalRequired > 0) {
-      return additionalRequired;
-    }
+  if (["funds_held", "paid", "released", "refunded"].includes(paymentStatus)) {
+    return 0;
+  }
 
-    const agreedAmount = Number(
-      booking?.pricing?.finalApprovedPrice ||
-        booking?.totalAmount ||
-        0
-    );
+  const agreedAmount = Number(
+    booking?.pricing?.finalApprovedPrice ||
+      booking?.totalAmount ||
+      0
+  );
 
-    const escrowHeld = Number(booking?.pricing?.escrowHeldAmount || 0);
-    const remaining = Math.max(0, agreedAmount - escrowHeld);
+  const escrowHeld = Number(booking?.pricing?.escrowHeldAmount || 0);
 
-    return remaining;
-  }, [booking]);
+  return Math.max(0, agreedAmount - escrowHeld);
+}, [booking]);
   
 const paymentButtonLabel = useMemo(() => {
   const amount = Number(payableNow || 0).toLocaleString();

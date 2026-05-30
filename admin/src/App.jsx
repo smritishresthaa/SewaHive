@@ -19,6 +19,7 @@ import Disputes from "./pages/Disputes";
 import DisputeDetail from "./pages/DisputeDetail";
 import SkillReviews from "./pages/SkillReviews";
 import Support from "./pages/Support";
+import AdminNotifications from "./pages/AdminNotifications";
 
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 
@@ -50,6 +51,8 @@ export default function App() {
             <Route path="/reviews" element={<Reviews />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/notifications" element={<AdminNotifications />} />
+            <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
 

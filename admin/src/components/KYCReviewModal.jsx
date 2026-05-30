@@ -277,26 +277,16 @@ export default function KYCReviewModal({ verification, onClose, onReviewComplete
           <div className="border-t p-4 bg-amber-50">
             <div className="flex items-center gap-2 mb-2">
               <HiUser className="w-5 h-5 text-amber-600" />
-              <h3 className="font-semibold text-gray-900">Profile Validation</h3>
+              <h3 className="font-semibold text-gray-900">Document Validation</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <div>
-                <p className="text-gray-600">Name Match</p>
+                <p className="text-gray-600">Identity Verification</p>
                 <p className="font-semibold">
                   {verification.profileMatch.nameMatch
-                    ? <span className="inline-flex items-center gap-1 text-emerald-700"><HiCheckCircle className="w-3.5 h-3.5" />Matches</span>
+                    ? <span className="inline-flex items-center gap-1 text-emerald-700"><HiCheckCircle className="w-3.5 h-3.5" />Verified</span>
                     : verification.profileMatch.nameMatch === false
-                    ? <span className="inline-flex items-center gap-1 text-rose-700"><HiXCircle className="w-3.5 h-3.5" />Mismatch</span>
-                    : <span className="inline-flex items-center gap-1 text-gray-500"><HiClock className="w-3.5 h-3.5" />Not checked</span>}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-600">DOB Match</p>
-                <p className="font-semibold">
-                  {verification.profileMatch.dobMatch
-                    ? <span className="inline-flex items-center gap-1 text-emerald-700"><HiCheckCircle className="w-3.5 h-3.5" />Matches</span>
-                    : verification.profileMatch.dobMatch === false
-                    ? <span className="inline-flex items-center gap-1 text-rose-700"><HiXCircle className="w-3.5 h-3.5" />Mismatch</span>
+                    ? <span className="inline-flex items-center gap-1 text-rose-700"><HiXCircle className="w-3.5 h-3.5" />Needs Review</span>
                     : <span className="inline-flex items-center gap-1 text-gray-500"><HiClock className="w-3.5 h-3.5" />Not checked</span>}
                 </p>
               </div>
