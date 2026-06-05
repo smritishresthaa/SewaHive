@@ -31,7 +31,9 @@ const corsOrigins = [
   "http://127.0.0.1:5174",
   "https://accounts.google.com",
   "https://*.googleusercontent.com",
-];
+  process.env.CLIENT_URL,
+  process.env.ADMIN_URL,
+].filter(Boolean);
 
 // ----------------------------------------
 // Security & core middleware
@@ -51,7 +53,13 @@ app.use(
 );
 
 // ⭐ REQUIRED FOR GOOGLE IDENTITY PRE-FLIGHT ⭐
-app.options("*", cors());
+app.options(
+  "*",
+  cors({
+    origin: corsOrigins,
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

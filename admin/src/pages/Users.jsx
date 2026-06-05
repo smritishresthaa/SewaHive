@@ -607,7 +607,7 @@ export default function Users() {
           <div className="flex-1 min-w-[180px]">
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search</label>
             <div className="relative flex items-center">
-              <HiMagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <HiMagnifyingGlass className="pointer-events-none absolute left-3 top-[73%] h-4 w-4 -translate-y-1/2 text-gray-400" />
 
               <input
                 type="text"
