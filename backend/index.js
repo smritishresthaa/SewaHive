@@ -22,6 +22,8 @@ const { runStaleBookingExpiry } = require("./cron/staleBookings");
 const { sendPush, sendSMS, sendEmail } = require("./utils/notifications");
 
 const app = express();
+app.set("trust proxy", 1);
+
 const server = http.createServer(app);
 
 const corsOrigins = [
