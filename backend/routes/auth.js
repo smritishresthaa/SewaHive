@@ -63,7 +63,7 @@ function generateTokens(user, activeRole = null) {
 }
 
 const EMAIL_VERIFICATION_OTP_LENGTH = 6;
-const EMAIL_VERIFICATION_OTP_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_OTP_TTL_MS = 30 * 60 * 1000;
 const EMAIL_VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
 
@@ -144,13 +144,20 @@ async function issueEmailVerificationOtp(user) {
     </div>
   `;
 
-  const emailInfo = await sendEmail(user.email, subject, html);
-  if (emailInfo?.messageId === "dev-skip") {
-    console.warn(`DEV EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
-  }
+  console.warn(`EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
 
-  return { otp, expiresAt, resendAvailableAt };
-}
+setImmediate(async () => {
+  try {
+    const emailInfo = await sendEmail(user.email, subject, html);
+    if (emailInfo?.messageId === "dev-skip") {
+      console.warn(`DEV EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
+    }
+  } catch (emailError) {
+    console.error("Signup verification email failed:", emailError.message);
+  }
+});
+
+return { otp, expiresAt, resendAvailableAt };
 
 function generatePasswordResetToken(user) {
   return jwt.sign({ sub: user._id }, RESET_SECRET, {
