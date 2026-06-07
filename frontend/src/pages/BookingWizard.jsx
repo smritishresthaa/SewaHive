@@ -358,7 +358,7 @@ export default function BookingWizard() {
       } else {
         const redirectUrl = `/payment/confirm/${bookingId}`;
         sessionStorage.setItem("pendingPaymentRedirect", redirectUrl);
-        window.location.href = redirectUrl;
+        navigate(redirectUrl);
       }
     } catch (err) {
       console.error("Booking error:", err?.response?.data);

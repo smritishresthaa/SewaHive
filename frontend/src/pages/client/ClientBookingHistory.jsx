@@ -546,7 +546,7 @@ export default function ClientBookingHistory() {
       return (
         <div className="flex min-w-0 flex-col gap-2 sm:min-w-[200px]">
           <button
-            onClick={() => (window.location.href = `/payment/confirm/${booking._id}`)}
+            onClick={() => navigate(`/payment/confirm/${booking._id}`)}
             disabled={isProcessing}
             className="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
           >

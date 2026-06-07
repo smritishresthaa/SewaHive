@@ -61,7 +61,8 @@ export default function PaymentConfirmation() {
       // MOCK MODE
       if (data.mock && data.redirectUrl) {
         setTimeout(() => {
-          window.location.href = data.redirectUrl;
+          const url = new URL(data.redirectUrl);
+          navigate(`${url.pathname}${url.search}`);
         }, 1500);
         return;
       }
