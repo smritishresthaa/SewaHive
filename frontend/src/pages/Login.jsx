@@ -19,7 +19,7 @@ import toast from "react-hot-toast";
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, loginWithGoogle, getRedirectPath } = useAuth();
+  const { login, loginWithGoogle, switchRole, getRedirectPath } = useAuth();
 
   const returnTo = location.state?.returnTo;
 
@@ -33,12 +33,8 @@ export default function Login() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  function redirectByRole(role) {
-    if (returnTo && role === "client") {
-      return navigate(returnTo);
-    }
-    return navigate(getRedirectPath(role, { role }));
-  }
+  
+  const roleHint = new URLSearchParams(location.search).get("role");
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -48,8 +44,19 @@ export default function Login() {
     try {
       const user = await login(form.email, form.password);
 
+      let finalUser = user;
+
+      if (
+        roleHint === "provider" &&
+        Array.isArray(user.roles) &&
+        user.roles.includes("provider") &&
+        user.role !== "provider"
+      ) {
+        finalUser = await switchRole("provider");
+      }
+
       toast.success("Logged in successfully");
-      navigate(getRedirectPath(user.role, user));
+      navigate(getRedirectPath(finalUser.role, finalUser));
     } catch (err) {
       console.error(err);
 
@@ -66,7 +73,11 @@ export default function Login() {
         err?.response?.data?.message ===
           "Please verify your email before logging in."
       ) {
-        navigate(`/verify-info?email=${encodeURIComponent(form.email)}`);
+        navigate(
+          `/verify-info?email=${encodeURIComponent(form.email)}${
+            roleHint === "provider" ? "&role=provider" : "&role=client"
+          }`
+        );
       }
     } finally {
       setLoading(false);
@@ -80,7 +91,10 @@ export default function Login() {
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
       callback: async (response) => {
         try {
-          const user = await loginWithGoogle(response.credential);
+          const user = await loginWithGoogle(
+            response.credential,
+            roleHint === "provider" ? "provider" : "client"
+          );
 
           toast.success("Logged in with Google");
           navigate(getRedirectPath(user.role, user));
@@ -93,7 +107,7 @@ export default function Login() {
         }
       },
     });
-  }, [loginWithGoogle]);
+  }, [loginWithGoogle, roleHint, getRedirectPath, navigate]);
 
   function handleGoogleLogin() {
     setError("");
