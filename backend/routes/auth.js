@@ -158,6 +158,7 @@ setTimeout(async () => {
 }, 0);
 
 return { otp, expiresAt, resendAvailableAt };
+}
 
 function generatePasswordResetToken(user) {
   return jwt.sign({ sub: user._id }, RESET_SECRET, {
