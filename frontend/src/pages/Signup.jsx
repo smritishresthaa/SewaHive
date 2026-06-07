@@ -235,7 +235,7 @@ export default function Signup() {
       await api.post("/auth/register", payload);
 
       toast.success("Account created! Please check your email to verify your account.");
-      navigate(`/verify-info?email=${encodeURIComponent(form.email)}`);
+      navigate(`/verify-info?email=${encodeURIComponent(form.email)}&role=client`);
     } catch (err) {
       const msg =
         err?.response?.data?.message ||

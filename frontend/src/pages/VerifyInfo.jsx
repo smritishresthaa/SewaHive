@@ -18,6 +18,7 @@ export default function VerifyInfo() {
   const query = useQuery();
 
   const [email, setEmail] = useState((query.get("email") || "").trim().toLowerCase());
+  const role = query.get("role") === "provider" ? "provider" : "client";
   const [otp, setOtp] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
@@ -92,7 +93,7 @@ export default function VerifyInfo() {
       setRemainingAttempts(5);
 
       window.setTimeout(() => {
-        navigate("/login", { replace: true });
+        navigate(`/login?role=${role}`, { replace: true });
       }, 1400);
     } catch (err) {
       const retryAfterSeconds = Number(err?.response?.data?.retryAfterSeconds || 0);
@@ -205,7 +206,7 @@ export default function VerifyInfo() {
                   What to expect
                 </p>
                 <ul className="mt-3 space-y-3 text-sm text-emerald-50/90">
-                  <li>• The code expires in 10 minutes.</li>
+                  <li>• The code expires in 30 minutes.</li>
                   <li>• You can request a new code after a short cooldown.</li>
                   <li>• Too many incorrect attempts will require a fresh code.</li>
                 </ul>

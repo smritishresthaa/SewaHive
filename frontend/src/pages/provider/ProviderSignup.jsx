@@ -242,7 +242,7 @@ export default function ProviderSignup() {
       });
 
       toast.success("Provider account created! Please verify your email 📧");
-      navigate(`/verify-info?email=${encodeURIComponent(form.email)}`);
+      navigate(`/verify-info?email=${encodeURIComponent(form.email)}&role=provider`);
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
@@ -265,7 +265,7 @@ export default function ProviderSignup() {
         try {
           const user = await loginWithGoogle(response.credential, "provider");
           toast.success("Signed up with Google!");
-          navigate(getRedirectPath(user.role));
+          navigate(getRedirectPath(user.role, user));
         } catch (err) {
           console.error(err);
           const errorMsg =
