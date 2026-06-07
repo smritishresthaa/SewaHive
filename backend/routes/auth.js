@@ -146,7 +146,7 @@ async function issueEmailVerificationOtp(user) {
 
   console.warn(`EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
 
-setImmediate(async () => {
+setTimeout(async () => {
   try {
     const emailInfo = await sendEmail(user.email, subject, html);
     if (emailInfo?.messageId === "dev-skip") {
@@ -155,7 +155,7 @@ setImmediate(async () => {
   } catch (emailError) {
     console.error("Signup verification email failed:", emailError.message);
   }
-});
+}, 0);
 
 return { otp, expiresAt, resendAvailableAt };
 
