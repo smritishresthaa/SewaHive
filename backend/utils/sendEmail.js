@@ -1,31 +1,13 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const EMAIL_FROM = process.env.EMAIL_FROM || "SewaHive <onboarding@resend.dev>";
+
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 function isValidEmail(email = "") {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
-
-function createTransporter() {
-  if (!EMAIL_USER || !EMAIL_PASS) return null;
-
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-    connectionTimeout: 60000,
-    greetingTimeout: 60000,
-    socketTimeout: 60000,
-    tls: {
-      rejectUnauthorized: false,
-    },
-  });
-}
-
-const transporter = createTransporter();
 
 async function sendEmail(to, subject, html) {
   try {
@@ -39,28 +21,29 @@ async function sendEmail(to, subject, html) {
       throw new Error(`Invalid recipient email: ${recipient}`);
     }
 
-    if (!EMAIL_USER || !EMAIL_PASS || !transporter) {
+    if (!resend) {
       if (process.env.NODE_ENV !== "production") {
-        console.warn(
-          "Email disabled: missing EMAIL_USER/EMAIL_PASS. Skipping send."
-        );
+        console.warn("Email disabled: missing RESEND_API_KEY. Skipping send.");
         return { messageId: "dev-skip" };
       }
 
       throw new Error("Email service not configured.");
     }
 
-    await transporter.verify();
-
-    const info = await transporter.sendMail({
-      from: `"SewaHive" <${EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_FROM,
       to: recipient,
       subject: String(subject || "").trim(),
       html: String(html || ""),
     });
 
-    console.log("📧 Email sent successfully →", info.messageId);
-    return info;
+    if (error) {
+      console.error("❌ Email sending failed:", error);
+      throw new Error(error.message || "Email could not be sent.");
+    }
+
+    console.log("📧 Email sent successfully →", data?.id);
+    return { messageId: data?.id };
   } catch (err) {
     console.error("❌ Email sending failed:", err.message || err);
 
