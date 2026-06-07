@@ -359,11 +359,16 @@ router.post("/register", async (req, res, next) => {
       ...buildOnboarding(user),
     };
     await user.save();
-    await issueEmailVerificationOtp(user);
+
+    try {
+      await issueEmailVerificationOtp(user);
+    } catch (emailError) {
+      console.error("Signup verification email failed:", emailError.message);
+    }
 
     res.json({
       message:
-        "Registration successful. We sent a 6-digit verification code to your email.",
+        "Registration successful. If email sending is delayed, please use resend verification code.",
       onboarding: buildOnboarding(user),
       verification: buildEmailVerificationState(user),
     });
@@ -787,7 +792,15 @@ router.post("/resend-verification", async (req, res) => {
       });
     }
 
-    await issueEmailVerificationOtp(user);
+    try {
+      await issueEmailVerificationOtp(user);
+    } catch (emailError) {
+      console.error("Resend verification email failed:", emailError.message);
+      return res.status(500).json({
+        message: "Account exists, but verification email could not be sent right now.",
+        verification: buildEmailVerificationState(user),
+      });
+    }
 
     res.json({
       message: "A new 6-digit verification code has been sent to your email.",
