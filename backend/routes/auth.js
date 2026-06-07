@@ -144,20 +144,19 @@ async function issueEmailVerificationOtp(user) {
     </div>
   `;
 
-  console.warn(`EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
-
-setTimeout(async () => {
-  try {
-    const emailInfo = await sendEmail(user.email, subject, html);
-    if (emailInfo?.messageId === "dev-skip") {
-      console.warn(`DEV EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
-    }
-  } catch (emailError) {
-    console.error("Signup verification email failed:", emailError.message);
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`DEV EMAIL VERIFICATION OTP for ${user.email}: ${otp}`);
   }
-}, 0);
 
-return { otp, expiresAt, resendAvailableAt };
+  const emailInfo = await sendEmail(user.email, subject, html);
+
+  console.log("Signup verification email queued:", {
+    userId: user._id,
+    email: user.email,
+    messageId: emailInfo?.messageId,
+  });
+
+  return { expiresAt, resendAvailableAt };
 }
 
 function generatePasswordResetToken(user) {
@@ -372,11 +371,16 @@ router.post("/register", async (req, res, next) => {
       await issueEmailVerificationOtp(user);
     } catch (emailError) {
       console.error("Signup verification email failed:", emailError.message);
+
+      return res.status(502).json({
+        message:
+          "Account was created, but the verification email could not be sent. Please contact support or try resend after email service is configured.",
+          verification: buildEmailVerificationState(user),
+      });
     }
 
     res.json({
-      message:
-        "Registration successful. If email sending is delayed, please use resend verification code.",
+      message: "Registration successful. Please check your email for the verification code.",
       onboarding: buildOnboarding(user),
       verification: buildEmailVerificationState(user),
     });

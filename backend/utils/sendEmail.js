@@ -1,59 +1,53 @@
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || "SewaHive <onboarding@resend.dev>";
-
-const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+const EMAIL_FROM = process.env.EMAIL_FROM || `SewaHive <${EMAIL_USER}>`;
 
 function isValidEmail(email = "") {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
 
+const transporter =
+  EMAIL_USER && EMAIL_PASS
+    ? nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: EMAIL_USER,
+          pass: EMAIL_PASS,
+        },
+      })
+    : null;
+
 async function sendEmail(to, subject, html) {
-  try {
-    const recipient = String(to || "").trim();
+  const recipient = String(to || "").trim();
 
-    if (!recipient) {
-      throw new Error("Recipient email is required.");
-    }
-
-    if (!isValidEmail(recipient)) {
-      throw new Error(`Invalid recipient email: ${recipient}`);
-    }
-
-    if (!resend) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Email disabled: missing RESEND_API_KEY. Skipping send.");
-        return { messageId: "dev-skip" };
-      }
-
-      throw new Error("Email service not configured.");
-    }
-
-    const { data, error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to: recipient,
-      subject: String(subject || "").trim(),
-      html: String(html || ""),
-    });
-
-    if (error) {
-      console.error("❌ Email sending failed:", error);
-      throw new Error(error.message || "Email could not be sent.");
-    }
-
-    console.log("📧 Email sent successfully →", data?.id);
-    return { messageId: data?.id };
-  } catch (err) {
-    console.error("❌ Email sending failed:", err.message || err);
-
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("DEV fallback: skipping email send after failure.");
-      return { messageId: "dev-skip" };
-    }
-
-    throw new Error("Email could not be sent.");
+  if (!recipient) {
+    throw new Error("Recipient email is required.");
   }
+
+  if (!isValidEmail(recipient)) {
+    throw new Error("Invalid recipient email.");
+  }
+
+  if (!transporter) {
+    throw new Error("SMTP email service is not configured.");
+  }
+
+  const info = await transporter.sendMail({
+    from: EMAIL_FROM,
+    to: recipient,
+    subject: String(subject || "").trim(),
+    html: String(html || ""),
+  });
+
+  console.log("Email sent:", {
+    messageId: info.messageId,
+    accepted: info.accepted,
+    rejected: info.rejected,
+  });
+
+  return { messageId: info.messageId };
 }
 
 module.exports = sendEmail;
