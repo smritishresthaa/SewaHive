@@ -11,11 +11,16 @@ function isValidEmail(email = "") {
 const transporter =
   EMAIL_USER && EMAIL_PASS
     ? nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: {
           user: EMAIL_USER,
           pass: EMAIL_PASS,
         },
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
       })
     : null;
 
