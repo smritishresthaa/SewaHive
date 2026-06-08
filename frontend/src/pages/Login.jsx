@@ -42,7 +42,11 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const user = await login(form.email, form.password);
+      const user = await login(
+        form.email,
+        form.password,
+        roleHint === "provider" ? "provider" : roleHint === "client" ? "client" : null
+      );
 
       let finalUser = user;
 

@@ -394,7 +394,8 @@ router.post("/register", async (req, res, next) => {
 // ----------------------------------------------
 router.post("/login", async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
+    const requestedRole = String(role || "").trim().toLowerCase();
 
     let user = await User.findOne({ email }).select("+passwordHash");
     if (!user || !user.passwordHash) {
@@ -427,8 +428,12 @@ router.post("/login", async (req, res, next) => {
     user.onboarding = { ...(user.onboarding || {}), ...buildOnboarding(user) };
     await user.save();
 
-    const { accessToken, refreshToken, activeRole } = generateTokens(user);
+    const requestedActiveRole =
+      ["client", "provider", "admin"].includes(requestedRole) && hasRole(user, requestedRole)
+        ? requestedRole
+        : null;
 
+    const { accessToken, refreshToken, activeRole } = generateTokens(user, requestedActiveRole);
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       sameSite: "lax",

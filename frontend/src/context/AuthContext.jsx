@@ -59,9 +59,9 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function login(email, password) {
+  async function login(email, password, role = null) {
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const res = await api.post("/auth/login", { email, password, role });
       const token = res.data?.accessToken;
       const loggedInUser = normalizeUserShape(res.data?.user);
       if (!token || !loggedInUser) throw new Error("Invalid server response");

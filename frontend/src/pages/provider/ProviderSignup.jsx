@@ -619,7 +619,7 @@ export default function ProviderSignup() {
 
               <div className="mt-5 text-center text-xs text-slate-500">
                 Already a provider?{" "}
-                <Link to="/login" className="text-emerald-700 font-medium">
+                <Link to="/login?role=provider" className="text-emerald-700 font-medium">
                   Login
                 </Link>
               </div>
