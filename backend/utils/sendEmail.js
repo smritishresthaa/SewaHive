@@ -1,59 +1,37 @@
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
 const EMAIL_FROM = process.env.EMAIL_FROM || `SewaHive <${EMAIL_USER}>`;
+
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+}
 
 function isValidEmail(email = "") {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
 
-const transporter =
-  EMAIL_USER && EMAIL_PASS
-    ? nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        requireTLS: true,
-        auth: {
-          user: EMAIL_USER,
-          pass: EMAIL_PASS,
-        },
-        connectionTimeout: 30000,
-        greetingTimeout: 30000,
-        socketTimeout: 30000,
-      })
-    : null;
-
 async function sendEmail(to, subject, html) {
   const recipient = String(to || "").trim();
 
-  if (!recipient) {
-    throw new Error("Recipient email is required.");
-  }
+  if (!recipient) throw new Error("Recipient email is required.");
+  if (!isValidEmail(recipient)) throw new Error("Invalid recipient email.");
+  if (!SENDGRID_API_KEY) throw new Error("SendGrid API key is missing.");
 
-  if (!isValidEmail(recipient)) {
-    throw new Error("Invalid recipient email.");
-  }
-
-  if (!transporter) {
-    throw new Error("SMTP email service is not configured.");
-  }
-
-  const info = await transporter.sendMail({
-    from: EMAIL_FROM,
+  const [response] = await sgMail.send({
     to: recipient,
+    from: EMAIL_FROM,
     subject: String(subject || "").trim(),
     html: String(html || ""),
   });
 
   console.log("Email sent:", {
-    messageId: info.messageId,
-    accepted: info.accepted,
-    rejected: info.rejected,
+    provider: "sendgrid",
+    statusCode: response?.statusCode,
   });
 
-  return { messageId: info.messageId };
+  return { messageId: response?.headers?.["x-message-id"] };
 }
 
 module.exports = sendEmail;
